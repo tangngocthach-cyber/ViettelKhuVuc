@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../config.dart';
 import '../services/auth_service.dart';
 import '../theme.dart';
@@ -41,6 +42,20 @@ class _WebViewScreenState extends State<WebViewScreen> {
           _dangTai = false;
           _loiMang = true;
         }),
+        onNavigationRequest: (request) async {
+          final host = Uri.tryParse(request.url)?.host ?? '';
+          // Trang trong CHÍNH site (viettelkhuvuc.com) và trang tiêu thụ vé đăng
+          // nhập -> cho WebView tự tải bình thường. Link ra domain KHÁC (VD
+          // notebooklm.google.com từ trang "Trợ lý NotebookLM") -> KHÔNG tải
+          // trong WebView (Google chặn nhúng), mà mở bằng trình duyệt NGOÀI máy.
+          final laDomainCuaSite = host.isEmpty || host.endsWith('viettelkhuvuc.com');
+          if (!laDomainCuaSite) {
+            final uri = Uri.tryParse(request.url);
+            if (uri != null) { await launchUrl(uri, mode: LaunchMode.externalApplication); }
+            return NavigationDecision.prevent;
+          }
+          return NavigationDecision.navigate;
+        },
       ));
     _taiTrangCoDangNhap();
   }
