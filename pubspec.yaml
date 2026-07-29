@@ -29,6 +29,10 @@ dependencies:
   package_info_plus: ^8.0.0
   permission_handler: ^11.3.1
 
+  # Mở link ra NGOÀI site (VD NotebookLM, link "mở tab mới") bằng trình duyệt
+  # ngoài của máy - WebView mặc định KHÔNG tự mở tab mới được như trình duyệt thường
+  url_launcher: ^6.3.1
+
   # Định dạng ngày giờ tiếng Việt trong Chat
   intl: ^0.19.0
 
