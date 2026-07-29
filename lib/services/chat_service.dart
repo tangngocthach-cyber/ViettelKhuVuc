@@ -32,16 +32,19 @@ class ChatService {
 
   /// Gửi tin nhắn text. [filePath] khác null thì gửi kèm ảnh/file (dùng
   /// multipart) - 1 API DUY NHẤT xử lý cả 3 loại (đúng thiết kế backend).
+  /// [replyToMessageId] khác null -> gửi kèm trả lời trích dẫn 1 tin cụ thể.
   static Future<ChatMessage?> sendMessage({
     required int conversationId,
     String? noiDung,
     String? filePath,
+    int? replyToMessageId,
   }) async {
     final token = await AuthService.getToken();
     final request = http.MultipartRequest('POST', Uri.parse(AppConfig.apiChatSend));
     request.headers['Authorization'] = 'Bearer $token';
     request.fields['conversation_id'] = '$conversationId';
     if (noiDung != null && noiDung.isNotEmpty) request.fields['noi_dung'] = noiDung;
+    if (replyToMessageId != null) request.fields['reply_to_message_id'] = '$replyToMessageId';
     if (filePath != null) request.files.add(await http.MultipartFile.fromPath('file', filePath));
 
     final streamed = await request.send().timeout(const Duration(seconds: 60));
@@ -75,16 +78,20 @@ class ChatService {
     return List<String>.from(data['dang_nhap'] ?? []);
   }
 
-  /// Bấm Like/Bỏ Like (toggle) - trả về {da_thich, so_thich} mới nhất
-  static Future<Map<String, dynamic>?> toggleLike(int messageId) async {
+  /// Bấm 1 trong 5 loại Reaction (thich/yeu/haha/wow/buon) - bấm lại đúng loại
+  /// đang có sẽ TỰ BỎ (toggle), bấm loại khác sẽ ĐỔI sang loại đó.
+  static Future<Map<String, dynamic>?> toggleReaction(int messageId, String loaiReaction) async {
     final res = await http.post(
       Uri.parse(AppConfig.apiChatLike),
       headers: {...await _authHeader(), 'Content-Type': 'application/json'},
-      body: jsonEncode({'message_id': messageId}),
+      body: jsonEncode({'message_id': messageId, 'loai_reaction': loaiReaction}),
     );
     final data = jsonDecode(res.body);
     if (data['success'] != true) return null;
-    return {'da_thich': data['da_thich'], 'so_thich': data['so_thich']};
+    return {
+      'reaction_cua_toi': data['reaction_cua_toi'],
+      'reactions': Map<String, int>.from(data['reactions'] ?? {}),
+    };
   }
 
   /// Thu hồi/xóa tin nhắn - chủ tin nhắn thu hồi của mình, hoặc Quản trị Chat
@@ -97,5 +104,35 @@ class ChatService {
     );
     final data = jsonDecode(res.body);
     return data['success'] == true;
+  }
+
+  /// Ghim/Bỏ ghim tin nhắn quan trọng (toggle) - trả về trạng thái ghim mới nhất
+  static Future<bool?> togglePin(int messageId) async {
+    final res = await http.post(
+      Uri.parse(AppConfig.apiChatPin),
+      headers: {...await _authHeader(), 'Content-Type': 'application/json'},
+      body: jsonEncode({'message_id': messageId}),
+    );
+    final data = jsonDecode(res.body);
+    if (data['success'] != true) return null;
+    return data['is_pinned'] as bool;
+  }
+
+  /// Lấy danh sách tin nhắn đã ghim trong 1 cuộc trò chuyện
+  static Future<List<Map<String, dynamic>>> getPinnedMessages(int conversationId) async {
+    final uri = Uri.parse(AppConfig.apiChatPinnedList).replace(queryParameters: {'conversation_id': '$conversationId'});
+    final res = await http.get(uri, headers: await _authHeader());
+    final data = jsonDecode(res.body);
+    if (data['success'] != true) return [];
+    return List<Map<String, dynamic>>.from(data['data'] ?? []);
+  }
+
+  /// Tìm kiếm trong lịch sử chat của 1 cuộc trò chuyện (chỉ tin nhắn văn bản)
+  static Future<List<Map<String, dynamic>>> searchMessages(int conversationId, String tuKhoa) async {
+    final uri = Uri.parse(AppConfig.apiChatSearch).replace(queryParameters: {'conversation_id': '$conversationId', 'q': tuKhoa});
+    final res = await http.get(uri, headers: await _authHeader());
+    final data = jsonDecode(res.body);
+    if (data['success'] != true) return [];
+    return List<Map<String, dynamic>>.from(data['data'] ?? []);
   }
 }

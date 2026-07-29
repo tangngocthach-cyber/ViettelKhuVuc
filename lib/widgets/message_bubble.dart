@@ -14,8 +14,10 @@ class MessageBubble extends StatelessWidget {
   final bool hienThiTen; // chỉ hiện tên người gửi ở tin đầu tiên của 1 cụm (nhóm chat)
   final bool daXem; // tin nhắn cuối cùng của mình đã được người khác đọc chưa
   final bool laQuanTriChat; // được phép xóa tin của BẤT KỲ AI (xóa đơn phương)
-  final Future<void> Function(ChatMessage)? onToggleLike;
+  final Future<void> Function(ChatMessage, String loaiReaction)? onReaction;
   final Future<void> Function(ChatMessage)? onRecall;
+  final Future<void> Function(ChatMessage)? onPin;
+  final void Function(ChatMessage)? onTraLoi;
 
   const MessageBubble({
     super.key,
@@ -24,9 +26,44 @@ class MessageBubble extends StatelessWidget {
     this.hienThiTen = false,
     this.daXem = false,
     this.laQuanTriChat = false,
-    this.onToggleLike,
+    this.onReaction,
     this.onRecall,
+    this.onPin,
+    this.onTraLoi,
   });
+
+  void _hienThanhReactionNhanh(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(28), boxShadow: [BoxShadow(color: Colors.black.withOpacity(.15), blurRadius: 10)]),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: ChatReactions.emojiTheoLoai.entries.map((e) {
+              final dangChon = message.reactionCuaToi == e.key;
+              return InkWell(
+                borderRadius: BorderRadius.circular(24),
+                onTap: () {
+                  Navigator.pop(context);
+                  onReaction?.call(message, e.key);
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(color: dangChon ? AppTheme.viettelRed.withOpacity(.15) : null, shape: BoxShape.circle),
+                  child: Text(e.value, style: const TextStyle(fontSize: 28)),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+  }
 
   void _hienMenuHanhDong(BuildContext context) {
     final coTheXoa = laCuaMinh || laQuanTriChat;
@@ -36,11 +73,27 @@ class MessageBubble extends StatelessWidget {
         child: Wrap(
           children: [
             ListTile(
-              leading: Icon(message.daThich ? Icons.thumb_up : Icons.thumb_up_outlined, color: AppTheme.viettelRed),
-              title: Text(message.daThich ? 'Bỏ thích' : 'Thích'),
+              leading: const Icon(Icons.emoji_emotions_outlined, color: AppTheme.viettelRed),
+              title: const Text('Bày tỏ cảm xúc'),
               onTap: () {
                 Navigator.pop(context);
-                onToggleLike?.call(message);
+                _hienThanhReactionNhanh(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.reply, color: AppTheme.viettelRed),
+              title: const Text('Trả lời'),
+              onTap: () {
+                Navigator.pop(context);
+                onTraLoi?.call(message);
+              },
+            ),
+            ListTile(
+              leading: Icon(message.isPinned ? Icons.push_pin : Icons.push_pin_outlined, color: AppTheme.viettelRed),
+              title: Text(message.isPinned ? 'Bỏ ghim' : 'Ghim tin nhắn'),
+              onTap: () {
+                Navigator.pop(context);
+                onPin?.call(message);
               },
             ),
             if (coTheXoa && !message.daThuHoi)
@@ -81,6 +134,15 @@ class MessageBubble extends StatelessWidget {
               padding: const EdgeInsets.only(left: 12, bottom: 2),
               child: Text(message.senderName, style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w600)),
             ),
+          if (message.isPinned)
+            Padding(
+              padding: EdgeInsets.only(left: laCuaMinh ? 0 : 34, bottom: 2),
+              child: Row(mainAxisSize: MainAxisSize.min, children: const [
+                Icon(Icons.push_pin, size: 11, color: Colors.grey),
+                SizedBox(width: 3),
+                Text('Đã ghim', style: TextStyle(fontSize: 10.5, color: Colors.grey)),
+              ]),
+            ),
           Row(
             mainAxisAlignment: laCuaMinh ? MainAxisAlignment.end : MainAxisAlignment.start,
             crossAxisAlignment: CrossAxisAlignment.end,
@@ -95,22 +157,14 @@ class MessageBubble extends StatelessWidget {
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      _noiDungBongBong(context),
-                      if (message.soThich > 0)
-                        Positioned(
-                          bottom: -6,
-                          right: laCuaMinh ? null : -4,
-                          left: laCuaMinh ? -4 : null,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black.withOpacity(.15), blurRadius: 2)]),
-                            child: Row(mainAxisSize: MainAxisSize.min, children: [
-                              const Icon(Icons.thumb_up, size: 10, color: AppTheme.viettelRed),
-                              const SizedBox(width: 2),
-                              Text('${message.soThich}', style: const TextStyle(fontSize: 10, color: Colors.black87)),
-                            ]),
-                          ),
-                        ),
+                      Column(
+                        crossAxisAlignment: laCuaMinh ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                        children: [
+                          if (message.replyTo != null) _khungTrichDan(),
+                          _noiDungBongBong(context),
+                        ],
+                      ),
+                      if (message.tongSoReaction > 0) _huyHieuReaction(),
                     ],
                   ),
                 ),
@@ -118,7 +172,7 @@ class MessageBubble extends StatelessWidget {
             ],
           ),
           Padding(
-            padding: EdgeInsets.only(top: 6, left: laCuaMinh ? 0 : 34, right: laCuaMinh ? 4 : 0),
+            padding: EdgeInsets.only(top: message.tongSoReaction > 0 ? 12 : 6, left: laCuaMinh ? 0 : 34, right: laCuaMinh ? 4 : 0),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -131,6 +185,49 @@ class MessageBubble extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Khung nhỏ hiện phía trên bong bóng khi tin nhắn này là TRẢ LỜI 1 tin khác
+  Widget _khungTrichDan() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: (laCuaMinh ? Colors.white : AppTheme.viettelRed).withOpacity(.12),
+        borderRadius: BorderRadius.circular(10),
+        border: Border(left: BorderSide(color: AppTheme.viettelRed, width: 3)),
+      ),
+      constraints: const BoxConstraints(maxWidth: 220),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(message.replyTo!.senderName, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: AppTheme.viettelRed)),
+          Text(message.replyTo!.noiDung, style: const TextStyle(fontSize: 12, color: Colors.black54), maxLines: 1, overflow: TextOverflow.ellipsis),
+        ],
+      ),
+    );
+  }
+
+  /// Huy hiệu nhỏ hiện các emoji reaction + tổng số, đặt góc dưới bong bóng
+  Widget _huyHieuReaction() {
+    final loaiCoNguoiBam = message.reactions.entries.where((e) => e.value > 0).toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final toiDa3Loai = loaiCoNguoiBam.take(3);
+    return Positioned(
+      bottom: -8,
+      right: laCuaMinh ? null : -4,
+      left: laCuaMinh ? -4 : null,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black.withOpacity(.15), blurRadius: 2)]),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          ...toiDa3Loai.map((e) => Text(ChatReactions.emojiTheoLoai[e.key] ?? '', style: const TextStyle(fontSize: 11))),
+          const SizedBox(width: 2),
+          Text('${message.tongSoReaction}', style: const TextStyle(fontSize: 10, color: Colors.black87)),
+        ]),
       ),
     );
   }

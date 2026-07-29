@@ -34,20 +34,47 @@ class ChatConversation {
       );
 }
 
+/// Tóm tắt tin nhắn được trích dẫn (hiển thị khung nhỏ phía trên bong bóng)
+class ReplyPreview {
+  final int id;
+  final String senderName;
+  final String noiDung;
+  ReplyPreview({required this.id, required this.senderName, required this.noiDung});
+
+  factory ReplyPreview.fromJson(Map<String, dynamic> j) => ReplyPreview(
+        id: j['id'],
+        senderName: j['sender_name'] ?? '',
+        noiDung: j['noi_dung'] ?? '',
+      );
+}
+
+/// 5 loại reaction hỗ trợ - đồng bộ ĐÚNG với danh sách phía backend (like.php)
+class ChatReactions {
+  static const Map<String, String> emojiTheoLoai = {
+    'thich': '👍',
+    'yeu': '❤️',
+    'haha': '😆',
+    'wow': '😮',
+    'buon': '😢',
+  };
+}
+
 class ChatMessage {
   final int id;
   final int conversationId;
   final int senderId;
   final String senderName;
-  final String loai; // text | image | file
+  final String loai; // text | image | file | voice
   final String? noiDung;
   final String? fileUrl;
   final String? fileTenGoc;
   final int? fileSize;
   final DateTime createdAt;
   final bool daThuHoi;
-  bool daThich;
-  int soThich;
+  final ReplyPreview? replyTo;
+  bool isPinned;
+  Map<String, int> reactions; // {'thich': 2, 'yeu': 1}
+  String? reactionCuaToi; // loại reaction của CHÍNH MÌNH, null nếu chưa bấm
 
   ChatMessage({
     required this.id,
@@ -61,9 +88,14 @@ class ChatMessage {
     this.fileSize,
     required this.createdAt,
     this.daThuHoi = false,
-    this.daThich = false,
-    this.soThich = 0,
-  });
+    this.replyTo,
+    this.isPinned = false,
+    Map<String, int>? reactions,
+    this.reactionCuaToi,
+  }) : reactions = reactions ?? {};
+
+  /// Tổng số reaction (mọi loại cộng lại) - dùng để hiện số bên bong bóng
+  int get tongSoReaction => reactions.values.fold(0, (a, b) => a + b);
 
   factory ChatMessage.fromJson(Map<String, dynamic> j) => ChatMessage(
         id: j['id'],
@@ -77,7 +109,9 @@ class ChatMessage {
         fileSize: j['file_size'],
         createdAt: DateTime.tryParse(j['created_at'] ?? '') ?? DateTime.now(),
         daThuHoi: j['deleted_at'] != null,
-        daThich: j['da_thich'] ?? false,
-        soThich: j['so_thich'] ?? 0,
+        replyTo: j['reply_to'] != null ? ReplyPreview.fromJson(j['reply_to']) : null,
+        isPinned: j['is_pinned'] ?? false,
+        reactions: j['reactions'] != null ? Map<String, int>.from(j['reactions']) : {},
+        reactionCuaToi: j['reaction_cua_toi'],
       );
 }
