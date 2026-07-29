@@ -13,12 +13,19 @@ class GridModuleItem {
 /// sẽ mở đúng trang thật tương ứng trên website qua WebView.
 class IconGridView extends StatelessWidget {
   final List<GridModuleItem> items;
-  const IconGridView({super.key, required this.items});
+  final bool cuonRieng; // true = tự cuộn độc lập (dùng khi là body duy nhất của trang);
+  // false = KHÔNG tự cuộn, để trang cha (ListView/SingleChildScrollView) cuộn thay -
+  // BẮT BUỘC dùng false khi đặt nhiều IconGridView trong 1 trang cuộn, nếu không sẽ
+  // bị lỗi "Vertical viewport was given unbounded height" khiến màn hình trắng trơn
+  // (lỗi thật đã gặp trước đây ở tab Trang chủ).
+  const IconGridView({super.key, required this.items, this.cuonRieng = true});
 
   @override
   Widget build(BuildContext context) {
     return GridView.builder(
       padding: const EdgeInsets.all(16),
+      shrinkWrap: !cuonRieng,
+      physics: cuonRieng ? null : const NeverScrollableScrollPhysics(),
       // responsive: điện thoại 4 cột, máy tính bảng (>600dp) 6 cột - không vỡ layout
       gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: 110,
