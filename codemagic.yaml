@@ -5,9 +5,13 @@ workflows:
     environment:
       flutter: stable
     scripts:
-      - name: Tự sinh khung Android đầy đủ (gradle, MainActivity...) - CHỈ điền
-          phần còn thiếu, KHÔNG đè lên AndroidManifest.xml/icon đã có sẵn
-        script: flutter create --platforms=android .
+      - name: Tự sinh khung Android (ở thư mục TẠM riêng, không đụng vào lib/pubspec.yaml thật)
+        script: |
+          set -e
+          flutter create --platforms=android --project-name vinhhung_app --org com.vinhhung /tmp/android_scaffold
+          # Chỉ copy các file Android CÒN THIẾU (gradle, MainActivity, icon mặc định...) -
+          # "--ignore-existing" đảm bảo KHÔNG đè lên AndroidManifest.xml/icon thật đã có sẵn
+          rsync -a --ignore-existing /tmp/android_scaffold/android/ ./android/
       - name: Lấy các thư viện Flutter
         script: flutter pub get
       - name: Build file APK (bản release)
