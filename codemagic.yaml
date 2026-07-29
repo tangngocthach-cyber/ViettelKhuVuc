@@ -9,27 +9,23 @@ workflows:
         script: |
           set -e
           flutter create --platforms=android --project-name vinhhung_app --org com.vinhhung /tmp/android_scaffold
-          # Chỉ copy các file Android CÒN THIẾU (gradle, MainActivity, icon mặc định...) -
-          # "--ignore-existing" đảm bảo KHÔNG đè lên AndroidManifest.xml/icon thật đã có sẵn
           rsync -a --ignore-existing /tmp/android_scaffold/android/ ./android/
-      - name: Ép TOÀN BỘ thư viện con dùng chung Android SDK 36 (thư viện file_picker yêu
-          cầu tối thiểu bản 36). Dùng plugins.withId thay vì afterEvaluate - vì
-          afterEvaluate bị lỗi "already evaluated" do xung đột với dòng
-          evaluationDependsOn(":app") có sẵn trong file mẫu Flutter, còn plugins.withId
-          chạy ngay lúc plugin được áp dụng, không phụ thuộc thứ tự đánh giá dự án.
+      - name: Ép TOÀN BỘ thư viện con (trừ module "app") dùng chung Android SDK 36 - dùng
+          afterEvaluate ĐỂ CHẠY SAU CÙNG (đảm bảo giá trị 36 không bị chính file_picker tự
+          đặt lại đè mất - đây là lý do cách "plugins.withId" trước đó KHÔNG có tác dụng, vì
+          nó chạy quá sớm, trước khi file_picker tự gán lại compileSdk của chính nó).
+          BỎ QUA module "app" để tránh đúng lỗi "already evaluated" đã gặp ở lần thử trước
+          (module app bị ép evaluationDependsOn nên afterEvaluate gọi vào nó bị quá muộn).
         script: |
           if [ -f android/build.gradle.kts ]; then
             cat >> android/build.gradle.kts << 'GRADLE_EOF'
 
           subprojects {
-              plugins.withId("com.android.application") {
-                  extensions.configure(com.android.build.gradle.BaseExtension::class.java) {
-                      compileSdkVersion(36)
-                  }
-              }
-              plugins.withId("com.android.library") {
-                  extensions.configure(com.android.build.gradle.BaseExtension::class.java) {
-                      compileSdkVersion(36)
+              if (name != "app") {
+                  afterEvaluate {
+                      extensions.findByType(com.android.build.gradle.BaseExtension::class.java)?.let {
+                          it.compileSdkVersion(36)
+                      }
                   }
               }
           }
@@ -38,19 +34,27 @@ workflows:
           if [ -f android/build.gradle ]; then
             cat >> android/build.gradle << 'GRADLE_EOF'
 
-          subprojects {
-              plugins.withId('com.android.application') {
-                  android {
-                      compileSdkVersion 36
-                  }
-              }
-              plugins.withId('com.android.library') {
-                  android {
-                      compileSdkVersion 36
+          subprojects { proj ->
+              if (proj.name != 'app') {
+                  proj.afterEvaluate {
+                      if (proj.hasProperty('android')) {
+                          proj.android {
+                              compileSdkVersion 36
+                          }
+                      }
                   }
               }
           }
           GRADLE_EOF
+          fi
+      - name: Ép module app dùng thẳng Android SDK 36 (chèn trực tiếp, không qua
+          afterEvaluate vì module này chính là module gây lỗi "already evaluated")
+        script: |
+          if [ -f android/app/build.gradle.kts ]; then
+            awk '{print} /^[[:space:]]*android[[:space:]]*\{/ && !done {print "    compileSdk = 36"; done=1}' android/app/build.gradle.kts > android/app/build.gradle.kts.tmp && mv android/app/build.gradle.kts.tmp android/app/build.gradle.kts
+          fi
+          if [ -f android/app/build.gradle ]; then
+            awk '{print} /^[[:space:]]*android[[:space:]]*\{/ && !done {print "    compileSdkVersion 36"; done=1}' android/app/build.gradle > android/app/build.gradle.tmp && mv android/app/build.gradle.tmp android/app/build.gradle
           fi
       - name: Lấy các thư viện Flutter
         script: flutter pub get
@@ -58,5 +62,3 @@ workflows:
         script: flutter build apk --release
     artifacts:
       - build/app/outputs/flutter-apk/*.apk
-
-
