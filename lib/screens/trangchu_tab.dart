@@ -26,10 +26,7 @@ class TrangChuTab extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Viettel Khu Vực Vĩnh Hưng')),
-      body: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: IconGridView(items: items),
-      ),
+      body: IconGridView(items: items),
     );
   }
 }
