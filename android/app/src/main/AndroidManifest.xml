@@ -5,6 +5,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Chụp ảnh gửi Chat -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Định vị GPS để chia sẻ vị trí trong Chat -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <!-- Đọc ảnh/file từ thư viện để gửi Chat (Android 13+ dùng quyền chi tiết hơn) -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />

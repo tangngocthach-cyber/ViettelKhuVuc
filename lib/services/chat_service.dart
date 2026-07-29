@@ -137,4 +137,46 @@ class ChatService {
     if (data['success'] != true) return [];
     return List<Map<String, dynamic>>.from(data['data'] ?? []);
   }
+
+  /// Tạo 1 cuộc Bình chọn mới trong cuộc trò chuyện
+  static Future<ChatMessage?> createPoll({
+    required int conversationId,
+    required String cauHoi,
+    required List<String> options,
+    bool choPhepChonNhieu = false,
+  }) async {
+    final res = await http.post(
+      Uri.parse(AppConfig.apiChatPollCreate),
+      headers: {...await _authHeader(), 'Content-Type': 'application/json'},
+      body: jsonEncode({'conversation_id': conversationId, 'cau_hoi': cauHoi, 'options': options, 'cho_phep_chon_nhieu': choPhepChonNhieu}),
+    );
+    final data = jsonDecode(res.body);
+    if (data['success'] != true) return null;
+    return ChatMessage.fromJson(data['message']);
+  }
+
+  /// Bấm chọn/bỏ chọn 1 lựa chọn trong Bình chọn - trả về danh sách lựa chọn mới nhất
+  static Future<List<PollOption>?> votePoll(int optionId) async {
+    final res = await http.post(
+      Uri.parse(AppConfig.apiChatPollVote),
+      headers: {...await _authHeader(), 'Content-Type': 'application/json'},
+      body: jsonEncode({'option_id': optionId}),
+    );
+    final data = jsonDecode(res.body);
+    if (data['success'] != true) return null;
+    return (data['options'] as List).map((e) => PollOption.fromJson(e)).toList();
+  }
+
+  /// Gửi vị trí hiện tại
+  static Future<ChatMessage?> sendLocation({required int conversationId, required double lat, required double lng}) async {
+    final token = await AuthService.getToken();
+    final res = await http.post(
+      Uri.parse(AppConfig.apiChatSend),
+      headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/x-www-form-urlencoded'},
+      body: {'conversation_id': '$conversationId', 'lat': '$lat', 'lng': '$lng'},
+    );
+    final data = jsonDecode(res.body);
+    if (data['success'] != true) return null;
+    return ChatMessage.fromJson(data['message']);
+  }
 }

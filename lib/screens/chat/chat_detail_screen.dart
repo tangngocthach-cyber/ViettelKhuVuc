@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
 import '../../config.dart';
 import '../../models/chat_models.dart';
@@ -254,6 +255,104 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     }
   }
 
+  Future<void> _xuLyBinhChon(ChatMessage tin, int optionId) async {
+    final ketQua = await ChatService.votePoll(optionId);
+    if (ketQua != null && mounted) {
+      setState(() => tin.poll?.options = ketQua);
+    }
+  }
+
+  /// Chia sẻ vị trí hiện tại - tự xin quyền định vị nếu chưa có, báo lỗi rõ
+  /// ràng nếu người dùng từ chối hoặc tắt GPS (không để treo im lặng).
+  Future<void> _chiaSeViTri() async {
+    try {
+      var quyen = await Geolocator.checkPermission();
+      if (quyen == LocationPermission.denied) {
+        quyen = await Geolocator.requestPermission();
+      }
+      if (quyen == LocationPermission.denied || quyen == LocationPermission.deniedForever) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cần cấp quyền vị trí để dùng tính năng này.')));
+        return;
+      }
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vui lòng bật định vị (GPS) trên máy.')));
+        return;
+      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đang lấy vị trí hiện tại...')));
+      final viTri = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
+      final tin = await ChatService.sendLocation(conversationId: widget.conversation.id, lat: viTri.latitude, lng: viTri.longitude);
+      if (!mounted) return;
+      if (tin != null) {
+        setState(() => _tinNhan.add(tin));
+        _cuonXuongCuoi();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Không gửi được vị trí, thử lại sau.')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Không lấy được vị trí, kiểm tra lại GPS/mạng.')));
+    }
+  }
+
+  /// Mở dialog tạo Bình chọn mới - nhập câu hỏi + tối thiểu 2 lựa chọn
+  void _moDialogTaoBinhChon() {
+    final cauHoiCtrl = TextEditingController();
+    final optionCtrls = [TextEditingController(), TextEditingController()];
+    bool choPhepChonNhieu = false;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('Tạo bình chọn'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(controller: cauHoiCtrl, decoration: const InputDecoration(labelText: 'Câu hỏi')),
+                const SizedBox(height: 12),
+                ...optionCtrls.asMap().entries.map((e) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: TextField(controller: e.value, decoration: InputDecoration(labelText: 'Lựa chọn ${e.key + 1}')),
+                    )),
+                TextButton.icon(
+                  onPressed: optionCtrls.length >= 10 ? null : () => setDialogState(() => optionCtrls.add(TextEditingController())),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Thêm lựa chọn'),
+                ),
+                Row(
+                  children: [
+                    Checkbox(value: choPhepChonNhieu, onChanged: (v) => setDialogState(() => choPhepChonNhieu = v ?? false)),
+                    const Expanded(child: Text('Cho phép chọn nhiều lựa chọn', style: TextStyle(fontSize: 13))),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Hủy')),
+            ElevatedButton(
+              onPressed: () async {
+                final cauHoi = cauHoiCtrl.text.trim();
+                final options = optionCtrls.map((c) => c.text.trim()).where((t) => t.isNotEmpty).toList();
+                if (cauHoi.isEmpty || options.length < 2) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(const SnackBar(content: Text('Nhập câu hỏi và ít nhất 2 lựa chọn.')));
+                  return;
+                }
+                Navigator.pop(dialogContext);
+                final tin = await ChatService.createPoll(conversationId: widget.conversation.id, cauHoi: cauHoi, options: options, choPhepChonNhieu: choPhepChonNhieu);
+                if (tin != null && mounted) {
+                  setState(() => _tinNhan.add(tin));
+                  _cuonXuongCuoi();
+                }
+              },
+              child: const Text('Tạo'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _hienMenuDinhKem() {
     setState(() => _hienEmoji = false);
     showModalBottomSheet(
@@ -264,6 +363,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
             ListTile(leading: const Icon(Icons.photo_camera, color: AppTheme.viettelRed), title: const Text('Chụp ảnh'), onTap: () { Navigator.pop(context); _chonAnh(ImageSource.camera); }),
             ListTile(leading: const Icon(Icons.photo_library, color: AppTheme.viettelRed), title: const Text('Chọn ảnh từ thư viện'), onTap: () { Navigator.pop(context); _chonAnh(ImageSource.gallery); }),
             ListTile(leading: const Icon(Icons.attach_file, color: AppTheme.viettelRed), title: const Text('Tệp đính kèm (docx, xlsx, pdf...)'), onTap: () { Navigator.pop(context); _chonFile(); }),
+            ListTile(leading: const Icon(Icons.poll, color: AppTheme.viettelRed), title: const Text('Tạo bình chọn'), onTap: () { Navigator.pop(context); _moDialogTaoBinhChon(); }),
+            ListTile(leading: const Icon(Icons.location_on, color: AppTheme.viettelRed), title: const Text('Chia sẻ vị trí hiện tại'), onTap: () { Navigator.pop(context); _chiaSeViTri(); }),
           ],
         ),
       ),
@@ -390,6 +491,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                                 onRecall: _xuLyThuHoi,
                                 onPin: _xuLyGhim,
                                 onTraLoi: _batDauTraLoi,
+                                onVotePoll: _xuLyBinhChon,
                               );
                             },
                           ),

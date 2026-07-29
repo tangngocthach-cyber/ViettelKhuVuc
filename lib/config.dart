@@ -21,6 +21,8 @@ class AppConfig {
   static const String apiChatPin = '$baseUrl/api/chat/pin.php';
   static const String apiChatPinnedList = '$baseUrl/api/chat/pinned_list.php';
   static const String apiChatSearch = '$baseUrl/api/chat/search.php';
+  static const String apiChatPollCreate = '$baseUrl/api/chat/poll_create.php';
+  static const String apiChatPollVote = '$baseUrl/api/chat/poll_vote.php';
   static const String apiWebTicket = '$baseUrl/api/auth/web_ticket.php';
   static const String urlSessionLogin = '$baseUrl/app-session-login.php';
 

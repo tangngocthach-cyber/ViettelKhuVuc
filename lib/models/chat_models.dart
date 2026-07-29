@@ -59,6 +59,37 @@ class ChatReactions {
   };
 }
 
+class PollOption {
+  final int id;
+  final String noiDung;
+  int soPhieu;
+  bool toiDaChon;
+  PollOption({required this.id, required this.noiDung, required this.soPhieu, required this.toiDaChon});
+
+  factory PollOption.fromJson(Map<String, dynamic> j) => PollOption(
+        id: j['id'], noiDung: j['noi_dung'] ?? '', soPhieu: j['so_phieu'] ?? 0, toiDaChon: j['toi_da_chon'] ?? false,
+      );
+}
+
+class PollData {
+  final int pollId;
+  final String cauHoi;
+  final bool choPhepChonNhieu;
+  final bool daKetThuc;
+  List<PollOption> options;
+  PollData({required this.pollId, required this.cauHoi, required this.choPhepChonNhieu, required this.daKetThuc, required this.options});
+
+  int get tongLuotBinhChon => options.fold(0, (a, o) => a + o.soPhieu);
+
+  factory PollData.fromJson(Map<String, dynamic> j) => PollData(
+        pollId: j['poll_id'],
+        cauHoi: j['cau_hoi'] ?? '',
+        choPhepChonNhieu: j['cho_phep_chon_nhieu'] ?? false,
+        daKetThuc: j['da_ket_thuc'] ?? false,
+        options: (j['options'] as List? ?? []).map((e) => PollOption.fromJson(e)).toList(),
+      );
+}
+
 class ChatMessage {
   final int id;
   final int conversationId;
@@ -73,6 +104,9 @@ class ChatMessage {
   final bool daThuHoi;
   final ReplyPreview? replyTo;
   final int? coChu; // cỡ chữ tùy chỉnh (tính năng giữ nút Gửi để phóng to/thu nhỏ)
+  final double? lat;
+  final double? lng;
+  PollData? poll;
   bool isPinned;
   Map<String, int> reactions; // {'thich': 2, 'yeu': 1}
   String? reactionCuaToi; // loại reaction của CHÍNH MÌNH, null nếu chưa bấm
@@ -91,6 +125,9 @@ class ChatMessage {
     this.daThuHoi = false,
     this.replyTo,
     this.coChu,
+    this.lat,
+    this.lng,
+    this.poll,
     this.isPinned = false,
     Map<String, int>? reactions,
     this.reactionCuaToi,
@@ -113,6 +150,9 @@ class ChatMessage {
         daThuHoi: j['deleted_at'] != null,
         replyTo: j['reply_to'] != null ? ReplyPreview.fromJson(j['reply_to']) : null,
         coChu: j['co_chu'],
+        lat: j['lat'] != null ? double.tryParse('${j['lat']}') : null,
+        lng: j['lng'] != null ? double.tryParse('${j['lng']}') : null,
+        poll: j['poll'] != null ? PollData.fromJson(j['poll']) : null,
         isPinned: j['is_pinned'] ?? false,
         reactions: j['reactions'] != null ? Map<String, int>.from(j['reactions']) : {},
         reactionCuaToi: j['reaction_cua_toi'],

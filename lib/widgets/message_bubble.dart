@@ -4,8 +4,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:io';
 import '../models/chat_models.dart';
+import '../services/chat_service.dart';
 import '../theme.dart';
 
 class MessageBubble extends StatelessWidget {
@@ -18,6 +20,7 @@ class MessageBubble extends StatelessWidget {
   final Future<void> Function(ChatMessage)? onRecall;
   final Future<void> Function(ChatMessage)? onPin;
   final void Function(ChatMessage)? onTraLoi;
+  final Future<void> Function(ChatMessage, int optionId)? onVotePoll;
 
   const MessageBubble({
     super.key,
@@ -30,6 +33,7 @@ class MessageBubble extends StatelessWidget {
     this.onRecall,
     this.onPin,
     this.onTraLoi,
+    this.onVotePoll,
   });
 
   void _hienThanhReactionNhanh(BuildContext context) {
@@ -296,10 +300,109 @@ class MessageBubble extends StatelessWidget {
       );
     }
 
+    if (message.loai == 'poll' && message.poll != null) {
+      return _khungBinhChon(context, mauNen, mauChu, bo);
+    }
+
+    if (message.loai == 'location' && message.lat != null && message.lng != null) {
+      return _khungViTri(bo);
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(color: mauNen, borderRadius: bo),
       child: Text(message.noiDung ?? '', style: TextStyle(color: mauChu, fontSize: (message.coChu ?? 15).toDouble())),
+    );
+  }
+
+  Widget _khungBinhChon(BuildContext context, Color mauNen, Color mauChu, BorderRadius bo) {
+    final poll = message.poll!;
+    return Container(
+      width: 240,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: mauNen, borderRadius: bo),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(children: [
+            Icon(Icons.poll, size: 16, color: mauChu),
+            const SizedBox(width: 6),
+            Expanded(child: Text(poll.cauHoi, style: TextStyle(color: mauChu, fontWeight: FontWeight.bold, fontSize: 14))),
+          ]),
+          const SizedBox(height: 8),
+          ...poll.options.map((opt) {
+            final tyLe = poll.tongLuotBinhChon == 0 ? 0.0 : opt.soPhieu / poll.tongLuotBinhChon;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () => onVotePoll?.call(message, opt.id),
+                child: Stack(
+                  children: [
+                    Container(
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: (laCuaMinh ? Colors.white : AppTheme.viettelRed).withOpacity(.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: FractionallySizedBox(
+                        widthFactor: tyLe.clamp(0, 1),
+                        child: Container(decoration: BoxDecoration(color: (laCuaMinh ? Colors.white : AppTheme.viettelRed).withOpacity(.28), borderRadius: BorderRadius.circular(8))),
+                      ),
+                    ),
+                    Positioned.fill(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Row(
+                          children: [
+                            Icon(opt.toiDaChon ? Icons.check_circle : Icons.radio_button_unchecked, size: 16, color: mauChu),
+                            const SizedBox(width: 6),
+                            Expanded(child: Text(opt.noiDung, style: TextStyle(color: mauChu, fontSize: 12.5), overflow: TextOverflow.ellipsis)),
+                            Text('${opt.soPhieu}', style: TextStyle(color: mauChu, fontSize: 11.5)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+          Text('${poll.tongLuotBinhChon} lượt bình chọn', style: TextStyle(color: mauChu.withOpacity(.7), fontSize: 10.5)),
+        ],
+      ),
+    );
+  }
+
+  Widget _khungViTri(BorderRadius bo) {
+    return InkWell(
+      borderRadius: bo,
+      onTap: () => launchUrl(Uri.parse('https://maps.google.com/?q=${message.lat},${message.lng}'), mode: LaunchMode.externalApplication),
+      child: Container(
+        width: 200,
+        decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: bo, border: Border.all(color: Colors.grey.shade300)),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              height: 90,
+              decoration: BoxDecoration(color: const Color(0xFFE8EAED), borderRadius: BorderRadius.vertical(top: bo.topLeft)),
+              child: const Center(child: Icon(Icons.location_on, color: AppTheme.viettelRed, size: 36)),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.map_outlined, size: 14, color: AppTheme.viettelRed),
+                  const SizedBox(width: 5),
+                  const Expanded(child: Text('Xem trên bản đồ', style: TextStyle(fontSize: 12.5, color: AppTheme.viettelRed, fontWeight: FontWeight.w600))),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
