@@ -53,12 +53,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const SizedBox(height: 40),
-                  Container(
-                    width: 84,
-                    height: 84,
-                    padding: const EdgeInsets.all(6),
-                    decoration: const BoxDecoration(color: AppTheme.viettelRed, shape: BoxShape.circle),
-                    child: const Image(image: AssetImage('assets/images/logo-vinhhung.png')),
+                  const SizedBox(
+                    width: 96,
+                    height: 96,
+                    child: Image(image: AssetImage('assets/images/logo-vinhhung.png')),
                   ),
                   const SizedBox(height: 20),
                   const Text('Viettel Khu Vực Vĩnh Hưng', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold), textAlign: TextAlign.center),

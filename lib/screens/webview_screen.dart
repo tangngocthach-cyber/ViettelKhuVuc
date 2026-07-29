@@ -43,14 +43,21 @@ class _WebViewScreenState extends State<WebViewScreen> {
           _loiMang = true;
         }),
         onNavigationRequest: (request) async {
-          final host = Uri.tryParse(request.url)?.host ?? '';
-          // Trang trong CHÍNH site (viettelkhuvuc.com) và trang tiêu thụ vé đăng
-          // nhập -> cho WebView tự tải bình thường. Link ra domain KHÁC (VD
-          // notebooklm.google.com từ trang "Trợ lý NotebookLM") -> KHÔNG tải
-          // trong WebView (Google chặn nhúng), mà mở bằng trình duyệt NGOÀI máy.
+          final uri = Uri.tryParse(request.url);
+          final host = uri?.host ?? '';
+          final path = (uri?.path ?? '').toLowerCase();
+
+          // Link ra domain KHÁC (VD notebooklm.google.com) -> Google chặn nhúng,
+          // mở bằng trình duyệt ngoài máy thay vì cố tải trong WebView.
           final laDomainCuaSite = host.isEmpty || host.endsWith('viettelkhuvuc.com');
-          if (!laDomainCuaSite) {
-            final uri = Uri.tryParse(request.url);
+
+          // Link TẢI FILE (dù cùng domain) -> WebView của Flutter KHÔNG tự tải
+          // file được (không có "Download Manager" như trình duyệt thường), nên
+          // phải giao cho trình duyệt ngoài máy tải và lưu đúng vào máy.
+          const duoiFileTai = ['.pdf', '.xlsx', '.xls', '.doc', '.docx', '.ppt', '.pptx', '.zip', '.csv', '.apk'];
+          final laLinkTaiFile = path.contains('tai-lieu-tai-xuong.php') || duoiFileTai.any((duoi) => path.endsWith(duoi));
+
+          if (!laDomainCuaSite || laLinkTaiFile) {
             if (uri != null) { await launchUrl(uri, mode: LaunchMode.externalApplication); }
             return NavigationDecision.prevent;
           }
