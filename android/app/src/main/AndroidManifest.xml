@@ -12,6 +12,17 @@
          qua Google Play) - nếu thiếu quyền này, Android sẽ chặn cài đặt im lặng -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!-- Bắt buộc từ Android 11+ (API 30): khai báo rõ app CÓ THỂ mở trình duyệt
+         ngoài (VD khi WebView gặp link ra ngoài site như NotebookLM), nếu thiếu
+         khai báo này, launchUrl() sẽ báo không tìm thấy app xử lý được link -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
+
     <application
         android:label="Viettel Khu Vực Vĩnh Hưng"
         android:name="${applicationName}"
