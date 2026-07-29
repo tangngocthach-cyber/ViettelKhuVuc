@@ -72,6 +72,7 @@ class ChatMessage {
   final DateTime createdAt;
   final bool daThuHoi;
   final ReplyPreview? replyTo;
+  final int? coChu; // cỡ chữ tùy chỉnh (tính năng giữ nút Gửi để phóng to/thu nhỏ)
   bool isPinned;
   Map<String, int> reactions; // {'thich': 2, 'yeu': 1}
   String? reactionCuaToi; // loại reaction của CHÍNH MÌNH, null nếu chưa bấm
@@ -89,6 +90,7 @@ class ChatMessage {
     required this.createdAt,
     this.daThuHoi = false,
     this.replyTo,
+    this.coChu,
     this.isPinned = false,
     Map<String, int>? reactions,
     this.reactionCuaToi,
@@ -110,6 +112,7 @@ class ChatMessage {
         createdAt: DateTime.tryParse(j['created_at'] ?? '') ?? DateTime.now(),
         daThuHoi: j['deleted_at'] != null,
         replyTo: j['reply_to'] != null ? ReplyPreview.fromJson(j['reply_to']) : null,
+        coChu: j['co_chu'],
         isPinned: j['is_pinned'] ?? false,
         reactions: j['reactions'] != null ? Map<String, int>.from(j['reactions']) : {},
         reactionCuaToi: j['reaction_cua_toi'],

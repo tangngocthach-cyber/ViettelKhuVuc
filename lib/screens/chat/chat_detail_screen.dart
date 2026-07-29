@@ -34,6 +34,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   bool _dangGui = false;
   bool _hienEmoji = false;
   ChatMessage? _dangTraLoi; // tin nhắn đang được trả lời trích dẫn (null = không trả lời)
+  bool _dangChinhCoChu = false;
+  double _coChuHienTai = 15;
+  double? _viTriYbatDau;
 
   @override
   void initState() {
@@ -176,6 +179,45 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     _cuonXuongCuoi();
   }
 
+  /// Giữ tay vào nút Gửi (không nhấc lên) rồi kéo lên/xuống để chọn cỡ chữ to/nhỏ
+  /// hơn cho CHÍNH tin nhắn sắp gửi - nhả tay ra là gửi luôn với cỡ chữ đã chọn.
+  void _batDauGiuNutGui(LongPressStartDetails details) {
+    if (_tinNhanCtrl.text.trim().isEmpty) return;
+    setState(() {
+      _dangChinhCoChu = true;
+      _coChuHienTai = 15;
+      _viTriYbatDau = details.globalPosition.dy;
+    });
+  }
+
+  void _keoNutGui(LongPressMoveUpdateDetails details) {
+    if (_viTriYbatDau == null) return;
+    final chenhLech = _viTriYbatDau! - details.globalPosition.dy; // kéo LÊN = dương = chữ TO hơn
+    setState(() => _coChuHienTai = (15 + chenhLech / 4).clamp(10, 40));
+  }
+
+  Future<void> _thaNutGui(LongPressEndDetails details) async {
+    if (!_dangChinhCoChu) return;
+    final coChuGui = _coChuHienTai.round();
+    setState(() => _dangChinhCoChu = false);
+    if ((_tinNhanCtrl.text.trim().isEmpty)) return;
+    setState(() => _dangGui = true);
+    final tin = await ChatService.sendMessage(
+      conversationId: widget.conversation.id,
+      noiDung: _tinNhanCtrl.text,
+      replyToMessageId: _dangTraLoi?.id,
+      coChu: coChuGui == 15 ? null : coChuGui,
+    );
+    if (!mounted) return;
+    setState(() {
+      _dangGui = false;
+      if (tin != null) _tinNhan.add(tin);
+      _tinNhanCtrl.clear();
+      _dangTraLoi = null;
+    });
+    _cuonXuongCuoi();
+  }
+
   Future<void> _chonAnh(ImageSource nguon) async {
     final picker = ImagePicker();
     final anh = await picker.pickImage(source: nguon, imageQuality: 80);
@@ -252,12 +294,30 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        title: Row(
           children: [
-            Text(widget.conversation.ten, style: const TextStyle(fontSize: 16)),
-            if (_dangGoNguoiKhac.isNotEmpty)
-              Text('${_dangGoNguoiKhac.join(", ")} đang nhập...', style: const TextStyle(fontSize: 11.5, color: Colors.white70)),
+            CircleAvatar(
+              radius: 16,
+              backgroundColor: Colors.white24,
+              backgroundImage: widget.conversation.anhDaiDien != null && widget.conversation.anhDaiDien!.isNotEmpty
+                  ? NetworkImage('${AppConfig.baseUrl}${widget.conversation.anhDaiDien}')
+                  : null,
+              child: (widget.conversation.anhDaiDien == null || widget.conversation.anhDaiDien!.isEmpty)
+                  ? Icon(widget.conversation.loai == 'nhom' ? Icons.groups : Icons.person, color: Colors.white, size: 16)
+                  : null,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(widget.conversation.ten, style: const TextStyle(fontSize: 16), overflow: TextOverflow.ellipsis),
+                  if (_dangGoNguoiKhac.isNotEmpty)
+                    Text('${_dangGoNguoiKhac.join(", ")} đang nhập...', style: const TextStyle(fontSize: 11.5, color: Colors.white70)),
+                ],
+              ),
+            ),
           ],
         ),
         actions: [
@@ -265,100 +325,132 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
           IconButton(icon: const Icon(Icons.search), tooltip: 'Tìm kiếm', onPressed: _moTimKiem),
         ],
       ),
-      body: Column(
+      body: Stack(
         children: [
-          Expanded(
-            child: _dangTaiBanDau
-                ? const Center(child: CircularProgressIndicator(color: AppTheme.viettelRed))
-                : _tinNhan.isEmpty
-                    ? const Center(child: Text('Chưa có tin nhắn - gửi lời chào đầu tiên!', style: TextStyle(color: Colors.grey)))
-                    : ListView.builder(
-                        controller: _scrollCtrl,
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        itemCount: _tinNhan.length,
-                        itemBuilder: (context, i) {
-                          final tin = _tinNhan[i];
-                          final laCuaMinh = '${tin.senderId}' == _userIdHienTai;
-                          final tinTruoc = i > 0 ? _tinNhan[i - 1] : null;
-                          final hienThiTen = tinTruoc == null || tinTruoc.senderId != tin.senderId;
-                          final laTinCuoiCuaMinh = laCuaMinh && i == _tinNhan.length - 1;
-                          return MessageBubble(
-                            message: tin,
-                            laCuaMinh: laCuaMinh,
-                            hienThiTen: hienThiTen,
-                            daXem: laTinCuoiCuaMinh,
-                            laQuanTriChat: _laQuanTriChat,
-                            onReaction: _xuLyReaction,
-                            onRecall: _xuLyThuHoi,
-                            onPin: _xuLyGhim,
-                            onTraLoi: _batDauTraLoi,
-                          );
+          Column(
+            children: [
+              Expanded(
+                child: _dangTaiBanDau
+                    ? const Center(child: CircularProgressIndicator(color: AppTheme.viettelRed))
+                    : _tinNhan.isEmpty
+                        ? const Center(child: Text('Chưa có tin nhắn - gửi lời chào đầu tiên!', style: TextStyle(color: Colors.grey)))
+                        : ListView.builder(
+                            controller: _scrollCtrl,
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            itemCount: _tinNhan.length,
+                            itemBuilder: (context, i) {
+                              final tin = _tinNhan[i];
+                              final laCuaMinh = '${tin.senderId}' == _userIdHienTai;
+                              final tinTruoc = i > 0 ? _tinNhan[i - 1] : null;
+                              final hienThiTen = tinTruoc == null || tinTruoc.senderId != tin.senderId;
+                              final laTinCuoiCuaMinh = laCuaMinh && i == _tinNhan.length - 1;
+                              return MessageBubble(
+                                message: tin,
+                                laCuaMinh: laCuaMinh,
+                                hienThiTen: hienThiTen,
+                                daXem: laTinCuoiCuaMinh,
+                                laQuanTriChat: _laQuanTriChat,
+                                onReaction: _xuLyReaction,
+                                onRecall: _xuLyThuHoi,
+                                onPin: _xuLyGhim,
+                                onTraLoi: _batDauTraLoi,
+                              );
+                            },
+                          ),
+              ),
+              if (_dangTraLoi != null) _khungDangTraLoi(),
+              SafeArea(
+                top: false,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black.withOpacity(.05), blurRadius: 6, offset: const Offset(0, -2))]),
+                  child: Row(
+                    children: [
+                      IconButton(icon: const Icon(Icons.add_circle_outline, color: AppTheme.viettelRed), onPressed: _hienMenuDinhKem),
+                      IconButton(
+                        icon: Icon(_hienEmoji ? Icons.keyboard : Icons.emoji_emotions_outlined, color: AppTheme.viettelRed),
+                        onPressed: () {
+                          setState(() => _hienEmoji = !_hienEmoji);
+                          if (_hienEmoji) { FocusScope.of(context).unfocus(); } else { _focusNode.requestFocus(); }
                         },
                       ),
-          ),
-          if (_dangTraLoi != null) _khungDangTraLoi(),
-          SafeArea(
-            top: false,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black.withOpacity(.05), blurRadius: 6, offset: const Offset(0, -2))]),
-              child: Row(
-                children: [
-                  IconButton(icon: const Icon(Icons.add_circle_outline, color: AppTheme.viettelRed), onPressed: _hienMenuDinhKem),
-                  IconButton(
-                    icon: Icon(_hienEmoji ? Icons.keyboard : Icons.emoji_emotions_outlined, color: AppTheme.viettelRed),
-                    onPressed: () {
-                      setState(() => _hienEmoji = !_hienEmoji);
-                      if (_hienEmoji) { FocusScope.of(context).unfocus(); } else { _focusNode.requestFocus(); }
-                    },
-                  ),
-                  Expanded(
-                    child: TextField(
-                      controller: _tinNhanCtrl,
-                      focusNode: _focusNode,
-                      textCapitalization: TextCapitalization.sentences,
-                      minLines: 1,
-                      maxLines: 4,
-                      onTap: () { if (_hienEmoji) setState(() => _hienEmoji = false); },
-                      onChanged: (_) {
-                        _typingTimer?.cancel();
-                        _typingTimer = Timer(const Duration(milliseconds: 400), _baoDangGo);
-                      },
-                      decoration: InputDecoration(
-                        hintText: 'Nhập tin nhắn...',
-                        filled: true,
-                        fillColor: const Color(0xFFF1F1F1),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
+                      Expanded(
+                        child: TextField(
+                          controller: _tinNhanCtrl,
+                          focusNode: _focusNode,
+                          textCapitalization: TextCapitalization.sentences,
+                          minLines: 1,
+                          maxLines: 4,
+                          onTap: () { if (_hienEmoji) setState(() => _hienEmoji = false); },
+                          onChanged: (_) {
+                            _typingTimer?.cancel();
+                            _typingTimer = Timer(const Duration(milliseconds: 400), _baoDangGo);
+                          },
+                          decoration: InputDecoration(
+                            hintText: 'Nhập tin nhắn...',
+                            filled: true,
+                            fillColor: const Color(0xFFF1F1F1),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
+                          ),
+                        ),
                       ),
+                      const SizedBox(width: 6),
+                      _dangGui
+                          ? const Padding(padding: EdgeInsets.all(10), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.2)))
+                          : GestureDetector(
+                              onLongPressStart: _batDauGiuNutGui,
+                              onLongPressMoveUpdate: _keoNutGui,
+                              onLongPressEnd: _thaNutGui,
+                              child: IconButton(
+                                icon: const Icon(Icons.send, color: AppTheme.viettelRed),
+                                onPressed: () => _guiTinNhan(noiDung: _tinNhanCtrl.text),
+                              ),
+                            ),
+                    ],
+                  ),
+                ),
+              ),
+              Offstage(
+                offstage: !_hienEmoji,
+                child: SizedBox(
+                  height: 260,
+                  child: EmojiPicker(
+                    onEmojiSelected: (category, emoji) {
+                      _tinNhanCtrl.text += emoji.emoji;
+                      _tinNhanCtrl.selection = TextSelection.fromPosition(TextPosition(offset: _tinNhanCtrl.text.length));
+                    },
+                    config: const Config(
+                      emojiViewConfig: EmojiViewConfig(columns: 8, emojiSizeMax: 28),
                     ),
                   ),
-                  const SizedBox(width: 6),
-                  _dangGui
-                      ? const Padding(padding: EdgeInsets.all(10), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.2)))
-                      : IconButton(
-                          icon: const Icon(Icons.send, color: AppTheme.viettelRed),
-                          onPressed: () => _guiTinNhan(noiDung: _tinNhanCtrl.text),
-                        ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
-          Offstage(
-            offstage: !_hienEmoji,
-            child: SizedBox(
-              height: 260,
-              child: EmojiPicker(
-                onEmojiSelected: (category, emoji) {
-                  _tinNhanCtrl.text += emoji.emoji;
-                  _tinNhanCtrl.selection = TextSelection.fromPosition(TextPosition(offset: _tinNhanCtrl.text.length));
-                },
-                config: const Config(
-                  emojiViewConfig: EmojiViewConfig(columns: 8, emojiSizeMax: 28),
+          // Khung xem trước NỔI, chỉ hiện khi đang giữ-kéo nút Gửi để chỉnh cỡ chữ
+          if (_dangChinhCoChu)
+            Positioned(
+              left: 16, right: 16, bottom: 90,
+              child: IgnorePointer(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                  decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(16)),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _tinNhanCtrl.text,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white, fontSize: _coChuHienTai),
+                      ),
+                      const SizedBox(height: 6),
+                      Text('Cỡ chữ: ${_coChuHienTai.round()} · Kéo lên để to hơn, kéo xuống để nhỏ hơn', style: const TextStyle(color: Colors.white54, fontSize: 10.5)),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );

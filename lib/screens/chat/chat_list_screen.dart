@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../config.dart';
 import '../../models/chat_models.dart';
 import '../../services/chat_service.dart';
 import '../../services/auth_service.dart';
@@ -67,7 +68,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
                         leading: CircleAvatar(
                           radius: 26,
                           backgroundColor: AppTheme.viettelRed.withOpacity(.12),
-                          child: Icon(c.loai == 'nhom' ? Icons.groups : Icons.person, color: AppTheme.viettelRed),
+                          backgroundImage: c.anhDaiDien != null && c.anhDaiDien!.isNotEmpty
+                              ? NetworkImage('${AppConfig.baseUrl}${c.anhDaiDien}')
+                              : null,
+                          child: (c.anhDaiDien == null || c.anhDaiDien!.isEmpty)
+                              ? Icon(c.loai == 'nhom' ? Icons.groups : Icons.person, color: AppTheme.viettelRed)
+                              : null,
                         ),
                         title: Text(c.ten, style: const TextStyle(fontWeight: FontWeight.w600)),
                         subtitle: Text(

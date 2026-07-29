@@ -50,7 +50,7 @@ class AppConfig {
   static const String urlChungChiCuaToi = '$baseUrl/chung-chi-cua-toi.php';
   static const String urlKhoDuLieuExcel = '$baseUrl/kho-du-lieu-excel.php';
   static const String urlThuVienTaiLieu = '$baseUrl/e-tai-lieu.php';
-  static const String urlTroLyKPI = '$baseUrl/tro-ly-notebooklm.php';
+  static const String urlTroLyKPI = '$baseUrl/tro-ly-ai.php';
 
   /// Khoảng thời gian (giây) app tự kiểm tra tin nhắn mới trong 1 cuộc Chat
   /// (poll đơn giản, không cần server WebSocket riêng - đủ dùng cho quy mô nhỏ)
