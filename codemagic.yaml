@@ -12,6 +12,16 @@ workflows:
           # Chỉ copy các file Android CÒN THIẾU (gradle, MainActivity, icon mặc định...) -
           # "--ignore-existing" đảm bảo KHÔNG đè lên AndroidManifest.xml/icon thật đã có sẵn
           rsync -a --ignore-existing /tmp/android_scaffold/android/ ./android/
+      - name: Ép compileSdk/targetSdk lên 36 (thư viện file_picker yêu cầu tối thiểu bản 36,
+          trong khi bản mặc định Flutter sinh ra đang là 34 - gây lỗi checkReleaseAarMetadata)
+        script: |
+          for f in android/app/build.gradle.kts android/app/build.gradle; do
+            if [ -f "$f" ]; then
+              sed -i.bak 's/flutter\.compileSdkVersion/36/g' "$f"
+              sed -i.bak 's/flutter\.targetSdkVersion/36/g' "$f"
+              rm -f "$f.bak"
+            fi
+          done
       - name: Lấy các thư viện Flutter
         script: flutter pub get
       - name: Build file APK (bản release)
