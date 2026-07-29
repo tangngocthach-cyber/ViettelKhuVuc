@@ -34,6 +34,21 @@ class AppConfig {
   static const String urlLienHe = '$baseUrl/lien-he.php';
   static const String urlGioiThieu = '$baseUrl/index.php';
 
+  /// Công cụ nội bộ dành cho nhân viên (đã xác nhận đúng tên file thật trên
+  /// site, không đoán) - quyền truy cập từng trang do chính PHP phía sau kiểm
+  /// tra như trên web (dùng chung phiên đăng nhập qua app-session-login.php).
+  static const String urlDashboardKPI = '$baseUrl/dashboard-kpi.php';
+  static const String urlNhapKetQua = '$baseUrl/nhap-ket-qua.php';
+  static const String urlGiaoViecTongHop = '$baseUrl/giao-viec-tong-hop.php';
+  static const String urlThuCuocDashboard = '$baseUrl/thu-cuoc-dashboard.php';
+  static const String urlTienIchNoiBo = '$baseUrl/tien-ich-noi-bo.php';
+  static const String urlKhoaHoc = '$baseUrl/khoa-hoc.php';
+  static const String urlLichSuHocTap = '$baseUrl/lich-su-hoc-tap.php';
+  static const String urlChungChiCuaToi = '$baseUrl/chung-chi-cua-toi.php';
+  static const String urlKhoDuLieuExcel = '$baseUrl/kho-du-lieu-excel.php';
+  static const String urlThuVienTaiLieu = '$baseUrl/e-tai-lieu.php';
+  static const String urlTroLyKPI = '$baseUrl/tro-ly-notebooklm.php';
+
   /// Khoảng thời gian (giây) app tự kiểm tra tin nhắn mới trong 1 cuộc Chat
   /// (poll đơn giản, không cần server WebSocket riêng - đủ dùng cho quy mô nhỏ)
   static const int chatPollSeconds = 3;
