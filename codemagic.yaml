@@ -13,17 +13,23 @@ workflows:
           # "--ignore-existing" đảm bảo KHÔNG đè lên AndroidManifest.xml/icon thật đã có sẵn
           rsync -a --ignore-existing /tmp/android_scaffold/android/ ./android/
       - name: Ép TOÀN BỘ thư viện con dùng chung Android SDK 36 (thư viện file_picker yêu
-          cầu tối thiểu bản 36 - cách sửa trước bằng sed thay biến không có tác dụng vì
-          không đoán đúng tên biến trong file mẫu mới, nên đổi sang ép ở cấp gốc Gradle,
-          áp dụng cho MỌI module con, không phụ thuộc cú pháp file app/build.gradle)
+          cầu tối thiểu bản 36). Dùng plugins.withId thay vì afterEvaluate - vì
+          afterEvaluate bị lỗi "already evaluated" do xung đột với dòng
+          evaluationDependsOn(":app") có sẵn trong file mẫu Flutter, còn plugins.withId
+          chạy ngay lúc plugin được áp dụng, không phụ thuộc thứ tự đánh giá dự án.
         script: |
           if [ -f android/build.gradle.kts ]; then
             cat >> android/build.gradle.kts << 'GRADLE_EOF'
 
           subprojects {
-              afterEvaluate {
-                  extensions.findByType(com.android.build.gradle.BaseExtension::class.java)?.let {
-                      it.compileSdkVersion(36)
+              plugins.withId("com.android.application") {
+                  extensions.configure(com.android.build.gradle.BaseExtension::class.java) {
+                      compileSdkVersion(36)
+                  }
+              }
+              plugins.withId("com.android.library") {
+                  extensions.configure(com.android.build.gradle.BaseExtension::class.java) {
+                      compileSdkVersion(36)
                   }
               }
           }
@@ -33,11 +39,14 @@ workflows:
             cat >> android/build.gradle << 'GRADLE_EOF'
 
           subprojects {
-              afterEvaluate { proj ->
-                  if (proj.hasProperty('android')) {
-                      proj.android {
-                          compileSdkVersion 36
-                      }
+              plugins.withId('com.android.application') {
+                  android {
+                      compileSdkVersion 36
+                  }
+              }
+              plugins.withId('com.android.library') {
+                  android {
+                      compileSdkVersion 36
                   }
               }
           }
@@ -49,4 +58,5 @@ workflows:
         script: flutter build apk --release
     artifacts:
       - build/app/outputs/flutter-apk/*.apk
+
 
