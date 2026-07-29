@@ -12,19 +12,41 @@ workflows:
           # Chỉ copy các file Android CÒN THIẾU (gradle, MainActivity, icon mặc định...) -
           # "--ignore-existing" đảm bảo KHÔNG đè lên AndroidManifest.xml/icon thật đã có sẵn
           rsync -a --ignore-existing /tmp/android_scaffold/android/ ./android/
-      - name: Ép compileSdk/targetSdk lên 36 (thư viện file_picker yêu cầu tối thiểu bản 36,
-          trong khi bản mặc định Flutter sinh ra đang là 34 - gây lỗi checkReleaseAarMetadata)
+      - name: Ép TOÀN BỘ thư viện con dùng chung Android SDK 36 (thư viện file_picker yêu
+          cầu tối thiểu bản 36 - cách sửa trước bằng sed thay biến không có tác dụng vì
+          không đoán đúng tên biến trong file mẫu mới, nên đổi sang ép ở cấp gốc Gradle,
+          áp dụng cho MỌI module con, không phụ thuộc cú pháp file app/build.gradle)
         script: |
-          for f in android/app/build.gradle.kts android/app/build.gradle; do
-            if [ -f "$f" ]; then
-              sed -i.bak 's/flutter\.compileSdkVersion/36/g' "$f"
-              sed -i.bak 's/flutter\.targetSdkVersion/36/g' "$f"
-              rm -f "$f.bak"
-            fi
-          done
+          if [ -f android/build.gradle.kts ]; then
+            cat >> android/build.gradle.kts << 'GRADLE_EOF'
+
+          subprojects {
+              afterEvaluate {
+                  extensions.findByType(com.android.build.gradle.BaseExtension::class.java)?.let {
+                      it.compileSdkVersion(36)
+                  }
+              }
+          }
+          GRADLE_EOF
+          fi
+          if [ -f android/build.gradle ]; then
+            cat >> android/build.gradle << 'GRADLE_EOF'
+
+          subprojects {
+              afterEvaluate { proj ->
+                  if (proj.hasProperty('android')) {
+                      proj.android {
+                          compileSdkVersion 36
+                      }
+                  }
+              }
+          }
+          GRADLE_EOF
+          fi
       - name: Lấy các thư viện Flutter
         script: flutter pub get
       - name: Build file APK (bản release)
         script: flutter build apk --release
     artifacts:
       - build/app/outputs/flutter-apk/*.apk
+
