@@ -74,4 +74,28 @@ class ChatService {
     if (data['success'] != true) return [];
     return List<String>.from(data['dang_nhap'] ?? []);
   }
+
+  /// Bấm Like/Bỏ Like (toggle) - trả về {da_thich, so_thich} mới nhất
+  static Future<Map<String, dynamic>?> toggleLike(int messageId) async {
+    final res = await http.post(
+      Uri.parse(AppConfig.apiChatLike),
+      headers: {...await _authHeader(), 'Content-Type': 'application/json'},
+      body: jsonEncode({'message_id': messageId}),
+    );
+    final data = jsonDecode(res.body);
+    if (data['success'] != true) return null;
+    return {'da_thich': data['da_thich'], 'so_thich': data['so_thich']};
+  }
+
+  /// Thu hồi/xóa tin nhắn - chủ tin nhắn thu hồi của mình, hoặc Quản trị Chat
+  /// xóa đơn phương tin của bất kỳ ai.
+  static Future<bool> recallMessage(int messageId) async {
+    final res = await http.post(
+      Uri.parse(AppConfig.apiChatRecall),
+      headers: {...await _authHeader(), 'Content-Type': 'application/json'},
+      body: jsonEncode({'message_id': messageId}),
+    );
+    final data = jsonDecode(res.body);
+    return data['success'] == true;
+  }
 }

@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import '../config.dart';
+import '../services/auth_service.dart';
 import '../theme.dart';
 
 /// Màn hình dùng CHUNG cho MỌI module lấy dữ liệu từ website thật (Sản phẩm,
 /// Tin tức, Chính sách, Diễn đàn, Tìm kiếm, Quay số, Bốc thăm...) - đúng yêu
 /// cầu: KHÔNG dựng lại giao diện riêng, mở thẳng trang thật qua WebView.
+///
+/// QUAN TRỌNG: TỰ ĐỘNG xin 1 "vé" đăng nhập tạm rồi đi qua trang
+/// app-session-login.php TRƯỚC khi vào URL đích - để có phiên đăng nhập web
+/// thật giống hệt như đăng nhập tay (Diễn đàn, các trang cần đăng nhập mới
+/// dùng được, không cần đăng nhập lại lần 2 trong app).
 class WebViewScreen extends StatefulWidget {
   final String url;
   final String title;
@@ -34,8 +41,19 @@ class _WebViewScreenState extends State<WebViewScreen> {
           _dangTai = false;
           _loiMang = true;
         }),
-      ))
-      ..loadRequest(Uri.parse(widget.url));
+      ));
+    _taiTrangCoDangNhap();
+  }
+
+  Future<void> _taiTrangCoDangNhap() async {
+    final ticket = await AuthService.getWebTicket();
+    if (ticket != null) {
+      final urlQuaVe = '${AppConfig.urlSessionLogin}?ticket=$ticket&redirect=${Uri.encodeComponent(Uri.parse(widget.url).path + (Uri.parse(widget.url).query.isNotEmpty ? "?${Uri.parse(widget.url).query}" : ""))}';
+      _controller.loadRequest(Uri.parse(urlQuaVe));
+    } else {
+      // Không xin được vé (VD mất mạng) - vẫn mở trang thường, chỉ là chưa có phiên đăng nhập web
+      _controller.loadRequest(Uri.parse(widget.url));
+    }
   }
 
   @override
@@ -60,7 +78,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
                   const SizedBox(height: 12),
                   const Text('Không tải được trang, kiểm tra lại mạng Internet.'),
                   const SizedBox(height: 16),
-                  ElevatedButton(onPressed: () => _controller.reload(), child: const Text('Thử lại')),
+                  ElevatedButton(onPressed: _taiTrangCoDangNhap, child: const Text('Thử lại')),
                 ],
               ),
             ),

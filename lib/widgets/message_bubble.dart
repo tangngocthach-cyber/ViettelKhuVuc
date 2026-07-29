@@ -13,6 +13,9 @@ class MessageBubble extends StatelessWidget {
   final bool laCuaMinh;
   final bool hienThiTen; // chỉ hiện tên người gửi ở tin đầu tiên của 1 cụm (nhóm chat)
   final bool daXem; // tin nhắn cuối cùng của mình đã được người khác đọc chưa
+  final bool laQuanTriChat; // được phép xóa tin của BẤT KỲ AI (xóa đơn phương)
+  final Future<void> Function(ChatMessage)? onToggleLike;
+  final Future<void> Function(ChatMessage)? onRecall;
 
   const MessageBubble({
     super.key,
@@ -20,7 +23,51 @@ class MessageBubble extends StatelessWidget {
     required this.laCuaMinh,
     this.hienThiTen = false,
     this.daXem = false,
+    this.laQuanTriChat = false,
+    this.onToggleLike,
+    this.onRecall,
   });
+
+  void _hienMenuHanhDong(BuildContext context) {
+    final coTheXoa = laCuaMinh || laQuanTriChat;
+    showModalBottomSheet(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: Icon(message.daThich ? Icons.thumb_up : Icons.thumb_up_outlined, color: AppTheme.viettelRed),
+              title: Text(message.daThich ? 'Bỏ thích' : 'Thích'),
+              onTap: () {
+                Navigator.pop(context);
+                onToggleLike?.call(message);
+              },
+            ),
+            if (coTheXoa && !message.daThuHoi)
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                title: Text(laCuaMinh ? 'Thu hồi tin nhắn' : 'Xóa tin nhắn này (Quản trị)'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final xacNhan = await showDialog<bool>(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      title: const Text('Xác nhận'),
+                      content: Text(laCuaMinh ? 'Thu hồi tin nhắn này? Mọi người sẽ không xem được nội dung nữa.' : 'Xóa tin nhắn này của người khác? Đây là quyền Quản trị Chat.'),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Hủy')),
+                        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Xác nhận', style: TextStyle(color: Colors.red))),
+                      ],
+                    ),
+                  );
+                  if (xacNhan == true) onRecall?.call(message);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,11 +89,36 @@ class MessageBubble extends StatelessWidget {
                 CircleAvatar(radius: 14, backgroundColor: AppTheme.viettelRed.withOpacity(.15), child: Text(message.senderName.isNotEmpty ? message.senderName[0].toUpperCase() : '?', style: const TextStyle(fontSize: 12, color: AppTheme.viettelRed))),
                 const SizedBox(width: 6),
               ],
-              Flexible(child: _noiDungBongBong(context)),
+              Flexible(
+                child: GestureDetector(
+                  onLongPress: message.daThuHoi ? null : () => _hienMenuHanhDong(context),
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      _noiDungBongBong(context),
+                      if (message.soThich > 0)
+                        Positioned(
+                          bottom: -6,
+                          right: laCuaMinh ? null : -4,
+                          left: laCuaMinh ? -4 : null,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black.withOpacity(.15), blurRadius: 2)]),
+                            child: Row(mainAxisSize: MainAxisSize.min, children: [
+                              const Icon(Icons.thumb_up, size: 10, color: AppTheme.viettelRed),
+                              const SizedBox(width: 2),
+                              Text('${message.soThich}', style: const TextStyle(fontSize: 10, color: Colors.black87)),
+                            ]),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
           Padding(
-            padding: EdgeInsets.only(top: 2, left: laCuaMinh ? 0 : 34, right: laCuaMinh ? 4 : 0),
+            padding: EdgeInsets.only(top: 6, left: laCuaMinh ? 0 : 34, right: laCuaMinh ? 4 : 0),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -64,14 +136,24 @@ class MessageBubble extends StatelessWidget {
   }
 
   Widget _noiDungBongBong(BuildContext context) {
-    final mauNen = laCuaMinh ? AppTheme.viettelRed : Colors.white;
-    final mauChu = laCuaMinh ? Colors.white : Colors.black87;
     final bo = BorderRadius.only(
       topLeft: const Radius.circular(16),
       topRight: const Radius.circular(16),
       bottomLeft: Radius.circular(laCuaMinh ? 16 : 4),
       bottomRight: Radius.circular(laCuaMinh ? 4 : 16),
     );
+
+    // Tin đã thu hồi/bị xóa - hiện placeholder xám, không còn nội dung thật
+    if (message.daThuHoi) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: bo),
+        child: const Text('Tin nhắn đã được thu hồi', style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic, fontSize: 13.5)),
+      );
+    }
+
+    final mauNen = laCuaMinh ? AppTheme.viettelRed : Colors.white;
+    final mauChu = laCuaMinh ? Colors.white : Colors.black87;
 
     if (message.loai == 'image' && message.fileUrl != null) {
       return ClipRRect(

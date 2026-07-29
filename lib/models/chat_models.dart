@@ -45,6 +45,9 @@ class ChatMessage {
   final String? fileTenGoc;
   final int? fileSize;
   final DateTime createdAt;
+  final bool daThuHoi;
+  bool daThich;
+  int soThich;
 
   ChatMessage({
     required this.id,
@@ -57,6 +60,9 @@ class ChatMessage {
     this.fileTenGoc,
     this.fileSize,
     required this.createdAt,
+    this.daThuHoi = false,
+    this.daThich = false,
+    this.soThich = 0,
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> j) => ChatMessage(
@@ -70,5 +76,8 @@ class ChatMessage {
         fileTenGoc: j['file_ten_goc'],
         fileSize: j['file_size'],
         createdAt: DateTime.tryParse(j['created_at'] ?? '') ?? DateTime.now(),
+        daThuHoi: j['deleted_at'] != null,
+        daThich: j['da_thich'] ?? false,
+        soThich: j['so_thich'] ?? 0,
       );
 }

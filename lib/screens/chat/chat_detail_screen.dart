@@ -22,6 +22,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   final _scrollCtrl = ScrollController();
   final List<ChatMessage> _tinNhan = [];
   String? _userIdHienTai;
+  bool _laQuanTriChat = false;
   Timer? _pollTimer;
   Timer? _typingTimer;
   List<String> _dangGoNguoiKhac = [];
@@ -38,6 +39,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   Future<void> _khoiTao() async {
     final user = await AuthService.getCurrentUser();
     _userIdHienTai = user['id'];
+    _laQuanTriChat = await AuthService.isChatAdmin();
     final ds = await ChatService.getMessages(widget.conversation.id);
     if (!mounted) return;
     setState(() {
@@ -90,6 +92,38 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
   void _baoDangGo() {
     ChatService.sendTyping(widget.conversation.id);
+  }
+
+  Future<void> _xuLyToggleLike(ChatMessage tin) async {
+    // Cập nhật ngay trên giao diện trước (mượt hơn), rồi gọi API phía sau
+    setState(() {
+      tin.daThich = !tin.daThich;
+      tin.soThich += tin.daThich ? 1 : -1;
+    });
+    final ketQua = await ChatService.toggleLike(tin.id);
+    if (ketQua != null && mounted) {
+      setState(() {
+        tin.daThich = ketQua['da_thich'] ?? tin.daThich;
+        tin.soThich = ketQua['so_thich'] ?? tin.soThich;
+      });
+    }
+  }
+
+  Future<void> _xuLyThuHoi(ChatMessage tin) async {
+    final thanhCong = await ChatService.recallMessage(tin.id);
+    if (thanhCong && mounted) {
+      setState(() {
+        final idx = _tinNhan.indexWhere((t) => t.id == tin.id);
+        if (idx != -1) {
+          _tinNhan[idx] = ChatMessage(
+            id: tin.id, conversationId: tin.conversationId, senderId: tin.senderId, senderName: tin.senderName,
+            loai: tin.loai, createdAt: tin.createdAt, daThuHoi: true,
+          );
+        }
+      });
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Không thể thu hồi tin nhắn này.')));
+    }
   }
 
   Future<void> _guiTinNhan({String? noiDung, String? filePath}) async {
@@ -163,7 +197,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                           final tinTruoc = i > 0 ? _tinNhan[i - 1] : null;
                           final hienThiTen = tinTruoc == null || tinTruoc.senderId != tin.senderId;
                           final laTinCuoiCuaMinh = laCuaMinh && i == _tinNhan.length - 1;
-                          return MessageBubble(message: tin, laCuaMinh: laCuaMinh, hienThiTen: hienThiTen, daXem: laTinCuoiCuaMinh);
+                          return MessageBubble(
+                            message: tin,
+                            laCuaMinh: laCuaMinh,
+                            hienThiTen: hienThiTen,
+                            daXem: laTinCuoiCuaMinh,
+                            laQuanTriChat: _laQuanTriChat,
+                            onToggleLike: _xuLyToggleLike,
+                            onRecall: _xuLyThuHoi,
+                          );
                         },
                       ),
           ),

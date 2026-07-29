@@ -16,6 +16,10 @@ class AppConfig {
   static const String apiChatSend = '$baseUrl/api/chat/send.php';
   static const String apiChatMarkRead = '$baseUrl/api/chat/mark_read.php';
   static const String apiChatTyping = '$baseUrl/api/chat/typing.php';
+  static const String apiChatLike = '$baseUrl/api/chat/like.php';
+  static const String apiChatRecall = '$baseUrl/api/chat/recall.php';
+  static const String apiWebTicket = '$baseUrl/api/auth/web_ticket.php';
+  static const String urlSessionLogin = '$baseUrl/app-session-login.php';
 
   /// Các URL trang thật trên website - mở qua WebView, KHÔNG dựng lại giao diện
   /// riêng trong app (đúng yêu cầu: dữ liệu lấy trực tiếp từ website thật).

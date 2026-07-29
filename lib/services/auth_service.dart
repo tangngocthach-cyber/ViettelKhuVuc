@@ -12,6 +12,7 @@ class AuthService {
   static const _keyUserName = 'user_name';
   static const _keyUserEmail = 'user_email';
   static const _keyUserPhone = 'user_phone';
+  static const _keyChatAdmin = 'is_chat_admin';
 
   /// Đăng nhập - gọi ĐÚNG API dùng chung tài khoản web, KHÔNG tự tạo tài khoản
   /// riêng cho app. Trả về null nếu thành công, hoặc chuỗi lỗi để hiển thị.
@@ -33,6 +34,7 @@ class AuthService {
         await prefs.setString(_keyUserName, data['user']['name'] ?? '');
         await prefs.setString(_keyUserEmail, data['user']['email'] ?? '');
         await prefs.setString(_keyUserPhone, data['user']['phone'] ?? '');
+        await prefs.setBool(_keyChatAdmin, data['user']['is_chat_admin'] ?? false);
         return null;
       }
       return data['message'] ?? 'Đăng nhập thất bại, vui lòng thử lại.';
@@ -56,6 +58,7 @@ class AuthService {
     await prefs.remove(_keyUserName);
     await prefs.remove(_keyUserEmail);
     await prefs.remove(_keyUserPhone);
+    await prefs.remove(_keyChatAdmin);
   }
 
   static Future<String?> getToken() async {
@@ -75,8 +78,14 @@ class AuthService {
     };
   }
 
+  static Future<bool> isChatAdmin() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyChatAdmin) ?? false;
+  }
+
   /// Kiểm tra token còn hiệu lực trên server hay không (gọi khi mở app) -
   /// nếu server báo hết hạn, TỰ ĐỘNG xóa token cục bộ để chuyển về màn Đăng nhập.
+  /// Đồng thời ĐỒNG BỘ LẠI cờ Quản trị Chat mới nhất (phòng khi Admin vừa cấp/gỡ quyền).
   static Future<bool> validateSession() async {
     final token = await getToken();
     if (token == null) return false;
@@ -86,11 +95,33 @@ class AuthService {
         await logout();
         return false;
       }
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['success'] == true) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool(_keyChatAdmin, data['user']['is_chat_admin'] ?? false);
+        }
+      }
       return res.statusCode == 200;
     } catch (e) {
       // Lỗi mạng: KHÔNG đăng xuất (tránh mất phiên chỉ vì mất mạng tạm thời) -
       // coi như vẫn còn đăng nhập, app dùng dữ liệu cache offline.
       return true;
+    }
+  }
+
+  /// Xin 1 "vé" đăng nhập tạm (dùng 1 lần, sống 60 giây) để WebView tự động
+  /// có phiên đăng nhập web thật - KHÔNG cần lưu mật khẩu trong app.
+  static Future<String?> getWebTicket() async {
+    final token = await getToken();
+    if (token == null) return null;
+    try {
+      final res = await http.post(Uri.parse(AppConfig.apiWebTicket), headers: {'Authorization': 'Bearer $token'}).timeout(const Duration(seconds: 10));
+      final data = jsonDecode(res.body);
+      if (res.statusCode == 200 && data['success'] == true) return data['ticket'];
+      return null;
+    } catch (e) {
+      return null;
     }
   }
 }
