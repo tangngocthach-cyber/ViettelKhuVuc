@@ -5,6 +5,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'dart:io';
 import '../models/chat_models.dart';
 import '../services/chat_service.dart';
@@ -300,6 +301,10 @@ class MessageBubble extends StatelessWidget {
       );
     }
 
+    if (message.loai == 'voice' && message.fileUrl != null) {
+      return _VoicePlayerBubble(fileUrl: message.fileUrl!, durationGiay: message.durationGiay ?? 0, mauNen: mauNen, mauChu: mauChu, bo: bo);
+    }
+
     if (message.loai == 'poll' && message.poll != null) {
       return _khungBinhChon(context, mauNen, mauChu, bo);
     }
@@ -425,5 +430,97 @@ class MessageBubble extends StatelessWidget {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+}
+
+/// Bong bóng tin nhắn thoại - StatefulWidget RIÊNG (khác MessageBubble chính)
+/// vì mỗi tin thoại cần 1 AudioPlayer độc lập, tự quản lý trạng thái phát/dừng.
+class _VoicePlayerBubble extends StatefulWidget {
+  final String fileUrl;
+  final int durationGiay;
+  final Color mauNen;
+  final Color mauChu;
+  final BorderRadius bo;
+  const _VoicePlayerBubble({required this.fileUrl, required this.durationGiay, required this.mauNen, required this.mauChu, required this.bo});
+
+  @override
+  State<_VoicePlayerBubble> createState() => _VoicePlayerBubbleState();
+}
+
+class _VoicePlayerBubbleState extends State<_VoicePlayerBubble> {
+  final _player = AudioPlayer();
+  bool _dangPhat = false;
+  Duration _viTriHienTai = Duration.zero;
+  Duration _tongThoiLuong = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _tongThoiLuong = Duration(seconds: widget.durationGiay);
+    _player.onPlayerStateChanged.listen((state) {
+      if (mounted) setState(() => _dangPhat = state == PlayerState.playing);
+    });
+    _player.onPositionChanged.listen((pos) {
+      if (mounted) setState(() => _viTriHienTai = pos);
+    });
+    _player.onPlayerComplete.listen((_) {
+      if (mounted) setState(() { _dangPhat = false; _viTriHienTai = Duration.zero; });
+    });
+  }
+
+  @override
+  void dispose() {
+    _player.dispose();
+    super.dispose();
+  }
+
+  Future<void> _batTat() async {
+    if (_dangPhat) {
+      await _player.pause();
+    } else {
+      await _player.play(UrlSource(widget.fileUrl));
+    }
+  }
+
+  String _dinhDangGio(Duration d) {
+    final phut = d.inMinutes;
+    final giay = d.inSeconds % 60;
+    return '$phut:${giay.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tienDo = _tongThoiLuong.inMilliseconds == 0 ? 0.0 : _viTriHienTai.inMilliseconds / _tongThoiLuong.inMilliseconds;
+    return Container(
+      width: 210,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(color: widget.mauNen, borderRadius: widget.bo),
+      child: Row(
+        children: [
+          InkWell(
+            onTap: _batTat,
+            child: Icon(_dangPhat ? Icons.pause_circle_filled : Icons.play_circle_fill, color: widget.mauChu, size: 34),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(value: tienDo.clamp(0, 1), minHeight: 4, backgroundColor: widget.mauChu.withOpacity(.25), color: widget.mauChu),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _dangPhat || _viTriHienTai.inSeconds > 0 ? _dinhDangGio(_viTriHienTai) : _dinhDangGio(_tongThoiLuong),
+                  style: TextStyle(color: widget.mauChu.withOpacity(.85), fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

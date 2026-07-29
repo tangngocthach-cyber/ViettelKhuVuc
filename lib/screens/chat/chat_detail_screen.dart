@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:record/record.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
 import '../../config.dart';
 import '../../models/chat_models.dart';
@@ -38,6 +41,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   bool _dangChinhCoChu = false;
   double _coChuHienTai = 15;
   double? _viTriYbatDau;
+  final _recorder = AudioRecorder();
+  bool _dangGhiAm = false;
+  int _giayGhiAm = 0;
+  Timer? _timerGhiAm;
+  String? _duongDanGhiAm;
 
   @override
   void initState() {
@@ -89,6 +97,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     _tinNhanCtrl.dispose();
     _scrollCtrl.dispose();
     _focusNode.dispose();
+    _recorder.dispose();
+    _timerGhiAm?.cancel();
     super.dispose();
   }
 
@@ -262,7 +272,74 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     }
   }
 
-  /// Chia sẻ vị trí hiện tại - tự xin quyền định vị nếu chưa có, báo lỗi rõ
+  /// Bắt đầu ghi âm tin nhắn thoại - tự xin quyền micro nếu chưa có
+  Future<void> _batDauGhiAm() async {
+    if (!await _recorder.hasPermission()) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cần cấp quyền micro để ghi âm.')));
+      return;
+    }
+    final dir = await getTemporaryDirectory();
+    _duongDanGhiAm = '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    await _recorder.start(const RecordConfig(encoder: AudioEncoder.aacLc), path: _duongDanGhiAm!);
+    setState(() {
+      _dangGhiAm = true;
+      _giayGhiAm = 0;
+      _hienEmoji = false;
+    });
+    _timerGhiAm = Timer.periodic(const Duration(seconds: 1), (_) {
+      setState(() => _giayGhiAm++);
+      // Tự dừng ở mốc 10 phút (giới hạn cùng phía backend) - tránh ghi âm quá dài
+      if (_giayGhiAm >= 600) _guiGhiAm();
+    });
+  }
+
+  /// Hủy ghi âm - xóa file tạm, không gửi
+  Future<void> _huyGhiAm() async {
+    _timerGhiAm?.cancel();
+    if (await _recorder.isRecording()) await _recorder.stop();
+    if (_duongDanGhiAm != null) {
+      final f = File(_duongDanGhiAm!);
+      if (await f.exists()) await f.delete();
+    }
+    setState(() {
+      _dangGhiAm = false;
+      _giayGhiAm = 0;
+      _duongDanGhiAm = null;
+    });
+  }
+
+  /// Dừng ghi âm và gửi luôn
+  Future<void> _guiGhiAm() async {
+    _timerGhiAm?.cancel();
+    final duongDan = await _recorder.stop();
+    final thoiLuong = _giayGhiAm;
+    setState(() {
+      _dangGhiAm = false;
+      _giayGhiAm = 0;
+    });
+    // Ghi âm quá ngắn (dưới 1 giây, thường do bấm nhầm) - hủy luôn, không gửi
+    if (duongDan == null || thoiLuong < 1) {
+      if (duongDan != null) {
+        final f = File(duongDan);
+        if (await f.exists()) await f.delete();
+      }
+      return;
+    }
+    setState(() => _dangGui = true);
+    final tin = await ChatService.sendMessage(
+      conversationId: widget.conversation.id,
+      filePath: duongDan,
+      durationGiay: thoiLuong,
+      replyToMessageId: _dangTraLoi?.id,
+    );
+    if (!mounted) return;
+    setState(() {
+      _dangGui = false;
+      if (tin != null) _tinNhan.add(tin);
+      _dangTraLoi = null;
+    });
+    _cuonXuongCuoi();
+  }
   /// ràng nếu người dùng từ chối hoặc tắt GPS (không để treo im lặng).
   Future<void> _chiaSeViTri() async {
     try {
@@ -502,7 +579,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                   decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black.withOpacity(.05), blurRadius: 6, offset: const Offset(0, -2))]),
-                  child: Row(
+                  child: _dangGhiAm ? _thanhDangGhiAm() : Row(
                     children: [
                       IconButton(icon: const Icon(Icons.add_circle_outline, color: AppTheme.viettelRed), onPressed: _hienMenuDinhKem),
                       IconButton(
@@ -521,6 +598,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                           maxLines: 4,
                           onTap: () { if (_hienEmoji) setState(() => _hienEmoji = false); },
                           onChanged: (_) {
+                            setState(() {}); // cập nhật lại hiện nút micro hay nút gửi
                             _typingTimer?.cancel();
                             _typingTimer = Timer(const Duration(milliseconds: 400), _baoDangGo);
                           },
@@ -536,15 +614,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                       const SizedBox(width: 6),
                       _dangGui
                           ? const Padding(padding: EdgeInsets.all(10), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.2)))
-                          : GestureDetector(
-                              onLongPressStart: _batDauGiuNutGui,
-                              onLongPressMoveUpdate: _keoNutGui,
-                              onLongPressEnd: _thaNutGui,
-                              child: IconButton(
-                                icon: const Icon(Icons.send, color: AppTheme.viettelRed),
-                                onPressed: () => _guiTinNhan(noiDung: _tinNhanCtrl.text),
-                              ),
-                            ),
+                          : _tinNhanCtrl.text.trim().isEmpty
+                              ? IconButton(icon: const Icon(Icons.mic, color: AppTheme.viettelRed), onPressed: _batDauGhiAm)
+                              : GestureDetector(
+                                  onLongPressStart: _batDauGiuNutGui,
+                                  onLongPressMoveUpdate: _keoNutGui,
+                                  onLongPressEnd: _thaNutGui,
+                                  child: IconButton(
+                                    icon: const Icon(Icons.send, color: AppTheme.viettelRed),
+                                    onPressed: () => _guiTinNhan(noiDung: _tinNhanCtrl.text),
+                                  ),
+                                ),
                     ],
                   ),
                 ),
@@ -591,6 +671,28 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
             ),
         ],
       ),
+    );
+  }
+
+  /// Thanh hiển thị khi đang ghi âm - thay thế thanh soạn tin bình thường
+  Widget _thanhDangGhiAm() {
+    final phut = _giayGhiAm ~/ 60;
+    final giay = _giayGhiAm % 60;
+    return Row(
+      children: [
+        IconButton(icon: const Icon(Icons.delete_outline, color: Colors.grey), onPressed: _huyGhiAm),
+        const SizedBox(width: 4),
+        const Icon(Icons.fiber_manual_record, color: Colors.red, size: 14),
+        const SizedBox(width: 8),
+        Text('Đang ghi âm... $phut:${giay.toString().padLeft(2, '0')}', style: const TextStyle(color: Colors.black54)),
+        const Spacer(),
+        _dangGui
+            ? const Padding(padding: EdgeInsets.all(10), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.2)))
+            : IconButton(
+                icon: const CircleAvatar(backgroundColor: AppTheme.viettelRed, child: Icon(Icons.send, color: Colors.white, size: 18)),
+                onPressed: _guiGhiAm,
+              ),
+      ],
     );
   }
 

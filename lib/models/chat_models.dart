@@ -106,6 +106,7 @@ class ChatMessage {
   final int? coChu; // cỡ chữ tùy chỉnh (tính năng giữ nút Gửi để phóng to/thu nhỏ)
   final double? lat;
   final double? lng;
+  final int? durationGiay; // thời lượng (giây) cho tin nhắn thoại
   PollData? poll;
   bool isPinned;
   Map<String, int> reactions; // {'thich': 2, 'yeu': 1}
@@ -127,6 +128,7 @@ class ChatMessage {
     this.coChu,
     this.lat,
     this.lng,
+    this.durationGiay,
     this.poll,
     this.isPinned = false,
     Map<String, int>? reactions,
@@ -152,6 +154,7 @@ class ChatMessage {
         coChu: j['co_chu'],
         lat: j['lat'] != null ? double.tryParse('${j['lat']}') : null,
         lng: j['lng'] != null ? double.tryParse('${j['lng']}') : null,
+        durationGiay: j['duration_giay'],
         poll: j['poll'] != null ? PollData.fromJson(j['poll']) : null,
         isPinned: j['is_pinned'] ?? false,
         reactions: j['reactions'] != null ? Map<String, int>.from(j['reactions']) : {},

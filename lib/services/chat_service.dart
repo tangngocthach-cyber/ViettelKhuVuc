@@ -39,6 +39,7 @@ class ChatService {
     String? filePath,
     int? replyToMessageId,
     int? coChu,
+    int? durationGiay,
   }) async {
     final token = await AuthService.getToken();
     final request = http.MultipartRequest('POST', Uri.parse(AppConfig.apiChatSend));
@@ -47,6 +48,7 @@ class ChatService {
     if (noiDung != null && noiDung.isNotEmpty) request.fields['noi_dung'] = noiDung;
     if (replyToMessageId != null) request.fields['reply_to_message_id'] = '$replyToMessageId';
     if (coChu != null) request.fields['co_chu'] = '$coChu';
+    if (durationGiay != null) request.fields['duration_giay'] = '$durationGiay';
     if (filePath != null) request.files.add(await http.MultipartFile.fromPath('file', filePath));
 
     final streamed = await request.send().timeout(const Duration(seconds: 60));

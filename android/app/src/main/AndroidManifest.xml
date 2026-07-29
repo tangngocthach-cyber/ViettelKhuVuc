@@ -8,6 +8,8 @@
     <!-- Định vị GPS để chia sẻ vị trí trong Chat -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Ghi âm tin nhắn thoại trong Chat -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Đọc ảnh/file từ thư viện để gửi Chat (Android 13+ dùng quyền chi tiết hơn) -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
