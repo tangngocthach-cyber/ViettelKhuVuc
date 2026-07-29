@@ -1,0 +1,64 @@
+import 'package:flutter/material.dart';
+import '../screens/webview_screen.dart';
+import '../theme.dart';
+
+class GridModuleItem {
+  final IconData icon;
+  final String label;
+  final String url;
+  const GridModuleItem({required this.icon, required this.label, required this.url});
+}
+
+/// Lưới icon dùng CHUNG cho tab Trang chủ và tab Cộng đồng - bấm vào icon nào
+/// sẽ mở đúng trang thật tương ứng trên website qua WebView.
+class IconGridView extends StatelessWidget {
+  final List<GridModuleItem> items;
+  const IconGridView({super.key, required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      padding: const EdgeInsets.all(16),
+      // responsive: điện thoại 4 cột, máy tính bảng (>600dp) 6 cột - không vỡ layout
+      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 110,
+        mainAxisSpacing: 16,
+        crossAxisSpacing: 8,
+        childAspectRatio: .85,
+      ),
+      itemCount: items.length,
+      itemBuilder: (context, i) {
+        final item = items[i];
+        return InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => WebViewScreen(url: item.url, title: item.label)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: AppTheme.viettelRed.withOpacity(.1),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(item.icon, color: AppTheme.viettelRed, size: 28),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                item.label,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12.5),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
