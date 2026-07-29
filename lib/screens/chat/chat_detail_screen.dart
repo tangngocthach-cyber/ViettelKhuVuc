@@ -45,21 +45,39 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     _khoiTao();
   }
 
+  bool _loiTaiBanDau = false;
+
   Future<void> _khoiTao() async {
-    final user = await AuthService.getCurrentUser();
-    _userIdHienTai = user['id'];
-    _laQuanTriChat = await AuthService.isChatAdmin();
-    final ds = await ChatService.getMessages(widget.conversation.id);
-    if (!mounted) return;
     setState(() {
-      _tinNhan.addAll(ds);
-      _dangTaiBanDau = false;
+      _dangTaiBanDau = true;
+      _loiTaiBanDau = false;
     });
-    _danhDauDaDoc();
-    _cuonXuongCuoi();
-    // Polling tin nhắn mới mỗi vài giây (đủ dùng cho quy mô nội bộ nhỏ, không
-    // cần hạ tầng WebSocket riêng - đơn giản, dễ bảo trì, đúng tinh thần dự án)
-    _pollTimer = Timer.periodic(const Duration(seconds: AppConfig.chatPollSeconds), (_) => _kiemTraTinMoi());
+    try {
+      final user = await AuthService.getCurrentUser();
+      _userIdHienTai = user['id'];
+      _laQuanTriChat = await AuthService.isChatAdmin();
+      final ds = await ChatService.getMessages(widget.conversation.id);
+      if (!mounted) return;
+      setState(() {
+        _tinNhan.clear();
+        _tinNhan.addAll(ds);
+        _dangTaiBanDau = false;
+      });
+      _danhDauDaDoc();
+      _cuonXuongCuoi();
+      // Polling tin nhắn mới mỗi vài giây (đủ dùng cho quy mô nội bộ nhỏ, không
+      // cần hạ tầng WebSocket riêng - đơn giản, dễ bảo trì, đúng tinh thần dự án)
+      _pollTimer?.cancel();
+      _pollTimer = Timer.periodic(const Duration(seconds: AppConfig.chatPollSeconds), (_) => _kiemTraTinMoi());
+    } catch (e) {
+      // QUAN TRỌNG: nếu API lỗi (VD backend chưa cập nhật đủ), KHÔNG được để
+      // màn hình xoay vòng mãi mãi - phải báo lỗi rõ ràng + cho thử lại.
+      if (!mounted) return;
+      setState(() {
+        _dangTaiBanDau = false;
+        _loiTaiBanDau = true;
+      });
+    }
   }
 
   @override
@@ -75,17 +93,22 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
   Future<void> _kiemTraTinMoi() async {
     if (_tinNhan.isEmpty) return;
-    final idCuoi = _tinNhan.last.id;
-    final tinMoi = await ChatService.getMessages(widget.conversation.id, afterId: idCuoi);
-    final dangGo = await ChatService.getTypingUsers(widget.conversation.id);
-    if (!mounted) return;
-    setState(() {
-      if (tinMoi.isNotEmpty) _tinNhan.addAll(tinMoi);
-      _dangGoNguoiKhac = dangGo;
-    });
-    if (tinMoi.isNotEmpty) {
-      _danhDauDaDoc();
-      _cuonXuongCuoi();
+    try {
+      final idCuoi = _tinNhan.last.id;
+      final tinMoi = await ChatService.getMessages(widget.conversation.id, afterId: idCuoi);
+      final dangGo = await ChatService.getTypingUsers(widget.conversation.id);
+      if (!mounted) return;
+      setState(() {
+        if (tinMoi.isNotEmpty) _tinNhan.addAll(tinMoi);
+        _dangGoNguoiKhac = dangGo;
+      });
+      if (tinMoi.isNotEmpty) {
+        _danhDauDaDoc();
+        _cuonXuongCuoi();
+      }
+    } catch (e) {
+      // Lỗi mạng tạm thời khi polling - bỏ qua, thử lại ở lần polling kế tiếp
+      // (KHÔNG được để crash hay dừng hẳn timer chỉ vì 1 lần lỗi thoáng qua).
     }
   }
 
@@ -332,7 +355,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
               Expanded(
                 child: _dangTaiBanDau
                     ? const Center(child: CircularProgressIndicator(color: AppTheme.viettelRed))
-                    : _tinNhan.isEmpty
+                    : _loiTaiBanDau
+                        ? Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.error_outline, size: 48, color: Colors.grey),
+                                const SizedBox(height: 12),
+                                const Text('Không tải được tin nhắn.\nKiểm tra lại mạng hoặc thử lại sau.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+                                const SizedBox(height: 16),
+                                ElevatedButton(onPressed: _khoiTao, child: const Text('Thử lại')),
+                              ],
+                            ),
+                          )
+                        : _tinNhan.isEmpty
                         ? const Center(child: Text('Chưa có tin nhắn - gửi lời chào đầu tiên!', style: TextStyle(color: Colors.grey)))
                         : ListView.builder(
                             controller: _scrollCtrl,
