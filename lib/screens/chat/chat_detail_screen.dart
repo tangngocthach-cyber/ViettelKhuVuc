@@ -55,11 +55,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   }
 
   bool _loiTaiBanDau = false;
+  String? _noiDungLoi;
 
   Future<void> _khoiTao() async {
     setState(() {
       _dangTaiBanDau = true;
       _loiTaiBanDau = false;
+      _noiDungLoi = null;
     });
     try {
       final user = await AuthService.getCurrentUser();
@@ -80,11 +82,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       _pollTimer = Timer.periodic(const Duration(seconds: AppConfig.chatPollSeconds), (_) => _kiemTraTinMoi());
     } catch (e) {
       // QUAN TRỌNG: nếu API lỗi (VD backend chưa cập nhật đủ), KHÔNG được để
-      // màn hình xoay vòng mãi mãi - phải báo lỗi rõ ràng + cho thử lại.
+      // màn hình xoay vòng mãi mãi - phải báo lỗi rõ ràng + cho thử lại, VÀ
+      // hiện NGUYÊN VĂN lỗi thật để người dùng chụp lại gửi đi chẩn đoán được.
       if (!mounted) return;
       setState(() {
         _dangTaiBanDau = false;
         _loiTaiBanDau = true;
+        _noiDungLoi = e.toString();
       });
     }
   }
@@ -535,15 +539,26 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                     ? const Center(child: CircularProgressIndicator(color: AppTheme.viettelRed))
                     : _loiTaiBanDau
                         ? Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.error_outline, size: 48, color: Colors.grey),
-                                const SizedBox(height: 12),
-                                const Text('Không tải được tin nhắn.\nKiểm tra lại mạng hoặc thử lại sau.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
-                                const SizedBox(height: 16),
-                                ElevatedButton(onPressed: _khoiTao, child: const Text('Thử lại')),
-                              ],
+                            child: Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.error_outline, size: 48, color: Colors.grey),
+                                  const SizedBox(height: 12),
+                                  const Text('Không tải được tin nhắn.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+                                  if (_noiDungLoi != null) ...[
+                                    const SizedBox(height: 10),
+                                    Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
+                                      child: SelectableText(_noiDungLoi!, style: const TextStyle(fontSize: 11.5, color: Colors.black54, fontFamily: 'monospace')),
+                                    ),
+                                  ],
+                                  const SizedBox(height: 16),
+                                  ElevatedButton(onPressed: _khoiTao, child: const Text('Thử lại')),
+                                ],
+                              ),
                             ),
                           )
                         : _tinNhan.isEmpty

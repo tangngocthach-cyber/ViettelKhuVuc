@@ -25,8 +25,18 @@ class ChatService {
     if (beforeId > 0) params['before_id'] = '$beforeId';
     final uri = Uri.parse(AppConfig.apiChatMessages).replace(queryParameters: params);
     final res = await http.get(uri, headers: await _authHeader()).timeout(const Duration(seconds: 15));
-    final data = jsonDecode(res.body);
-    if (data['success'] != true) return [];
+    dynamic data;
+    try {
+      data = jsonDecode(res.body);
+    } catch (e) {
+      // Server KHÔNG trả về JSON hợp lệ (thường do PHP in lỗi/cảnh báo ra trước
+      // JSON) - ném lỗi kèm NGUYÊN VĂN nội dung thật server trả về (rút gọn
+      // 300 ký tự đầu) để hiện thị cho người dùng thấy, thay vì im lặng ẩn đi.
+      throw Exception('Server trả về dữ liệu không hợp lệ (mã ${res.statusCode}):\n${res.body.length > 300 ? res.body.substring(0, 300) : res.body}');
+    }
+    if (data['success'] != true) {
+      throw Exception('Lỗi API (mã ${res.statusCode}): ${data['message'] ?? 'không rõ nguyên nhân'}');
+    }
     return (data['data'] as List).map((e) => ChatMessage.fromJson(e)).toList();
   }
 
