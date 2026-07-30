@@ -104,7 +104,7 @@ class ChatService {
     if (data['success'] != true) return null;
     return {
       'reaction_cua_toi': data['reaction_cua_toi'],
-      'reactions': Map<String, int>.from(data['reactions'] ?? {}),
+      'reactions': data['reactions'] is Map ? Map<String, int>.from(data['reactions']) : <String, int>{},
     };
   }
 

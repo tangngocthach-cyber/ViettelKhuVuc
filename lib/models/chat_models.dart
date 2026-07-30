@@ -59,6 +59,15 @@ class ChatReactions {
   };
 }
 
+/// Đọc "reactions" AN TOÀN từ JSON - server có thể trả về {} (object, có
+/// reaction) HOẶC [] (mảng rỗng, do PHP json_encode mảng rỗng luôn ra dạng
+/// mảng) - hàm này chấp nhận cả 2 trường hợp, KHÔNG BAO GIỜ crash app dù
+/// server có lỡ trả sai định dạng.
+Map<String, int> _docReactions(dynamic giaTri) {
+  if (giaTri is Map) return Map<String, int>.from(giaTri);
+  return {};
+}
+
 class PollOption {
   final int id;
   final String noiDung;
@@ -157,7 +166,7 @@ class ChatMessage {
         durationGiay: j['duration_giay'],
         poll: j['poll'] != null ? PollData.fromJson(j['poll']) : null,
         isPinned: j['is_pinned'] ?? false,
-        reactions: j['reactions'] != null ? Map<String, int>.from(j['reactions']) : {},
+        reactions: _docReactions(j['reactions']),
         reactionCuaToi: j['reaction_cua_toi'],
       );
 }
