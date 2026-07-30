@@ -56,18 +56,20 @@ workflows:
           if [ -f android/app/build.gradle ]; then
             awk '{print} /^[[:space:]]*android[[:space:]]*\{/ && !done {print "    compileSdkVersion 36"; done=1}' android/app/build.gradle > android/app/build.gradle.tmp && mv android/app/build.gradle.tmp android/app/build.gradle
           fi
-      - name: Áp dụng chữ ký cố định (keystore) cho bản release - chèn ở CUỐI file
-          để đảm bảo chạy SAU CÙNG, không bị mẫu Flutter tự gán lại chữ ký debug
-          (đây là nguyên nhân THẬT của lỗi "xung đột khi cập nhật" trước đây -
-          mỗi lần build Codemagic tự tạo 1 chữ ký debug NGẪU NHIÊN khác nhau)
+      - name: Áp dụng chữ ký cố định (keystore) cho bản release - PHẢI chèn dòng
+          "import" lên ĐẦU file (Kotlin bắt buộc import nằm trên cùng, không thể
+          đặt cuối file như lần thử trước - đó là lý do gây lỗi "Unresolved
+          reference 'util'"/"'io'" ở lần build vừa rồi)
         script: |
           if [ -f android/app/build.gradle.kts ] && [ -f android/key.properties ]; then
+            { echo 'import java.util.Properties'; echo 'import java.io.FileInputStream'; cat android/app/build.gradle.kts; } > android/app/build.gradle.kts.tmp
+            mv android/app/build.gradle.kts.tmp android/app/build.gradle.kts
             cat >> android/app/build.gradle.kts << 'SIGN_EOF'
 
           val keystorePropertiesFile = rootProject.file("key.properties")
-          val keystoreProperties = java.util.Properties()
+          val keystoreProperties = Properties()
           if (keystorePropertiesFile.exists()) {
-              keystoreProperties.load(java.io.FileInputStream(keystorePropertiesFile))
+              keystoreProperties.load(FileInputStream(keystorePropertiesFile))
           }
 
           android {
