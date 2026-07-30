@@ -45,16 +45,23 @@ dependencies:
 
   # Ghi âm và phát lại tin nhắn thoại (2 thư viện native - thêm CẨN THẬN,
   # kiểm tra kỹ sau khi build vì có mã native riêng, khác với các thư viện
-  # thuần Dart khác). GHIM CHÍNH XÁC bản 5.0.4 (không dùng ^) vì bản mới hơn
-  # từng bị lỗi xung đột phiên bản NỘI BỘ giữa record_platform_interface và
-  # record_linux (2 gói con của chính thư viện record, không liên quan Android).
-  record: 5.0.4
+  # thuần Dart khác). Xem thêm mục "dependency_overrides" bên dưới - đã phải
+  # ghim cứng gói con record_linux để tránh lỗi lệch phiên bản nội bộ.
+  record: ^5.1.2
   audioplayers: ^6.1.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+
+# GHIM CỨNG gói con record_linux - vì dù đã ghim record: 5.0.4, Dart vẫn tự
+# chọn record_platform_interface MỚI NHẤT (1.6.0) do không gói nào khác giới
+# hạn nó, khiến lệch với record_linux 0.7.2 (chưa cập nhật theo interface mới).
+# App chỉ build cho Android nên record_linux không thực sự được DÙNG, nhưng
+# Dart vẫn cần biên dịch được nó - ép lên bản mới hơn để khớp interface mới.
+dependency_overrides:
+  record_linux: ^1.1.0
 
 flutter:
   uses-material-design: true
