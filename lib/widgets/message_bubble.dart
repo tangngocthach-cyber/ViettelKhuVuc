@@ -469,7 +469,7 @@ class MessageBubble extends StatelessWidget {
     try {
       final dir = await getTemporaryDirectory();
       final path = '${dir.path}/${message.fileTenGoc}';
-      final res = await http.get(Uri.parse(message.fileUrl!));
+      final res = await http.get(Uri.parse(message.fileUrl!)).timeout(const Duration(seconds: 30));
       final file = File(path);
       await file.writeAsBytes(res.bodyBytes);
       await OpenFilex.open(path);

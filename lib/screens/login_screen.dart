@@ -17,6 +17,13 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _anMatKhau = true;
   String? _loi;
 
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    _passCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _dangNhap() async {
     final email = _emailCtrl.text.trim();
     final pass = _passCtrl.text;

@@ -49,7 +49,12 @@ class _WebViewScreenState extends State<WebViewScreen> {
 
           // Link ra domain KHÁC (VD notebooklm.google.com) -> Google chặn nhúng,
           // mở bằng trình duyệt ngoài máy thay vì cố tải trong WebView.
-          final laDomainCuaSite = host.isEmpty || host.endsWith('viettelkhuvuc.com');
+          // LƯU Ý BẢO MẬT: PHẢI so khớp domain CHÍNH XÁC (hoặc đúng subdomain có
+          // dấu chấm ở trước) - dùng endsWith('viettelkhuvuc.com') trước đây là
+          // SAI vì domain giả như "xviettelkhuvuc.com" (không có dấu chấm) cũng
+          // khớp điều kiện đó, cho phép trang lạ chạy JavaScript không giới hạn
+          // trong WebView và lợi dụng luồng "vé" đăng nhập tạm.
+          final laDomainCuaSite = host.isEmpty || host == 'viettelkhuvuc.com' || host.endsWith('.viettelkhuvuc.com');
 
           // Link TẢI FILE (dù cùng domain) -> WebView của Flutter KHÔNG tự tải
           // file được (không có "Download Manager" như trình duyệt thường), nên

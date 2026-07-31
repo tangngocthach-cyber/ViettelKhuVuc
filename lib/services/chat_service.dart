@@ -11,10 +11,18 @@ class ChatService {
   }
 
   static Future<List<ChatConversation>> getConversations() async {
-    final res = await http.get(Uri.parse(AppConfig.apiChatConversations), headers: await _authHeader()).timeout(const Duration(seconds: 15));
-    final data = jsonDecode(res.body);
-    if (data['success'] != true) return [];
-    return (data['data'] as List).map((e) => ChatConversation.fromJson(e)).toList();
+    try {
+      final res = await http.get(Uri.parse(AppConfig.apiChatConversations), headers: await _authHeader()).timeout(const Duration(seconds: 15));
+      final data = jsonDecode(res.body);
+      if (data['success'] != true) return [];
+      return (data['data'] as List).map((e) => ChatConversation.fromJson(e)).toList();
+    } catch (e) {
+      // Mất mạng/server lỗi/timeout: trả về danh sách rỗng thay vì ném lỗi -
+      // tránh làm màn hình Chat/nút "Đang tải" bị treo vĩnh viễn (bug thật đã
+      // gặp: nếu không bắt lỗi ở đây, _dangTai ở màn hình gọi hàm này không
+      // bao giờ được set về false vì exception chặn mất dòng setState sau đó).
+      return [];
+    }
   }
 
   /// [afterId]: lấy tin MỚI HƠN id này (dùng để polling liên tục).
@@ -73,7 +81,7 @@ class ChatService {
       Uri.parse(AppConfig.apiChatMarkRead),
       headers: {...await _authHeader(), 'Content-Type': 'application/json'},
       body: jsonEncode({'conversation_id': conversationId, 'message_id': messageId}),
-    );
+    ).timeout(const Duration(seconds: 15));
   }
 
   static Future<void> sendTyping(int conversationId) async {
@@ -81,12 +89,12 @@ class ChatService {
       Uri.parse(AppConfig.apiChatTyping),
       headers: {...await _authHeader(), 'Content-Type': 'application/json'},
       body: jsonEncode({'conversation_id': conversationId}),
-    );
+    ).timeout(const Duration(seconds: 15));
   }
 
   static Future<List<String>> getTypingUsers(int conversationId) async {
     final uri = Uri.parse(AppConfig.apiChatTyping).replace(queryParameters: {'conversation_id': '$conversationId'});
-    final res = await http.get(uri, headers: await _authHeader());
+    final res = await http.get(uri, headers: await _authHeader()).timeout(const Duration(seconds: 15));
     final data = jsonDecode(res.body);
     if (data['success'] != true) return [];
     return List<String>.from(data['dang_nhap'] ?? []);
@@ -99,7 +107,7 @@ class ChatService {
       Uri.parse(AppConfig.apiChatLike),
       headers: {...await _authHeader(), 'Content-Type': 'application/json'},
       body: jsonEncode({'message_id': messageId, 'loai_reaction': loaiReaction}),
-    );
+    ).timeout(const Duration(seconds: 15));
     final data = jsonDecode(res.body);
     if (data['success'] != true) return null;
     return {
@@ -115,7 +123,7 @@ class ChatService {
       Uri.parse(AppConfig.apiChatRecall),
       headers: {...await _authHeader(), 'Content-Type': 'application/json'},
       body: jsonEncode({'message_id': messageId}),
-    );
+    ).timeout(const Duration(seconds: 15));
     final data = jsonDecode(res.body);
     return data['success'] == true;
   }
@@ -126,7 +134,7 @@ class ChatService {
       Uri.parse(AppConfig.apiChatPin),
       headers: {...await _authHeader(), 'Content-Type': 'application/json'},
       body: jsonEncode({'message_id': messageId}),
-    );
+    ).timeout(const Duration(seconds: 15));
     final data = jsonDecode(res.body);
     if (data['success'] != true) return null;
     return data['is_pinned'] as bool;
@@ -134,20 +142,29 @@ class ChatService {
 
   /// Lấy danh sách tin nhắn đã ghim trong 1 cuộc trò chuyện
   static Future<List<Map<String, dynamic>>> getPinnedMessages(int conversationId) async {
-    final uri = Uri.parse(AppConfig.apiChatPinnedList).replace(queryParameters: {'conversation_id': '$conversationId'});
-    final res = await http.get(uri, headers: await _authHeader());
-    final data = jsonDecode(res.body);
-    if (data['success'] != true) return [];
-    return List<Map<String, dynamic>>.from(data['data'] ?? []);
+    try {
+      final uri = Uri.parse(AppConfig.apiChatPinnedList).replace(queryParameters: {'conversation_id': '$conversationId'});
+      final res = await http.get(uri, headers: await _authHeader()).timeout(const Duration(seconds: 15));
+      final data = jsonDecode(res.body);
+      if (data['success'] != true) return [];
+      return List<Map<String, dynamic>>.from(data['data'] ?? []);
+    } catch (e) {
+      return [];
+    }
   }
 
   /// Tìm kiếm trong lịch sử chat của 1 cuộc trò chuyện (chỉ tin nhắn văn bản)
   static Future<List<Map<String, dynamic>>> searchMessages(int conversationId, String tuKhoa) async {
-    final uri = Uri.parse(AppConfig.apiChatSearch).replace(queryParameters: {'conversation_id': '$conversationId', 'q': tuKhoa});
-    final res = await http.get(uri, headers: await _authHeader());
-    final data = jsonDecode(res.body);
-    if (data['success'] != true) return [];
-    return List<Map<String, dynamic>>.from(data['data'] ?? []);
+    try {
+      final uri = Uri.parse(AppConfig.apiChatSearch).replace(queryParameters: {'conversation_id': '$conversationId', 'q': tuKhoa});
+      final res = await http.get(uri, headers: await _authHeader()).timeout(const Duration(seconds: 15));
+      final data = jsonDecode(res.body);
+      if (data['success'] != true) return [];
+      return List<Map<String, dynamic>>.from(data['data'] ?? []);
+    } catch (e) {
+      // Mất mạng/timeout: trả rỗng, tránh treo màn hình tìm kiếm vĩnh viễn
+      return [];
+    }
   }
 
   /// Tạo 1 cuộc Bình chọn mới trong cuộc trò chuyện
@@ -161,7 +178,7 @@ class ChatService {
       Uri.parse(AppConfig.apiChatPollCreate),
       headers: {...await _authHeader(), 'Content-Type': 'application/json'},
       body: jsonEncode({'conversation_id': conversationId, 'cau_hoi': cauHoi, 'options': options, 'cho_phep_chon_nhieu': choPhepChonNhieu}),
-    );
+    ).timeout(const Duration(seconds: 15));
     final data = jsonDecode(res.body);
     if (data['success'] != true) return null;
     return ChatMessage.fromJson(data['message']);
@@ -173,7 +190,7 @@ class ChatService {
       Uri.parse(AppConfig.apiChatPollVote),
       headers: {...await _authHeader(), 'Content-Type': 'application/json'},
       body: jsonEncode({'option_id': optionId}),
-    );
+    ).timeout(const Duration(seconds: 15));
     final data = jsonDecode(res.body);
     if (data['success'] != true) return null;
     return (data['options'] as List).map((e) => PollOption.fromJson(e)).toList();
@@ -186,7 +203,7 @@ class ChatService {
       Uri.parse(AppConfig.apiChatSend),
       headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/x-www-form-urlencoded'},
       body: {'conversation_id': '$conversationId', 'lat': '$lat', 'lng': '$lng'},
-    );
+    ).timeout(const Duration(seconds: 15));
     final data = jsonDecode(res.body);
     if (data['success'] != true) return null;
     return ChatMessage.fromJson(data['message']);
@@ -198,7 +215,7 @@ class ChatService {
       Uri.parse(AppConfig.apiChatForward),
       headers: {...await _authHeader(), 'Content-Type': 'application/json'},
       body: jsonEncode({'message_id': messageId, 'target_conversation_id': targetConversationId}),
-    );
+    ).timeout(const Duration(seconds: 15));
     final data = jsonDecode(res.body);
     return data['success'] == true;
   }
@@ -216,7 +233,7 @@ class ChatService {
       Uri.parse(AppConfig.apiChatReminderCreate),
       headers: {...await _authHeader(), 'Content-Type': 'application/json'},
       body: jsonEncode({'conversation_id': conversationId, 'tieu_de': tieuDe, 'mo_ta': moTa, 'thoi_gian_nhac': gioChuoi}),
-    );
+    ).timeout(const Duration(seconds: 15));
     final data = jsonDecode(res.body);
     if (data['success'] != true) return null;
     return ChatMessage.fromJson(data['message']);

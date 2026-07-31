@@ -1,3 +1,12 @@
+/// Đọc số nguyên AN TOÀN từ JSON - PHP đôi khi trả id dạng chuỗi số (VD "5")
+/// thay vì số nguyên thật (5) tùy cấu hình DB/driver, ép kiểu thẳng `j['id']`
+/// sẽ CRASH ngay khi gặp trường hợp đó - hàm này chấp nhận cả 2 dạng.
+int _docInt(dynamic giaTri, {int macDinh = 0}) {
+  if (giaTri is int) return giaTri;
+  if (giaTri is num) return giaTri.toInt();
+  return int.tryParse('$giaTri') ?? macDinh;
+}
+
 class ChatConversation {
   final int id;
   final String ten;
@@ -22,7 +31,7 @@ class ChatConversation {
   });
 
   factory ChatConversation.fromJson(Map<String, dynamic> j) => ChatConversation(
-        id: j['id'],
+        id: _docInt(j['id']),
         ten: j['ten'] ?? '',
         loai: j['loai'] ?? 'nhom',
         anhDaiDien: j['anh_dai_dien'],
@@ -42,7 +51,7 @@ class ReplyPreview {
   ReplyPreview({required this.id, required this.senderName, required this.noiDung});
 
   factory ReplyPreview.fromJson(Map<String, dynamic> j) => ReplyPreview(
-        id: j['id'],
+        id: _docInt(j['id']),
         senderName: j['sender_name'] ?? '',
         noiDung: j['noi_dung'] ?? '',
       );
@@ -76,7 +85,7 @@ class PollOption {
   PollOption({required this.id, required this.noiDung, required this.soPhieu, required this.toiDaChon});
 
   factory PollOption.fromJson(Map<String, dynamic> j) => PollOption(
-        id: j['id'], noiDung: j['noi_dung'] ?? '', soPhieu: j['so_phieu'] ?? 0, toiDaChon: j['toi_da_chon'] ?? false,
+        id: _docInt(j['id']), noiDung: j['noi_dung'] ?? '', soPhieu: j['so_phieu'] ?? 0, toiDaChon: j['toi_da_chon'] ?? false,
       );
 }
 
@@ -91,7 +100,7 @@ class PollData {
   int get tongLuotBinhChon => options.fold(0, (a, o) => a + o.soPhieu);
 
   factory PollData.fromJson(Map<String, dynamic> j) => PollData(
-        pollId: j['poll_id'],
+        pollId: _docInt(j['poll_id']),
         cauHoi: j['cau_hoi'] ?? '',
         choPhepChonNhieu: j['cho_phep_chon_nhieu'] ?? false,
         daKetThuc: j['da_ket_thuc'] ?? false,
@@ -163,9 +172,9 @@ class ChatMessage {
   int get tongSoReaction => reactions.values.fold(0, (a, b) => a + b);
 
   factory ChatMessage.fromJson(Map<String, dynamic> j) => ChatMessage(
-        id: j['id'],
-        conversationId: j['conversation_id'],
-        senderId: j['sender_id'],
+        id: _docInt(j['id']),
+        conversationId: _docInt(j['conversation_id']),
+        senderId: _docInt(j['sender_id']),
         senderName: j['sender_name'] ?? '',
         loai: j['loai'] ?? 'text',
         noiDung: j['noi_dung'],

@@ -264,20 +264,27 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   Future<void> _guiTinNhan({String? noiDung, String? filePath}) async {
     if ((noiDung == null || noiDung.trim().isEmpty) && filePath == null) return;
     setState(() => _dangGui = true);
-    final tin = await ChatService.sendMessage(
-      conversationId: widget.conversation.id,
-      noiDung: noiDung,
-      filePath: filePath,
-      replyToMessageId: _dangTraLoi?.id,
-    );
-    if (!mounted) return;
-    setState(() {
-      _dangGui = false;
-      if (tin != null) _tinNhan.add(tin);
-      _tinNhanCtrl.clear();
-      _dangTraLoi = null;
-    });
-    _cuonXuongCuoi();
+    try {
+      final tin = await ChatService.sendMessage(
+        conversationId: widget.conversation.id,
+        noiDung: noiDung,
+        filePath: filePath,
+        replyToMessageId: _dangTraLoi?.id,
+      );
+      if (!mounted) return;
+      setState(() {
+        if (tin != null) _tinNhan.add(tin);
+        _tinNhanCtrl.clear();
+        _dangTraLoi = null;
+      });
+      _cuonXuongCuoi();
+    } catch (e) {
+      // Mất mạng/timeout khi gửi: KHÔNG được để nút Gửi quay vòng vĩnh viễn -
+      // báo lỗi rõ ràng để người dùng biết cần gửi lại (bug thật đã gặp).
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gửi tin nhắn thất bại, kiểm tra lại mạng và thử lại.')));
+    } finally {
+      if (mounted) setState(() => _dangGui = false);
+    }
   }
 
   /// Giữ tay vào nút Gửi (không nhấc lên) rồi kéo lên/xuống để chọn cỡ chữ to/nhỏ
@@ -303,20 +310,25 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     setState(() => _dangChinhCoChu = false);
     if ((_tinNhanCtrl.text.trim().isEmpty)) return;
     setState(() => _dangGui = true);
-    final tin = await ChatService.sendMessage(
-      conversationId: widget.conversation.id,
-      noiDung: _tinNhanCtrl.text,
-      replyToMessageId: _dangTraLoi?.id,
-      coChu: coChuGui == 15 ? null : coChuGui,
-    );
-    if (!mounted) return;
-    setState(() {
-      _dangGui = false;
-      if (tin != null) _tinNhan.add(tin);
-      _tinNhanCtrl.clear();
-      _dangTraLoi = null;
-    });
-    _cuonXuongCuoi();
+    try {
+      final tin = await ChatService.sendMessage(
+        conversationId: widget.conversation.id,
+        noiDung: _tinNhanCtrl.text,
+        replyToMessageId: _dangTraLoi?.id,
+        coChu: coChuGui == 15 ? null : coChuGui,
+      );
+      if (!mounted) return;
+      setState(() {
+        if (tin != null) _tinNhan.add(tin);
+        _tinNhanCtrl.clear();
+        _dangTraLoi = null;
+      });
+      _cuonXuongCuoi();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gửi tin nhắn thất bại, kiểm tra lại mạng và thử lại.')));
+    } finally {
+      if (mounted) setState(() => _dangGui = false);
+    }
   }
 
   Future<void> _chonAnh(ImageSource nguon) async {
@@ -393,19 +405,24 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       return;
     }
     setState(() => _dangGui = true);
-    final tin = await ChatService.sendMessage(
-      conversationId: widget.conversation.id,
-      filePath: duongDan,
-      durationGiay: thoiLuong,
-      replyToMessageId: _dangTraLoi?.id,
-    );
-    if (!mounted) return;
-    setState(() {
-      _dangGui = false;
-      if (tin != null) _tinNhan.add(tin);
-      _dangTraLoi = null;
-    });
-    _cuonXuongCuoi();
+    try {
+      final tin = await ChatService.sendMessage(
+        conversationId: widget.conversation.id,
+        filePath: duongDan,
+        durationGiay: thoiLuong,
+        replyToMessageId: _dangTraLoi?.id,
+      );
+      if (!mounted) return;
+      setState(() {
+        if (tin != null) _tinNhan.add(tin);
+        _dangTraLoi = null;
+      });
+      _cuonXuongCuoi();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gửi tin nhắn thoại thất bại, kiểm tra lại mạng và thử lại.')));
+    } finally {
+      if (mounted) setState(() => _dangGui = false);
+    }
   }
   /// ràng nếu người dùng từ chối hoặc tắt GPS (không để treo im lặng).
   Future<void> _chiaSeViTri() async {

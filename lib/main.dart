@@ -16,7 +16,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
-    await Firebase.initializeApp();
+    await Firebase.initializeApp().timeout(const Duration(seconds: 10));
 
     // Ghi nhận lỗi tự động (Crashlytics) - mọi lỗi Flutter không bắt được sẽ
     // tự động gửi về Firebase Console, không cần nhân viên tự báo lỗi nữa.
@@ -34,8 +34,14 @@ Future<void> main() async {
     // đẩy/ghi nhận lỗi tự động.
   }
 
-  ReminderNotificationService.khoiTao();
-  FcmService.thietLapXuLyBamThongBao();
+  try {
+    ReminderNotificationService.khoiTao();
+    FcmService.thietLapXuLyBamThongBao();
+  } catch (e) {
+    // Nếu Firebase init thất bại ở trên, các bước liên quan tới FCM có thể
+    // ném lỗi ở đây - KHÔNG được để lỗi này chặn mất runApp() (nguyên nhân
+    // gây màn hình trắng vĩnh viễn, không crash log, đã xảy ra thực tế).
+  }
   runApp(const VinhHungApp());
 }
 

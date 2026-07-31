@@ -67,7 +67,7 @@ class FcmService {
         Uri.parse(AppConfig.apiFcmRegisterToken),
         headers: {'Authorization': 'Bearer $authToken', 'Content-Type': 'application/json'},
         body: jsonEncode({'fcm_token': token}),
-      );
+      ).timeout(const Duration(seconds: 15));
     } catch (e) {
       // Lỗi mạng tạm thời - bỏ qua, token sẽ tự đăng ký lại lần mở app kế tiếp
     }
@@ -86,7 +86,7 @@ class FcmService {
         Uri.parse(AppConfig.apiFcmUnregisterToken),
         headers: {'Authorization': 'Bearer $authToken', 'Content-Type': 'application/json'},
         body: jsonEncode({'fcm_token': token}),
-      );
+      ).timeout(const Duration(seconds: 15));
     } catch (e) {
       // Lỗi mạng - bỏ qua, không được chặn việc đăng xuất chỉ vì lỗi này
     }
