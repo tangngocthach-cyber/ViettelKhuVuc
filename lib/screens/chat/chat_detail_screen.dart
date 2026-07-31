@@ -236,7 +236,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                 itemBuilder: (context, i) {
                   final c = dsChon[i];
                   return ListTile(
-                    leading: CircleAvatar(backgroundColor: AppTheme.viettelRed.withOpacity(.12), child: Icon(c.loai == 'nhom' ? Icons.groups : Icons.person, color: AppTheme.viettelRed)),
+                    leading: CircleAvatar(backgroundColor: AppTheme.viettelRed.withValues(alpha: .12), child: Icon(c.loai == 'nhom' ? Icons.groups : Icons.person, color: AppTheme.viettelRed)),
                     title: Text(c.ten),
                     onTap: () => Navigator.pop(context, c),
                   );
@@ -742,7 +742,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                 top: false,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                  decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black.withOpacity(.05), blurRadius: 6, offset: const Offset(0, -2))]),
+                  decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .05), blurRadius: 6, offset: const Offset(0, -2))]),
                   child: _dangGhiAm ? _thanhDangGhiAm() : Row(
                     children: [
                       IconButton(icon: const Icon(Icons.add_circle_outline, color: AppTheme.viettelRed), onPressed: _hienMenuDinhKem),

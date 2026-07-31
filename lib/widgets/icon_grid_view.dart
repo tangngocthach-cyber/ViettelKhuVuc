@@ -49,7 +49,7 @@ class IconGridView extends StatelessWidget {
                 width: 56,
                 height: 56,
                 decoration: BoxDecoration(
-                  color: AppTheme.viettelRed.withOpacity(.1),
+                  color: AppTheme.viettelRed.withValues(alpha: .1),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(item.icon, color: AppTheme.viettelRed, size: 28),

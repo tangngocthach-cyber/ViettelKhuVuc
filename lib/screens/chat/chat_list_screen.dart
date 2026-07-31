@@ -67,7 +67,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                         leading: CircleAvatar(
                           radius: 26,
-                          backgroundColor: AppTheme.viettelRed.withOpacity(.12),
+                          backgroundColor: AppTheme.viettelRed.withValues(alpha: .12),
                           backgroundImage: c.anhDaiDien != null && c.anhDaiDien!.isNotEmpty
                               ? NetworkImage('${AppConfig.baseUrl}${c.anhDaiDien}')
                               : null,

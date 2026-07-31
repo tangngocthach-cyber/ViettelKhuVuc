@@ -47,7 +47,7 @@ class MessageBubble extends StatelessWidget {
         child: Container(
           margin: const EdgeInsets.all(16),
           padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(28), boxShadow: [BoxShadow(color: Colors.black.withOpacity(.15), blurRadius: 10)]),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(28), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .15), blurRadius: 10)]),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: ChatReactions.emojiTheoLoai.entries.map((e) {
@@ -61,7 +61,7 @@ class MessageBubble extends StatelessWidget {
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
                   padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(color: dangChon ? AppTheme.viettelRed.withOpacity(.15) : null, shape: BoxShape.circle),
+                  decoration: BoxDecoration(color: dangChon ? AppTheme.viettelRed.withValues(alpha: .15) : null, shape: BoxShape.circle),
                   child: Text(e.value, style: const TextStyle(fontSize: 28)),
                 ),
               );
@@ -164,7 +164,7 @@ class MessageBubble extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               if (!laCuaMinh) ...[
-                CircleAvatar(radius: 14, backgroundColor: AppTheme.viettelRed.withOpacity(.15), child: Text(message.senderName.isNotEmpty ? message.senderName[0].toUpperCase() : '?', style: const TextStyle(fontSize: 12, color: AppTheme.viettelRed))),
+                CircleAvatar(radius: 14, backgroundColor: AppTheme.viettelRed.withValues(alpha: .15), child: Text(message.senderName.isNotEmpty ? message.senderName[0].toUpperCase() : '?', style: const TextStyle(fontSize: 12, color: AppTheme.viettelRed))),
                 const SizedBox(width: 6),
               ],
               Flexible(
@@ -211,7 +211,7 @@ class MessageBubble extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 3),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: (laCuaMinh ? Colors.white : AppTheme.viettelRed).withOpacity(.12),
+        color: (laCuaMinh ? Colors.white : AppTheme.viettelRed).withValues(alpha: .12),
         borderRadius: BorderRadius.circular(10),
         border: Border(left: BorderSide(color: AppTheme.viettelRed, width: 3)),
       ),
@@ -238,7 +238,7 @@ class MessageBubble extends StatelessWidget {
       left: laCuaMinh ? -4 : null,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black.withOpacity(.15), blurRadius: 2)]),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .15), blurRadius: 2)]),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           ...toiDa3Loai.map((e) => Text(ChatReactions.emojiTheoLoai[e.key] ?? '', style: const TextStyle(fontSize: 11))),
           const SizedBox(width: 2),
@@ -302,7 +302,7 @@ class MessageBubble extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(message.fileTenGoc ?? 'Tệp đính kèm', style: TextStyle(color: mauChu, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
-                    if (message.fileSize != null) Text(_dinhDangDungLuong(message.fileSize!), style: TextStyle(color: mauChu.withOpacity(.7), fontSize: 11)),
+                    if (message.fileSize != null) Text(_dinhDangDungLuong(message.fileSize!), style: TextStyle(color: mauChu.withValues(alpha: .7), fontSize: 11)),
                   ],
                 ),
               ),
@@ -363,12 +363,12 @@ class MessageBubble extends StatelessWidget {
                     Container(
                       height: 34,
                       decoration: BoxDecoration(
-                        color: (laCuaMinh ? Colors.white : AppTheme.viettelRed).withOpacity(.12),
+                        color: (laCuaMinh ? Colors.white : AppTheme.viettelRed).withValues(alpha: .12),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: FractionallySizedBox(
                         widthFactor: tyLe.clamp(0, 1),
-                        child: Container(decoration: BoxDecoration(color: (laCuaMinh ? Colors.white : AppTheme.viettelRed).withOpacity(.28), borderRadius: BorderRadius.circular(8))),
+                        child: Container(decoration: BoxDecoration(color: (laCuaMinh ? Colors.white : AppTheme.viettelRed).withValues(alpha: .28), borderRadius: BorderRadius.circular(8))),
                       ),
                     ),
                     Positioned.fill(
@@ -389,7 +389,7 @@ class MessageBubble extends StatelessWidget {
               ),
             );
           }),
-          Text('${poll.tongLuotBinhChon} lượt bình chọn', style: TextStyle(color: mauChu.withOpacity(.7), fontSize: 10.5)),
+          Text('${poll.tongLuotBinhChon} lượt bình chọn', style: TextStyle(color: mauChu.withValues(alpha: .7), fontSize: 10.5)),
         ],
       ),
     );
@@ -415,12 +415,12 @@ class MessageBubble extends StatelessWidget {
           Text(r.tieuDe, style: TextStyle(color: mauChu, fontWeight: FontWeight.w600, fontSize: 14.5)),
           if (r.moTa != null && r.moTa!.isNotEmpty) ...[
             const SizedBox(height: 4),
-            Text(r.moTa!, style: TextStyle(color: mauChu.withOpacity(.85), fontSize: 12.5)),
+            Text(r.moTa!, style: TextStyle(color: mauChu.withValues(alpha: .85), fontSize: 12.5)),
           ],
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(color: mauChu.withOpacity(.15), borderRadius: BorderRadius.circular(6)),
+            decoration: BoxDecoration(color: mauChu.withValues(alpha: .15), borderRadius: BorderRadius.circular(6)),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               Icon(Icons.access_time, size: 12, color: mauChu),
               const SizedBox(width: 4),
@@ -564,12 +564,12 @@ class _VoicePlayerBubbleState extends State<_VoicePlayerBubble> {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(value: tienDo.clamp(0, 1), minHeight: 4, backgroundColor: widget.mauChu.withOpacity(.25), color: widget.mauChu),
+                  child: LinearProgressIndicator(value: tienDo.clamp(0, 1), minHeight: 4, backgroundColor: widget.mauChu.withValues(alpha: .25), color: widget.mauChu),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   _dangPhat || _viTriHienTai.inSeconds > 0 ? _dinhDangGio(_viTriHienTai) : _dinhDangGio(_tongThoiLuong),
-                  style: TextStyle(color: widget.mauChu.withOpacity(.85), fontSize: 11),
+                  style: TextStyle(color: widget.mauChu.withValues(alpha: .85), fontSize: 11),
                 ),
               ],
             ),
