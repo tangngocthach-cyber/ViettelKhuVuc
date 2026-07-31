@@ -56,6 +56,26 @@ workflows:
           if [ -f android/app/build.gradle ]; then
             awk '{print} /^[[:space:]]*android[[:space:]]*\{/ && !done {print "    compileSdkVersion 36"; done=1}' android/app/build.gradle > android/app/build.gradle.tmp && mv android/app/build.gradle.tmp android/app/build.gradle
           fi
+      - name: Bật "core library desugaring" - BẮT BUỘC cho thư viện
+          flutter_local_notifications (lỗi thật đã gặp - thông báo "requires core library
+          desugaring to be enabled"). Chèn dạng khối riêng ở CUỐI file (giống
+          cách làm phần chữ ký/Firebase đã chạy ổn định), không chèn 1 dòng
+          đơn giản vì compileOptions là khối lồng nhau.
+        script: |
+          if [ -f android/app/build.gradle.kts ]; then
+            cat >> android/app/build.gradle.kts << 'DESUGAR_EOF'
+
+          android {
+              compileOptions {
+                  isCoreLibraryDesugaringEnabled = true
+              }
+          }
+
+          dependencies {
+              coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+          }
+          DESUGAR_EOF
+          fi
       - name: Áp dụng chữ ký cố định (keystore) cho bản release - PHẢI chèn dòng
           "import" lên ĐẦU file (Kotlin bắt buộc import nằm trên cùng, không thể
           đặt cuối file như lần thử trước - đó là lý do gây lỗi "Unresolved
