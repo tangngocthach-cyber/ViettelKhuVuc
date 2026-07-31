@@ -89,6 +89,29 @@ workflows:
           }
           SIGN_EOF
           fi
+      - name: Áp dụng plugin Firebase (Google Services + Crashlytics) - dùng
+          buildscript{} kiểu CŨ (không dùng plugins{} DSL) vì có thể chèn được
+          vào file có sẵn mà không phá vỡ cấu trúc, khác với plugins{} DSL bắt
+          buộc phải tĩnh ở đầu file lúc code sinh ra ban đầu
+        script: |
+          if [ -f android/build.gradle.kts ] && [ -f android/app/google-services.json ]; then
+            { echo 'buildscript {'; \
+              echo '    repositories { google(); mavenCentral() }'; \
+              echo '    dependencies {'; \
+              echo '        classpath("com.google.gms:google-services:4.4.2")'; \
+              echo '        classpath("com.google.firebase:firebase-crashlytics-gradle:3.0.2")'; \
+              echo '    }'; \
+              echo '}'; \
+              cat android/build.gradle.kts; } > android/build.gradle.kts.tmp
+            mv android/build.gradle.kts.tmp android/build.gradle.kts
+          fi
+          if [ -f android/app/build.gradle.kts ] && [ -f android/app/google-services.json ]; then
+            cat >> android/app/build.gradle.kts << 'FIREBASE_EOF'
+
+          apply(plugin = "com.google.gms.google-services")
+          apply(plugin = "com.google.firebase.crashlytics")
+          FIREBASE_EOF
+          fi
       - name: Lấy các thư viện Flutter
         script: flutter pub get
       - name: Kiểm tra lỗi code Dart TRƯỚC khi build Android (chỉ mất vài giây,

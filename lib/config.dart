@@ -25,6 +25,7 @@ class AppConfig {
   static const String apiChatPollVote = '$baseUrl/api/chat/poll_vote.php';
   static const String apiChatForward = '$baseUrl/api/chat/forward.php';
   static const String apiChatReminderCreate = '$baseUrl/api/chat/reminder_create.php';
+  static const String apiFcmRegisterToken = '$baseUrl/api/fcm/register_token.php';
   static const String apiWebTicket = '$baseUrl/api/auth/web_ticket.php';
   static const String urlSessionLogin = '$baseUrl/app-session-login.php';
 

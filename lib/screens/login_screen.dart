@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../services/fcm_service.dart';
 import '../theme.dart';
 import 'home_screen.dart';
 
@@ -32,6 +33,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
     setState(() => _dangDangNhap = false);
     if (loi == null) {
+      FcmService.khoiTaoSauDangNhap();
       Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const HomeScreen()), (route) => false);
     } else {
       setState(() => _loi = loi);

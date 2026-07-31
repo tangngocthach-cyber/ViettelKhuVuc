@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../services/fcm_service.dart';
 import '../services/version_service.dart';
 import '../theme.dart';
 import 'home_screen.dart';
@@ -23,6 +24,7 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _khoiDong() async {
     final daDangNhap = await AuthService.validateSession();
     if (!mounted) return;
+    if (daDangNhap) FcmService.khoiTaoSauDangNhap();
 
     // Kiểm tra phiên bản mới NGAY khi mở app (đúng yêu cầu "khi mở app hoặc
     // theo chu kỳ") - nếu bắt buộc cập nhật, chặn vào app cho tới khi cập nhật.

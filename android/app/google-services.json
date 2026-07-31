@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1063806708115",
+    "project_id": "viettelkhuvuc",
+    "storage_bucket": "viettelkhuvuc.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1063806708115:android:4f5a6bca70c8cffa40a066",
+        "android_client_info": {
+          "package_name": "com.vinhhung.vinhhung_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCt5A7bk-elzxYHEVYas3D_SGCADLXZ91Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
