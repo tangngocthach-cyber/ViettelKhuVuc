@@ -316,6 +316,10 @@ class MessageBubble extends StatelessWidget {
       return _VoicePlayerBubble(fileUrl: message.fileUrl!, durationGiay: message.durationGiay ?? 0, mauNen: mauNen, mauChu: mauChu, bo: bo);
     }
 
+    if (message.loai == 'reminder' && message.reminder != null) {
+      return _khungNhacHen(mauNen, mauChu, bo);
+    }
+
     if (message.loai == 'poll' && message.poll != null) {
       return _khungBinhChon(context, mauNen, mauChu, bo);
     }
@@ -386,6 +390,46 @@ class MessageBubble extends StatelessWidget {
             );
           }),
           Text('${poll.tongLuotBinhChon} lượt bình chọn', style: TextStyle(color: mauChu.withOpacity(.7), fontSize: 10.5)),
+        ],
+      ),
+    );
+  }
+
+  Widget _khungNhacHen(Color mauNen, Color mauChu, BorderRadius bo) {
+    final r = message.reminder!;
+    final daQua = r.thoiGianNhac.isBefore(DateTime.now());
+    return Container(
+      width: 230,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: mauNen, borderRadius: bo),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(children: [
+            Icon(Icons.notifications_active, size: 16, color: mauChu),
+            const SizedBox(width: 6),
+            Expanded(child: Text('Nhắc hẹn', style: TextStyle(color: mauChu, fontWeight: FontWeight.bold, fontSize: 12.5))),
+          ]),
+          const SizedBox(height: 6),
+          Text(r.tieuDe, style: TextStyle(color: mauChu, fontWeight: FontWeight.w600, fontSize: 14.5)),
+          if (r.moTa != null && r.moTa!.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(r.moTa!, style: TextStyle(color: mauChu.withOpacity(.85), fontSize: 12.5)),
+          ],
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(color: mauChu.withOpacity(.15), borderRadius: BorderRadius.circular(6)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.access_time, size: 12, color: mauChu),
+              const SizedBox(width: 4),
+              Text(
+                DateFormat('HH:mm dd/MM/yyyy').format(r.thoiGianNhac) + (daQua ? ' (đã qua)' : ''),
+                style: TextStyle(color: mauChu, fontSize: 11),
+              ),
+            ]),
+          ),
         ],
       ),
     );

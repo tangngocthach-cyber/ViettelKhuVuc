@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'theme.dart';
 import 'screens/splash_screen.dart';
+import 'services/reminder_notification_service.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  ReminderNotificationService.khoiTao();
   runApp(const VinhHungApp());
 }
 

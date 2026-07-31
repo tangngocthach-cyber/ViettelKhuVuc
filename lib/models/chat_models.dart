@@ -99,6 +99,19 @@ class PollData {
       );
 }
 
+class ReminderData {
+  final String tieuDe;
+  final String? moTa;
+  final DateTime thoiGianNhac;
+  ReminderData({required this.tieuDe, this.moTa, required this.thoiGianNhac});
+
+  factory ReminderData.fromJson(Map<String, dynamic> j) => ReminderData(
+        tieuDe: j['tieu_de'] ?? '',
+        moTa: j['mo_ta'],
+        thoiGianNhac: DateTime.tryParse(j['thoi_gian_nhac'] ?? '') ?? DateTime.now(),
+      );
+}
+
 class ChatMessage {
   final int id;
   final int conversationId;
@@ -116,6 +129,7 @@ class ChatMessage {
   final double? lat;
   final double? lng;
   final int? durationGiay; // thời lượng (giây) cho tin nhắn thoại
+  final ReminderData? reminder;
   PollData? poll;
   bool isPinned;
   Map<String, int> reactions; // {'thich': 2, 'yeu': 1}
@@ -138,6 +152,7 @@ class ChatMessage {
     this.lat,
     this.lng,
     this.durationGiay,
+    this.reminder,
     this.poll,
     this.isPinned = false,
     Map<String, int>? reactions,
@@ -164,6 +179,7 @@ class ChatMessage {
         lat: j['lat'] != null ? double.tryParse('${j['lat']}') : null,
         lng: j['lng'] != null ? double.tryParse('${j['lng']}') : null,
         durationGiay: j['duration_giay'],
+        reminder: j['reminder'] != null ? ReminderData.fromJson(j['reminder']) : null,
         poll: j['poll'] != null ? PollData.fromJson(j['poll']) : null,
         isPinned: j['is_pinned'] ?? false,
         reactions: _docReactions(j['reactions']),

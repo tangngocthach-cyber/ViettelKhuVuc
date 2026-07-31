@@ -47,6 +47,12 @@ dependencies:
   # SharedPreferences thường (không mã hóa)
   flutter_secure_storage: ^9.2.2
 
+  # Thông báo hẹn giờ cục bộ cho tính năng "Nhắc hẹn" trong Chat - hoạt động
+  # được cả khi không có Internet tại đúng thời điểm hẹn (đặt lịch trước ngay
+  # lúc tạo/nhận nhắc hẹn, hệ điều hành tự kích hoạt đúng giờ)
+  flutter_local_notifications: ^18.0.1
+  timezone: ^0.9.4
+
   # Ghi âm và phát lại tin nhắn thoại (2 thư viện native - thêm CẨN THẬN,
   # kiểm tra kỹ sau khi build vì có mã native riêng, khác với các thư viện
   # thuần Dart khác). Xem thêm mục "dependency_overrides" bên dưới - đã phải

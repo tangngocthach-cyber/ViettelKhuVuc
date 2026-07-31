@@ -12,6 +12,7 @@ import '../../config.dart';
 import '../../models/chat_models.dart';
 import '../../services/chat_service.dart';
 import '../../services/auth_service.dart';
+import '../../services/reminder_notification_service.dart';
 import '../../theme.dart';
 import '../../widgets/message_bubble.dart';
 import 'chat_search_screen.dart';
@@ -76,6 +77,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       });
       _danhDauDaDoc();
       _cuonXuongCuoi();
+      _tuDatLichNhacHen(ds);
       // Polling tin nhắn mới mỗi vài giây (đủ dùng cho quy mô nội bộ nhỏ, không
       // cần hạ tầng WebSocket riêng - đơn giản, dễ bảo trì, đúng tinh thần dự án)
       _pollTimer?.cancel();
@@ -120,6 +122,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       if (tinMoi.isNotEmpty) {
         _danhDauDaDoc();
         _cuonXuongCuoi();
+        _tuDatLichNhacHen(tinMoi);
       }
     } catch (e) {
       // Lỗi mạng tạm thời khi polling - bỏ qua, thử lại ở lần polling kế tiếp
@@ -140,6 +143,22 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
   void _baoDangGo() {
     ChatService.sendTyping(widget.conversation.id);
+  }
+
+  /// Quét danh sách tin nhắn, tự đặt lịch thông báo cục bộ cho MỌI tin loại
+  /// "reminder" chưa qua giờ - gọi lại nhiều lần AN TOÀN (dùng messageId làm
+  /// ID lịch, tự ghi đè chứ không nhân đôi thông báo).
+  void _tuDatLichNhacHen(List<ChatMessage> ds) {
+    for (final tin in ds) {
+      if (tin.loai == 'reminder' && tin.reminder != null && !tin.daThuHoi) {
+        ReminderNotificationService.datLich(
+          messageId: tin.id,
+          tieuDe: tin.reminder!.tieuDe,
+          moTa: tin.reminder!.moTa,
+          thoiGianNhac: tin.reminder!.thoiGianNhac,
+        );
+      }
+    }
   }
 
   Future<void> _xuLyReaction(ChatMessage tin, String loaiReaction) async {
@@ -478,6 +497,90 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     );
   }
 
+  /// Mở dialog tạo Nhắc hẹn mới - nhập tiêu đề, mô tả, chọn ngày + giờ
+  void _moDialogTaoNhacHen() async {
+    final tieuDeCtrl = TextEditingController();
+    final moTaCtrl = TextEditingController();
+    DateTime? ngayChon;
+    TimeOfDay? gioChon;
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('Tạo nhắc hẹn'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(controller: tieuDeCtrl, decoration: const InputDecoration(labelText: 'Tiêu đề (VD: Họp giao ban)')),
+                const SizedBox(height: 12),
+                TextField(controller: moTaCtrl, maxLines: 2, decoration: const InputDecoration(labelText: 'Mô tả (tùy chọn)')),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.calendar_today, size: 16),
+                        label: Text(ngayChon == null ? 'Chọn ngày' : DateFormat('dd/MM/yyyy').format(ngayChon!)),
+                        onPressed: () async {
+                          final chon = await showDatePicker(
+                            context: dialogContext, initialDate: DateTime.now(),
+                            firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 365)),
+                          );
+                          if (chon != null) setDialogState(() => ngayChon = chon);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.access_time, size: 16),
+                        label: Text(gioChon == null ? 'Chọn giờ' : gioChon!.format(dialogContext)),
+                        onPressed: () async {
+                          final chon = await showTimePicker(context: dialogContext, initialTime: TimeOfDay.now());
+                          if (chon != null) setDialogState(() => gioChon = chon);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Hủy')),
+            ElevatedButton(
+              onPressed: () async {
+                final tieuDe = tieuDeCtrl.text.trim();
+                if (tieuDe.isEmpty || ngayChon == null || gioChon == null) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(const SnackBar(content: Text('Nhập tiêu đề, chọn ngày và giờ.')));
+                  return;
+                }
+                final thoiGian = DateTime(ngayChon!.year, ngayChon!.month, ngayChon!.day, gioChon!.hour, gioChon!.minute);
+                if (thoiGian.isBefore(DateTime.now())) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(const SnackBar(content: Text('Thời gian nhắc hẹn phải ở tương lai.')));
+                  return;
+                }
+                Navigator.pop(dialogContext);
+                final tin = await ChatService.createReminder(
+                  conversationId: widget.conversation.id, tieuDe: tieuDe,
+                  moTa: moTaCtrl.text.trim().isEmpty ? null : moTaCtrl.text.trim(), thoiGianNhac: thoiGian,
+                );
+                if (tin != null && mounted) {
+                  setState(() => _tinNhan.add(tin));
+                  _cuonXuongCuoi();
+                  _tuDatLichNhacHen([tin]);
+                }
+              },
+              child: const Text('Tạo'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _hienMenuDinhKem() {
     setState(() => _hienEmoji = false);
     showModalBottomSheet(
@@ -490,6 +593,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
             ListTile(leading: const Icon(Icons.attach_file, color: AppTheme.viettelRed), title: const Text('Tệp đính kèm (docx, xlsx, pdf...)'), onTap: () { Navigator.pop(context); _chonFile(); }),
             ListTile(leading: const Icon(Icons.poll, color: AppTheme.viettelRed), title: const Text('Tạo bình chọn'), onTap: () { Navigator.pop(context); _moDialogTaoBinhChon(); }),
             ListTile(leading: const Icon(Icons.location_on, color: AppTheme.viettelRed), title: const Text('Chia sẻ vị trí hiện tại'), onTap: () { Navigator.pop(context); _chiaSeViTri(); }),
+            ListTile(leading: const Icon(Icons.notifications_active_outlined, color: AppTheme.viettelRed), title: const Text('Tạo nhắc hẹn'), onTap: () { Navigator.pop(context); _moDialogTaoNhacHen(); }),
           ],
         ),
       ),

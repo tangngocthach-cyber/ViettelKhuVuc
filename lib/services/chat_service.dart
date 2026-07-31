@@ -202,4 +202,23 @@ class ChatService {
     final data = jsonDecode(res.body);
     return data['success'] == true;
   }
+
+  /// Tạo 1 nhắc hẹn mới trong cuộc trò chuyện
+  static Future<ChatMessage?> createReminder({
+    required int conversationId,
+    required String tieuDe,
+    String? moTa,
+    required DateTime thoiGianNhac,
+  }) async {
+    final gioChuoi = '${thoiGianNhac.year.toString().padLeft(4, '0')}-${thoiGianNhac.month.toString().padLeft(2, '0')}-${thoiGianNhac.day.toString().padLeft(2, '0')} '
+        '${thoiGianNhac.hour.toString().padLeft(2, '0')}:${thoiGianNhac.minute.toString().padLeft(2, '0')}:00';
+    final res = await http.post(
+      Uri.parse(AppConfig.apiChatReminderCreate),
+      headers: {...await _authHeader(), 'Content-Type': 'application/json'},
+      body: jsonEncode({'conversation_id': conversationId, 'tieu_de': tieuDe, 'mo_ta': moTa, 'thoi_gian_nhac': gioChuoi}),
+    );
+    final data = jsonDecode(res.body);
+    if (data['success'] != true) return null;
+    return ChatMessage.fromJson(data['message']);
+  }
 }
