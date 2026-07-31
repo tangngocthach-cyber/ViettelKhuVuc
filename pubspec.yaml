@@ -43,6 +43,10 @@ dependencies:
   # Lấy vị trí hiện tại để chia sẻ trong Chat (thư viện định vị GPS)
   geolocator: ^13.0.1
 
+  # Lưu token đăng nhập AN TOÀN (mã hóa bằng Keystore của máy) - thay cho
+  # SharedPreferences thường (không mã hóa)
+  flutter_secure_storage: ^9.2.2
+
   # Ghi âm và phát lại tin nhắn thoại (2 thư viện native - thêm CẨN THẬN,
   # kiểm tra kỹ sau khi build vì có mã native riêng, khác với các thư viện
   # thuần Dart khác). Xem thêm mục "dependency_overrides" bên dưới - đã phải

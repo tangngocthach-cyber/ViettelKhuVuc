@@ -1,12 +1,17 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../config.dart';
 
 /// Quản lý phiên đăng nhập: lưu/đọc/xóa token, thông tin user hiện tại.
-/// Dùng SharedPreferences (lưu cục bộ trên máy, không đồng bộ đám mây) -
-/// đủ an toàn cho token vì app không root mới đọc được dữ liệu app khác.
+/// Dùng flutter_secure_storage (MÃ HÓA bằng Keystore của máy - Android
+/// Keystore/iOS Keychain) - AN TOÀN HƠN SharedPreferences thường (không mã
+/// hóa), đặc biệt quan trọng cho token đăng nhập.
 class AuthService {
+  static const _storage = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  );
+
   static const _keyToken = 'auth_token';
   static const _keyUserId = 'user_id';
   static const _keyUserName = 'user_name';
@@ -28,13 +33,12 @@ class AuthService {
 
       final data = jsonDecode(res.body);
       if (res.statusCode == 200 && data['success'] == true) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(_keyToken, data['token']);
-        await prefs.setInt(_keyUserId, data['user']['id']);
-        await prefs.setString(_keyUserName, data['user']['name'] ?? '');
-        await prefs.setString(_keyUserEmail, data['user']['email'] ?? '');
-        await prefs.setString(_keyUserPhone, data['user']['phone'] ?? '');
-        await prefs.setBool(_keyChatAdmin, data['user']['is_chat_admin'] ?? false);
+        await _storage.write(key: _keyToken, value: data['token']);
+        await _storage.write(key: _keyUserId, value: '${data['user']['id']}');
+        await _storage.write(key: _keyUserName, value: data['user']['name'] ?? '');
+        await _storage.write(key: _keyUserEmail, value: data['user']['email'] ?? '');
+        await _storage.write(key: _keyUserPhone, value: data['user']['phone'] ?? '');
+        await _storage.write(key: _keyChatAdmin, value: '${data['user']['is_chat_admin'] ?? false}');
         return null;
       }
       return data['message'] ?? 'Đăng nhập thất bại, vui lòng thử lại.';
@@ -52,35 +56,26 @@ class AuthService {
         // Lỗi mạng khi đăng xuất không quan trọng - vẫn xóa token cục bộ để đăng xuất trên máy
       }
     }
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_keyToken);
-    await prefs.remove(_keyUserId);
-    await prefs.remove(_keyUserName);
-    await prefs.remove(_keyUserEmail);
-    await prefs.remove(_keyUserPhone);
-    await prefs.remove(_keyChatAdmin);
+    await _storage.deleteAll();
   }
 
   static Future<String?> getToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_keyToken);
+    return _storage.read(key: _keyToken);
   }
 
   static Future<bool> isLoggedIn() async => (await getToken()) != null;
 
   static Future<Map<String, String>> getCurrentUser() async {
-    final prefs = await SharedPreferences.getInstance();
     return {
-      'id': (prefs.getInt(_keyUserId) ?? 0).toString(),
-      'name': prefs.getString(_keyUserName) ?? '',
-      'email': prefs.getString(_keyUserEmail) ?? '',
-      'phone': prefs.getString(_keyUserPhone) ?? '',
+      'id': await _storage.read(key: _keyUserId) ?? '0',
+      'name': await _storage.read(key: _keyUserName) ?? '',
+      'email': await _storage.read(key: _keyUserEmail) ?? '',
+      'phone': await _storage.read(key: _keyUserPhone) ?? '',
     };
   }
 
   static Future<bool> isChatAdmin() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_keyChatAdmin) ?? false;
+    return (await _storage.read(key: _keyChatAdmin)) == 'true';
   }
 
   /// Kiểm tra token còn hiệu lực trên server hay không (gọi khi mở app) -
@@ -98,8 +93,7 @@ class AuthService {
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data['success'] == true) {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setBool(_keyChatAdmin, data['user']['is_chat_admin'] ?? false);
+          await _storage.write(key: _keyChatAdmin, value: '${data['user']['is_chat_admin'] ?? false}');
         }
       }
       return res.statusCode == 200;

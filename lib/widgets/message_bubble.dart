@@ -22,6 +22,7 @@ class MessageBubble extends StatelessWidget {
   final Future<void> Function(ChatMessage)? onPin;
   final void Function(ChatMessage)? onTraLoi;
   final Future<void> Function(ChatMessage, int optionId)? onVotePoll;
+  final void Function(ChatMessage)? onForward;
 
   const MessageBubble({
     super.key,
@@ -35,6 +36,7 @@ class MessageBubble extends StatelessWidget {
     this.onPin,
     this.onTraLoi,
     this.onVotePoll,
+    this.onForward,
   });
 
   void _hienThanhReactionNhanh(BuildContext context) {
@@ -101,6 +103,15 @@ class MessageBubble extends StatelessWidget {
                 onPin?.call(message);
               },
             ),
+            if (!message.daThuHoi && message.loai != 'voice' && message.loai != 'poll')
+              ListTile(
+                leading: const Icon(Icons.forward, color: AppTheme.viettelRed),
+                title: const Text('Chuyển tiếp'),
+                onTap: () {
+                  Navigator.pop(context);
+                  onForward?.call(message);
+                },
+              ),
             if (coTheXoa && !message.daThuHoi)
               ListTile(
                 leading: const Icon(Icons.delete_outline, color: Colors.red),

@@ -191,4 +191,15 @@ class ChatService {
     if (data['success'] != true) return null;
     return ChatMessage.fromJson(data['message']);
   }
+
+  /// Chuyển tiếp 1 tin nhắn sang cuộc trò chuyện khác
+  static Future<bool> forwardMessage({required int messageId, required int targetConversationId}) async {
+    final res = await http.post(
+      Uri.parse(AppConfig.apiChatForward),
+      headers: {...await _authHeader(), 'Content-Type': 'application/json'},
+      body: jsonEncode({'message_id': messageId, 'target_conversation_id': targetConversationId}),
+    );
+    final data = jsonDecode(res.body);
+    return data['success'] == true;
+  }
 }

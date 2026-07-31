@@ -91,6 +91,14 @@ workflows:
           fi
       - name: Lấy các thư viện Flutter
         script: flutter pub get
+      - name: Kiểm tra lỗi code Dart TRƯỚC khi build Android (chỉ mất vài giây,
+          đỡ tốn 3-5 phút chờ cài Android SDK + Gradle mới biết có lỗi cú pháp)
+        script: |
+          flutter analyze --no-fatal-infos --no-fatal-warnings || {
+            echo "⚠️ Có lỗi/cảnh báo code Dart - xem chi tiết ở log phía trên.";
+            echo "Dừng build sớm để đỡ tốn thời gian chờ Gradle.";
+            exit 1;
+          }
       - name: Build file APK (bản release)
         script: flutter build apk --release
     artifacts:

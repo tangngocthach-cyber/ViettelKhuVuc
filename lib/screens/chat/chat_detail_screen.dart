@@ -190,6 +190,50 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     }
   }
 
+  /// Mở dialog chọn cuộc trò chuyện đích để chuyển tiếp tin nhắn
+  Future<void> _xuLyChuyenTiep(ChatMessage tin) async {
+    final dsHoiThoai = await ChatService.getConversations();
+    if (!mounted) return;
+    final dsChon = dsHoiThoai.where((c) => c.id != widget.conversation.id).toList();
+    if (dsChon.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Chưa có cuộc trò chuyện nào khác để chuyển tiếp.')));
+      return;
+    }
+    final dichChon = await showModalBottomSheet<ChatConversation>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: .5,
+        maxChildSize: .85,
+        expand: false,
+        builder: (context, scrollController) => Column(
+          children: [
+            const Padding(padding: EdgeInsets.all(12), child: Text('Chuyển tiếp đến...', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,
+                itemCount: dsChon.length,
+                itemBuilder: (context, i) {
+                  final c = dsChon[i];
+                  return ListTile(
+                    leading: CircleAvatar(backgroundColor: AppTheme.viettelRed.withOpacity(.12), child: Icon(c.loai == 'nhom' ? Icons.groups : Icons.person, color: AppTheme.viettelRed)),
+                    title: Text(c.ten),
+                    onTap: () => Navigator.pop(context, c),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (dichChon == null) return;
+    final thanhCong = await ChatService.forwardMessage(messageId: tin.id, targetConversationId: dichChon.id);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(thanhCong ? 'Đã chuyển tiếp đến "${dichChon.ten}".' : 'Chuyển tiếp thất bại, thử lại sau.')));
+  }
+
   void _batDauTraLoi(ChatMessage tin) {
     setState(() {
       _dangTraLoi = tin;
@@ -584,6 +628,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                                 onPin: _xuLyGhim,
                                 onTraLoi: _batDauTraLoi,
                                 onVotePoll: _xuLyBinhChon,
+                                onForward: _xuLyChuyenTiep,
                               );
                             },
                           ),
