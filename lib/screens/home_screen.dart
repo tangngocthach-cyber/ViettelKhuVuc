@@ -4,6 +4,8 @@ import 'trangchu_tab.dart';
 import 'congdong_tab.dart';
 import 'chat/chat_list_screen.dart';
 import 'account_tab.dart';
+import 'webview_screen.dart';
+import '../config.dart';
 import '../services/chat_service.dart';
 import '../theme.dart';
 
@@ -57,6 +59,20 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(index: _tabHienTai, children: _tabs),
+      // Nút nổi Trợ lý AI - bấm vào đâu, lúc nào cũng gọi được, không cần
+      // chui vào tận tab Cộng đồng mới thấy. Ẩn ở tab Chat nội bộ (index 2)
+      // vì nút nổi dễ che mất khung soạn tin nhắn ở đó.
+      floatingActionButton: _tabHienTai == 2
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const WebViewScreen(url: AppConfig.urlTroLyKPI, title: 'Trợ lý AI')),
+              ),
+              backgroundColor: AppTheme.viettelRed,
+              icon: const Icon(Icons.smart_toy, color: Colors.white),
+              label: const Text('Trợ lý AI', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+            ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _tabHienTai,
         onTap: (i) {
