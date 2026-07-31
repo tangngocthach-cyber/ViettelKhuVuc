@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:share_plus/share_plus.dart';
+import '../config.dart';
 import '../services/auth_service.dart';
+import '../services/fcm_service.dart';
 import '../services/version_service.dart';
 import '../theme.dart';
 import 'login_screen.dart';
@@ -45,6 +48,7 @@ class _TaiKhoanTabState extends State<TaiKhoanTab> {
       ),
     );
     if (xacNhan != true) return;
+    await FcmService.huyDangKy(); // PHẢI gọi trước khi xóa token, cần token còn hợp lệ
     await AuthService.logout();
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const LoginScreen()), (route) => false);
@@ -99,6 +103,13 @@ class _TaiKhoanTabState extends State<TaiKhoanTab> {
                   title: const Text('Kiểm tra cập nhật'),
                   subtitle: Text('Phiên bản hiện tại: $_versionName'),
                   onTap: _kiemTraCapNhat,
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.share, color: AppTheme.viettelRed),
+                  title: const Text('Chia sẻ link cài app'),
+                  subtitle: const Text('Gửi cho đồng nghiệp qua Zalo, tin nhắn...'),
+                  onTap: () => Share.share('Cài đặt app Viettel Khu Vực Vĩnh Hưng tại đây: ${AppConfig.baseUrl}/tai-app.php'),
                 ),
                 const Divider(height: 1),
                 ListTile(

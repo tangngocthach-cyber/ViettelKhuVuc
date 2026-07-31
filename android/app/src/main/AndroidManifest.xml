@@ -55,6 +55,10 @@
         </activity>
 
         <meta-data android:name="flutterEmbedding" android:value="2" />
+        <!-- Icon/màu mặc định cho thông báo đẩy Firebase - tránh hiện icon
+             trắng/vuông mặc định của Android trên một số máy -->
+        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@mipmap/ic_launcher" />
+        <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/notification_color" />
 
         <!-- FileProvider: bắt buộc để mở/cài file .apk vừa tải về (Android 7+ chặn
              chia sẻ đường dẫn file:// trực tiếp giữa các app vì lý do bảo mật) -->

@@ -73,6 +73,25 @@ class FcmService {
     }
   }
 
+  /// Hủy đăng ký thiết bị - PHẢI gọi khi đăng xuất, nếu không thiết bị vẫn
+  /// tiếp tục nhận thông báo Chat dù đã đăng xuất (rủi ro lộ thông tin nếu
+  /// máy được giao cho người khác dùng).
+  static Future<void> huyDangKy() async {
+    try {
+      final messaging = FirebaseMessaging.instance;
+      final token = await messaging.getToken();
+      final authToken = await AuthService.getToken();
+      if (token == null || authToken == null) return;
+      await http.post(
+        Uri.parse(AppConfig.apiFcmUnregisterToken),
+        headers: {'Authorization': 'Bearer $authToken', 'Content-Type': 'application/json'},
+        body: jsonEncode({'fcm_token': token}),
+      );
+    } catch (e) {
+      // Lỗi mạng - bỏ qua, không được chặn việc đăng xuất chỉ vì lỗi này
+    }
+  }
+
   /// Gọi 1 lần trong main() - xử lý khi người dùng BẤM vào thông báo (cả lúc
   /// app đang nền lẫn lúc app đã tắt hẳn rồi mở lên từ thông báo) để tự động
   /// mở ĐÚNG cuộc trò chuyện liên quan, không cần tự tìm lại thủ công.
