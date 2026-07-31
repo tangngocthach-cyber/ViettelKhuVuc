@@ -3,7 +3,6 @@ import 'package:intl/intl.dart';
 import '../../config.dart';
 import '../../models/chat_models.dart';
 import '../../services/chat_service.dart';
-import '../../services/auth_service.dart';
 import '../../theme.dart';
 import 'chat_detail_screen.dart';
 
@@ -17,7 +16,6 @@ class ChatListScreen extends StatefulWidget {
 class _ChatListScreenState extends State<ChatListScreen> {
   List<ChatConversation> _dsHoiThoai = [];
   bool _dangTai = true;
-  String? _userIdHienTai;
 
   @override
   void initState() {
@@ -27,11 +25,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
   Future<void> _taiDuLieu() async {
     setState(() => _dangTai = true);
-    final user = await AuthService.getCurrentUser();
     final ds = await ChatService.getConversations();
     if (!mounted) return;
     setState(() {
-      _userIdHienTai = user['id'];
       _dsHoiThoai = ds;
       _dangTai = false;
     });

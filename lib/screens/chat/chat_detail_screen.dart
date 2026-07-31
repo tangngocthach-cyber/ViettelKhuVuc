@@ -423,7 +423,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         return;
       }
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đang lấy vị trí hiện tại...')));
-      final viTri = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
+      final viTri = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
+      );
       final tin = await ChatService.sendLocation(conversationId: widget.conversation.id, lat: viTri.latitude, lng: viTri.longitude);
       if (!mounted) return;
       if (tin != null) {

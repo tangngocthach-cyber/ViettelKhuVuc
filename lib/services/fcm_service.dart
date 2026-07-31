@@ -1,10 +1,10 @@
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 import '../config.dart';
 import '../main.dart';
-import '../models/chat_models.dart';
 import '../screens/chat/chat_detail_screen.dart';
 import 'auth_service.dart';
 import 'chat_service.dart';
