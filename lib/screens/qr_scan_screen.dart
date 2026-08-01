@@ -144,7 +144,7 @@ class _QrScanScreenState extends State<QrScanScreen> {
             // camera, lỗi tải mô-đun quét mã của Google...) thay vì để mặc
             // định plugin hiện "An unexpected error occurred" không rõ nguyên
             // nhân - giúp biết chính xác cần sửa gì thay vì đoán mò.
-            errorBuilder: (context, error) {
+            errorBuilder: (context, error, child) {
               String lyDo;
               switch (error.errorCode) {
                 case MobileScannerErrorCode.permissionDenied:

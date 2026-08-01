@@ -165,7 +165,7 @@ class _TaiKhoanTabState extends State<TaiKhoanTab> {
                     subtitle: const Text('Mở app nhanh không cần gõ mật khẩu'),
                     value: _vanTayDangBat,
                     onChanged: _doiVanTay,
-                    activeColor: AppTheme.viettelRed,
+                    activeThumbColor: AppTheme.viettelRed,
                   ),
                 ],
               ],
