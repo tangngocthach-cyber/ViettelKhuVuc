@@ -67,11 +67,11 @@ class _HomeScreenState extends State<HomeScreen> {
           : FloatingActionButton.extended(
               onPressed: () => Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const WebViewScreen(url: AppConfig.urlTroLyKPI, title: 'Trợ lý AI')),
+                MaterialPageRoute(builder: (_) => const WebViewScreen(url: AppConfig.urlHoiDap, title: 'Hỏi đáp tự động')),
               ),
               backgroundColor: AppTheme.viettelRed,
-              icon: const Icon(Icons.smart_toy, color: Colors.white),
-              label: const Text('Trợ lý AI', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+              icon: const Icon(Icons.chat_bubble, color: Colors.white),
+              label: const Text('Hỏi đáp', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
             ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _tabHienTai,
