@@ -51,13 +51,36 @@ class AuthService {
         await _storage.write(key: _keyUserName, value: data['user']['name'] ?? '');
         await _storage.write(key: _keyUserEmail, value: data['user']['email'] ?? '');
         await _storage.write(key: _keyUserPhone, value: data['user']['phone'] ?? '');
-        await _storage.write(key: _keyChatAdmin, value: '${data['user']['is_chat_admin'] ?? false}');
-        await _storage.write(key: _keyHopCapAccess, value: '${data['user']['hop_cap_gpon_access'] ?? false}');
+        // KHÔNG lấy is_chat_admin/hop_cap_gpon_access từ API đăng nhập - API đó
+        // có thể chưa trả đủ các trường quyền mới thêm sau này (lỗi thật đã
+        // gặp: cấp quyền Bản đồ Hộp cáp trên web xong, đăng nhập lại app vẫn
+        // không thấy vì bị API đăng nhập ghi đè về false). Luôn đồng bộ lại
+        // NGAY từ api/auth/me.php - nguồn DUY NHẤT đáng tin cậy cho các quyền.
+        await _dongBoQuyenTuServer(data['token']);
         return null;
       }
       return data['message'] ?? 'Đăng nhập thất bại, vui lòng thử lại.';
     } catch (e) {
       return 'Không thể kết nối máy chủ. Kiểm tra lại mạng Internet.';
+    }
+  }
+
+  /// Đồng bộ lại các cờ quyền (Quản trị Chat, Bản đồ Hộp cáp GPON...) từ
+  /// api/auth/me.php - dùng chung cho cả login() và validateSession() để chỉ
+  /// có DUY NHẤT 1 nguồn sự thật, tránh lệch dữ liệu giữa 2 API khác nhau.
+  static Future<void> _dongBoQuyenTuServer(String token) async {
+    try {
+      final res = await http.get(Uri.parse(AppConfig.apiMe), headers: {'Authorization': 'Bearer $token'}).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['success'] == true) {
+          await _storage.write(key: _keyChatAdmin, value: '${data['user']['is_chat_admin'] ?? false}');
+          await _storage.write(key: _keyHopCapAccess, value: '${data['user']['hop_cap_gpon_access'] ?? false}');
+        }
+      }
+    } catch (e) {
+      // Lỗi mạng lúc đồng bộ quyền - không quan trọng bằng việc đăng nhập
+      // thành công, giữ nguyên giá trị quyền cũ (nếu có) và bỏ qua.
     }
   }
 
