@@ -47,9 +47,13 @@ class _TaiKhoanTabState extends State<TaiKhoanTab> {
     if (batLen) {
       // Bắt xác thực NGAY LÚC BẬT để chắc chắn máy đọc được vân tay/khuôn mặt
       // của đúng người đang cầm điện thoại - tránh trường hợp bật hộ nhầm.
-      final xacThucOk = await BiometricService.xacThuc(lyDo: 'Xác thực để bật đăng nhập vân tay');
-      if (!xacThucOk) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Xác thực không thành công, chưa bật được.')));
+      final ketQua = await BiometricService.xacThuc(lyDo: 'Xác thực để bật đăng nhập vân tay');
+      if (!ketQua.thanhCong) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(ketQua.lyDoLoi ?? 'Xác thực không thành công, chưa bật được.'), duration: const Duration(seconds: 6)),
+          );
+        }
         return;
       }
     }

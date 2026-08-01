@@ -66,7 +66,7 @@ class AppConfig {
   /// LƯU Ý: PHẢI ghi rõ '/index.php', không được để trống - nếu để trống,
   /// bước đăng nhập tự động qua vé phiên sẽ hiểu nhầm redirect rỗng và đá
   /// thẳng về trang Hồ sơ cá nhân thay vì trang chủ (bug thật đã gặp).
-  static const String urlHoiDap = '$baseUrl/index.php';
+  static const String urlHoiDap = '$baseUrl/index.php?hoi_dap=1';
 
   /// Khoảng thời gian (giây) app tự kiểm tra tin nhắn mới trong 1 cuộc Chat
   /// (poll đơn giản, không cần server WebSocket riêng - đủ dùng cho quy mô nhỏ)

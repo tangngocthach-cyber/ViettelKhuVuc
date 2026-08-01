@@ -18,6 +18,7 @@ class BiometricLockScreen extends StatefulWidget {
 class _BiometricLockScreenState extends State<BiometricLockScreen> {
   bool _dangXacThuc = false;
   bool _thatBaiLanDau = false;
+  String? _lyDoLoi;
 
   @override
   void initState() {
@@ -27,13 +28,16 @@ class _BiometricLockScreenState extends State<BiometricLockScreen> {
 
   Future<void> _thuXacThuc() async {
     setState(() => _dangXacThuc = true);
-    final thanhCong = await BiometricService.xacThuc(lyDo: 'Xác thực vân tay/khuôn mặt để mở ứng dụng');
+    final ketQua = await BiometricService.xacThuc(lyDo: 'Xác thực vân tay/khuôn mặt để mở ứng dụng');
     if (!mounted) return;
     setState(() {
       _dangXacThuc = false;
-      if (!thanhCong) _thatBaiLanDau = true;
+      if (!ketQua.thanhCong) {
+        _thatBaiLanDau = true;
+        _lyDoLoi = ketQua.lyDoLoi;
+      }
     });
-    if (thanhCong) {
+    if (ketQua.thanhCong) {
       Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const HomeScreen()));
     }
   }
@@ -65,9 +69,9 @@ class _BiometricLockScreenState extends State<BiometricLockScreen> {
                 const SizedBox(height: 32),
                 if (_dangXacThuc) const CircularProgressIndicator(color: Colors.white),
                 if (!_dangXacThuc && _thatBaiLanDau) ...[
-                  const Text(
-                    'Xác thực không thành công hoặc đã bị hủy.',
-                    style: TextStyle(color: Colors.white70),
+                  Text(
+                    _lyDoLoi ?? 'Xác thực không thành công hoặc đã bị hủy.',
+                    style: const TextStyle(color: Colors.white70),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
