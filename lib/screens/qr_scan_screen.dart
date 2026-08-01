@@ -137,7 +137,41 @@ class _QrScanScreenState extends State<QrScanScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          MobileScanner(controller: _controller, onDetect: _khiQuetDuoc),
+          MobileScanner(
+            controller: _controller,
+            onDetect: _khiQuetDuoc,
+            // Hiện ĐÚNG lý do lỗi cụ thể (thiếu quyền camera, máy không có
+            // camera, lỗi tải mô-đun quét mã của Google...) thay vì để mặc
+            // định plugin hiện "An unexpected error occurred" không rõ nguyên
+            // nhân - giúp biết chính xác cần sửa gì thay vì đoán mò.
+            errorBuilder: (context, error) {
+              String lyDo;
+              switch (error.errorCode) {
+                case MobileScannerErrorCode.permissionDenied:
+                  lyDo = 'Chưa cấp quyền Camera cho app. Vào Cài đặt máy > Ứng dụng > Viettel Khu Vực Vĩnh Hưng > Quyền > bật Camera.';
+                  break;
+                case MobileScannerErrorCode.unsupported:
+                  lyDo = 'Máy này không hỗ trợ quét mã QR (thiếu camera hoặc thiếu dịch vụ Google cần thiết).';
+                  break;
+                default:
+                  lyDo = 'Lỗi: ${error.errorDetails?.message ?? error.errorCode.name}';
+              }
+              return Container(
+                color: Colors.black,
+                padding: const EdgeInsets.all(24),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.error_outline, color: Colors.white, size: 48),
+                      const SizedBox(height: 16),
+                      Text(lyDo, style: const TextStyle(color: Colors.white), textAlign: TextAlign.center),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
           // Khung ngắm để dễ căn mã QR vào giữa - chỉ trang trí, không ảnh hưởng việc quét
           Center(
             child: Container(
