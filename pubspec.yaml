@@ -1,7 +1,7 @@
 name: vinhhung_app
 description: Ứng dụng di động Viettel Khu Vực Vĩnh Hưng
 publish_to: 'none'
-version: 1.0.4+4
+version: 1.0.2+2
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -51,9 +51,6 @@ dependencies:
 
   # Đăng nhập bằng vân tay/khuôn mặt (đọc cảm biến sinh trắc học có sẵn trên máy)
   local_auth: ^2.3.0
-
-  # Xin quyền hệ điều hành lúc chạy (camera, vị trí...) bằng hộp thoại chuẩn
-  permission_handler: ^11.3.1
 
   # Quét mã QR/vạch (sản phẩm, hợp đồng) bằng camera
   mobile_scanner: ^6.0.2
