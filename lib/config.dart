@@ -57,6 +57,10 @@ class AppConfig {
   static const String urlKhoDuLieuExcel = '$baseUrl/kho-du-lieu-excel.php';
   static const String urlThuVienTaiLieu = '$baseUrl/e-tai-lieu.php';
   static const String urlTroLyKPI = '$baseUrl/tro-ly-ai.php';
+  /// Trang chủ - nơi có sẵn khung "Hỏi đáp tự động Viettel Vĩnh Hưng" (chatbox
+  /// công khai trả lời khách về SIM/Internet/Truyền hình/Camera/Thanh toán...),
+  /// nhúng bằng WebView để dùng lại đúng chatbox có sẵn, không xây lại từ đầu.
+  static const String urlHoiDap = baseUrl;
 
   /// Khoảng thời gian (giây) app tự kiểm tra tin nhắn mới trong 1 cuộc Chat
   /// (poll đơn giản, không cần server WebSocket riêng - đủ dùng cho quy mô nhỏ)
