@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../config.dart';
 import '../services/auth_service.dart';
@@ -69,10 +70,30 @@ class _WebViewScreenState extends State<WebViewScreen> {
           return NavigationDecision.navigate;
         },
       ));
+
+    // Bật navigator.geolocation cho WebView - mặc định Android WebView CHẶN
+    // JS xin định vị dù app đã có quyền ACCESS_FINE_LOCATION ở AndroidManifest
+    // - phải bật tường minh ở đây thì nút "Vị trí của tôi" trên Bản đồ Hộp
+    // cáp mới xin được định vị (khác trình duyệt thường tự cho phép sẵn).
+    final platform = _controller.platform;
+    if (platform is AndroidWebViewController) {
+      platform.setGeolocationEnabled(true);
+    }
+
     _taiTrangCoDangNhap();
   }
 
   Future<void> _taiTrangCoDangNhap() async {
+    // QUAN TRỌNG - lý do có lỗi thật đã gặp: mỗi lần mở màn này, server tạo
+    // PHIÊN ĐĂNG NHẬP MỚI HOÀN TOÀN (app-session-login.php gọi
+    // session_regenerate_id() - đổi cả session lẫn CSRF token). Nếu WebView
+    // dùng lại HTML đã cache từ lần mở TRƯỚC (mang CSRF token của phiên CŨ),
+    // token đó sẽ LỆCH với phiên MỚI trên server -> mọi form/API cần CSRF
+    // (như khung "Hỏi đáp tự động") bị từ chối ÂM THẦM, trông như "không hoạt
+    // động" dù không có lỗi hiển thị rõ ràng. Xóa cache TRƯỚC khi tải đảm bảo
+    // luôn lấy HTML mới nhất, khớp đúng phiên mới nhất.
+    await _controller.clearCache();
+
     final ticket = await AuthService.getWebTicket();
     if (ticket != null) {
       final urlQuaVe = '${AppConfig.urlSessionLogin}?ticket=$ticket&redirect=${Uri.encodeComponent(Uri.parse(widget.url).path + (Uri.parse(widget.url).query.isNotEmpty ? "?${Uri.parse(widget.url).query}" : ""))}';

@@ -18,6 +18,7 @@ class AuthService {
   static const _keyUserEmail = 'user_email';
   static const _keyUserPhone = 'user_phone';
   static const _keyChatAdmin = 'is_chat_admin';
+  static const _keyHopCapAccess = 'hop_cap_gpon_access';
   static const _keyBiometricEnabled = 'sinh_trac_hoc_bat';
 
   /// Có đang BẬT đăng nhập vân tay/Face ID không - lưu CHUNG storage với token
@@ -51,6 +52,7 @@ class AuthService {
         await _storage.write(key: _keyUserEmail, value: data['user']['email'] ?? '');
         await _storage.write(key: _keyUserPhone, value: data['user']['phone'] ?? '');
         await _storage.write(key: _keyChatAdmin, value: '${data['user']['is_chat_admin'] ?? false}');
+        await _storage.write(key: _keyHopCapAccess, value: '${data['user']['hop_cap_gpon_access'] ?? false}');
         return null;
       }
       return data['message'] ?? 'Đăng nhập thất bại, vui lòng thử lại.';
@@ -90,6 +92,12 @@ class AuthService {
     return (await _storage.read(key: _keyChatAdmin)) == 'true';
   }
 
+  /// Có quyền xem "Bản đồ Hộp cáp GPON" không - do Admin cấp riêng cho từng
+  /// người, mặc định KHÔNG có quyền cho tới khi được cấp (an toàn hơn).
+  static Future<bool> hasHopCapAccess() async {
+    return (await _storage.read(key: _keyHopCapAccess)) == 'true';
+  }
+
   /// Kiểm tra token còn hiệu lực trên server hay không (gọi khi mở app) -
   /// nếu server báo hết hạn, TỰ ĐỘNG xóa token cục bộ để chuyển về màn Đăng nhập.
   /// Đồng thời ĐỒNG BỘ LẠI cờ Quản trị Chat mới nhất (phòng khi Admin vừa cấp/gỡ quyền).
@@ -106,6 +114,7 @@ class AuthService {
         final data = jsonDecode(res.body);
         if (data['success'] == true) {
           await _storage.write(key: _keyChatAdmin, value: '${data['user']['is_chat_admin'] ?? false}');
+          await _storage.write(key: _keyHopCapAccess, value: '${data['user']['hop_cap_gpon_access'] ?? false}');
         }
       }
       return res.statusCode == 200;

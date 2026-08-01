@@ -1,7 +1,8 @@
 name: vinhhung_app
 description: Ứng dụng di động Viettel Khu Vực Vĩnh Hưng
 publish_to: 'none'
-version: 1.0.6+5
+version: 1.0.2+2
+
 environment:
   sdk: '>=3.0.0 <4.0.0'
 
@@ -18,6 +19,7 @@ dependencies:
 
   # Hiển thị nội dung web thật (Sản phẩm/Tin tức/Chính sách/Diễn đàn...)
   webview_flutter: ^4.7.0
+  webview_flutter_android: ^4.0.0
 
   # Chat: chọn ảnh, chọn file, xem ảnh, mở file đã tải
   image_picker: ^1.1.2

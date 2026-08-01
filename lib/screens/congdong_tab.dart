@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../config.dart';
+import '../services/auth_service.dart';
 import '../widgets/icon_grid_view.dart';
 
 /// Tab Cộng đồng - ĐẦY ĐỦ công cụ nội bộ như menu thật trên website (không chỉ
@@ -7,8 +8,31 @@ import '../widgets/icon_grid_view.dart';
 /// do chính PHP kiểm tra như trên web (dùng chung phiên đăng nhập thật qua
 /// app-session-login.php) - ai chưa được cấp quyền module nào thì trang đó sẽ
 /// tự báo như trên web, không cần app tự giới hạn thêm.
-class CongDongTab extends StatelessWidget {
+///
+/// RIÊNG danh mục "Hạ tầng mạng" (Bản đồ Hộp cáp GPON) là NGOẠI LỆ - đây là dữ
+/// liệu vị trí hạ tầng, cần ẨN HẲN danh mục (không chỉ chặn sau khi bấm vào)
+/// cho tới khi được Admin cấp quyền riêng (hop_cap_gpon_access) - nên cần
+/// StatefulWidget để tự kiểm tra quyền qua AuthService trước khi vẽ danh mục.
+class CongDongTab extends StatefulWidget {
   const CongDongTab({super.key});
+
+  @override
+  State<CongDongTab> createState() => _CongDongTabState();
+}
+
+class _CongDongTabState extends State<CongDongTab> {
+  bool _coQuyenHopCap = false; // Mặc định ẨN - an toàn hơn là lỡ hiện nhầm
+
+  @override
+  void initState() {
+    super.initState();
+    _kiemTraQuyen();
+  }
+
+  Future<void> _kiemTraQuyen() async {
+    final coQuyen = await AuthService.hasHopCapAccess();
+    if (mounted) setState(() => _coQuyenHopCap = coQuyen);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,6 +44,9 @@ class CongDongTab extends StatelessWidget {
       const GridModuleItem(icon: Icons.link, label: 'Tiện ích nội bộ', url: AppConfig.urlTienIchNoiBo),
       const GridModuleItem(icon: Icons.table_chart, label: 'Kho Dữ liệu bán hàng', url: AppConfig.urlKhoDuLieuExcel),
       const GridModuleItem(icon: Icons.smart_toy, label: 'Trợ lý KPI (AI)', url: AppConfig.urlTroLyKPI),
+    ];
+    final haTangMang = [
+      const GridModuleItem(icon: Icons.map, label: 'Bản đồ Hộp cáp GPON', url: AppConfig.urlBanDoHopCap),
     ];
     final hocTap = [
       const GridModuleItem(icon: Icons.school, label: 'E-Learning', url: AppConfig.urlKhoaHoc),
@@ -40,6 +67,12 @@ class CongDongTab extends StatelessWidget {
         children: [
           _tieuDeNhom('Công việc & KPI'),
           IconGridView(items: congViec, cuonRieng: false),
+          // Danh mục CHỈ hiện khi được cấp quyền riêng - ẩn hẳn (không chỉ mờ
+          // đi hay chặn sau khi bấm) nếu chưa được Admin cấp quyền.
+          if (_coQuyenHopCap) ...[
+            _tieuDeNhom('Hạ tầng mạng'),
+            IconGridView(items: haTangMang, cuonRieng: false),
+          ],
           _tieuDeNhom('Học tập & Tài liệu'),
           IconGridView(items: hocTap, cuonRieng: false),
           _tieuDeNhom('Cộng đồng & Ưu đãi'),
