@@ -60,7 +60,10 @@ class AppConfig {
   /// Trang chủ - nơi có sẵn khung "Hỏi đáp tự động Viettel Vĩnh Hưng" (chatbox
   /// công khai trả lời khách về SIM/Internet/Truyền hình/Camera/Thanh toán...),
   /// nhúng bằng WebView để dùng lại đúng chatbox có sẵn, không xây lại từ đầu.
-  static const String urlHoiDap = baseUrl;
+  /// LƯU Ý: PHẢI ghi rõ '/index.php', không được để trống - nếu để trống,
+  /// bước đăng nhập tự động qua vé phiên sẽ hiểu nhầm redirect rỗng và đá
+  /// thẳng về trang Hồ sơ cá nhân thay vì trang chủ (bug thật đã gặp).
+  static const String urlHoiDap = '$baseUrl/index.php';
 
   /// Khoảng thời gian (giây) app tự kiểm tra tin nhắn mới trong 1 cuộc Chat
   /// (poll đơn giản, không cần server WebSocket riêng - đủ dùng cho quy mô nhỏ)
