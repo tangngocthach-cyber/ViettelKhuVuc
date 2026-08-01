@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../config.dart';
 import '../services/auth_service.dart';
 import '../theme.dart';
@@ -84,6 +85,16 @@ class _WebViewScreenState extends State<WebViewScreen> {
   }
 
   Future<void> _taiTrangCoDangNhap() async {
+    // Trang Bản đồ Hộp cáp GPON cần quyền định vị - CHỦ ĐỘNG xin bằng hộp
+    // thoại hệ thống chuẩn TRƯỚC khi vào trang. Chỉ khai báo quyền trong
+    // AndroidManifest.xml là CHƯA ĐỦ - từ Android 6.0 trở lên bắt buộc phải
+    // xin cấp quyền lúc app đang chạy mới thật sự có quyền, nếu không WebView
+    // sẽ luôn báo "chưa cho phép truy cập vị trí" dù người dùng có bật định vị
+    // ngoài Cài đặt máy đi nữa (lỗi thật đã gặp).
+    if (widget.url.contains('ban-do-hop-cap')) {
+      await Permission.location.request();
+    }
+
     // QUAN TRỌNG - lý do có lỗi thật đã gặp: mỗi lần mở màn này, server tạo
     // PHIÊN ĐĂNG NHẬP MỚI HOÀN TOÀN (app-session-login.php gọi
     // session_regenerate_id() - đổi cả session lẫn CSRF token). Nếu WebView
