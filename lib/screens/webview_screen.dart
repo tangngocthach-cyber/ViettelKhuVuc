@@ -92,7 +92,35 @@ class _WebViewScreenState extends State<WebViewScreen> {
     // sẽ luôn báo "chưa cho phép truy cập vị trí" dù người dùng có bật định vị
     // ngoài Cài đặt máy đi nữa (lỗi thật đã gặp).
     if (widget.url.contains('ban-do-hop-cap')) {
-      await Permission.location.request();
+      final ketQua = await Permission.location.request();
+      // QUAN TRỌNG: nếu người dùng đã bấm "Từ chối" ở LẦN THỬ TRƯỚC (trước khi
+      // có tính năng xin quyền này), Android tự chuyển sang "từ chối VĨNH
+      // VIỄN" - gọi request() lần nữa sẽ KHÔNG hiện hộp thoại nào cả, chỉ âm
+      // thầm trả về denied/permanentlyDenied. Lúc này CHỈ CÓ CÁCH duy nhất là
+      // dẫn thẳng người dùng vào đúng màn Cài đặt quyền của app để tự bật tay.
+      if (ketQua.isPermanentlyDenied && mounted) {
+        await showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Cần quyền Vị trí'),
+            content: const Text(
+              'App đã từng bị từ chối quyền Vị trí ở lần trước, nên Android sẽ '
+              'không tự hỏi lại nữa. Bấm "Mở Cài đặt" bên dưới, chọn mục '
+              '"Quyền" (Permissions) → "Vị trí" (Location) → chọn "Cho phép".',
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Để sau')),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  openAppSettings();
+                },
+                child: const Text('Mở Cài đặt'),
+              ),
+            ],
+          ),
+        );
+      }
     }
 
     // QUAN TRỌNG - lý do có lỗi thật đã gặp: mỗi lần mở màn này, server tạo
