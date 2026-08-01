@@ -1,8 +1,7 @@
 name: vinhhung_app
 description: Ứng dụng di động Viettel Khu Vực Vĩnh Hưng
 publish_to: 'none'
-version: 1.0.2+2
-
+version: 1.0.6+5
 environment:
   sdk: '>=3.0.0 <4.0.0'
 
