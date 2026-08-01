@@ -56,6 +56,20 @@ workflows:
           if [ -f android/app/build.gradle ]; then
             awk '{print} /^[[:space:]]*android[[:space:]]*\{/ && !done {print "    compileSdkVersion 36"; done=1}' android/app/build.gradle > android/app/build.gradle.tmp && mv android/app/build.gradle.tmp android/app/build.gradle
           fi
+      - name: Ép minSdk = 23 - BẮT BUỘC cho thư viện local_auth (đăng nhập vân
+          tay/Face ID dùng BiometricPrompt, chỉ có từ Android 6.0/API 23 trở lên;
+          nếu để mặc định flutter.minSdkVersion có thể thấp hơn, build lỗi hoặc
+          vân tay không hoạt động trên máy Android cũ). THAY THẾ trực tiếp dòng
+          minSdk gốc (không chèn thêm dòng mới) - vì nếu chỉ chèn thêm, dòng gốc
+          "minSdk = flutter.minSdkVersion" nằm SAU sẽ chạy sau và ghi đè mất giá
+          trị 23 vừa chèn (bài học từ lỗi thứ tự dòng compileSdk trước đó).
+        script: |
+          if [ -f android/app/build.gradle.kts ]; then
+            sed -i -E 's/minSdk[[:space:]]*=[[:space:]]*flutter\.minSdkVersion/minSdk = 23/' android/app/build.gradle.kts
+          fi
+          if [ -f android/app/build.gradle ]; then
+            sed -i -E 's/minSdkVersion[[:space:]]+flutter\.minSdkVersion/minSdkVersion 23/' android/app/build.gradle
+          fi
       - name: Bật "core library desugaring" - BẮT BUỘC cho thư viện
           flutter_local_notifications (lỗi thật đã gặp - thông báo "requires core library
           desugaring to be enabled"). Chèn dạng khối riêng ở CUỐI file (giống

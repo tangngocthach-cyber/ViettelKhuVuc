@@ -7,6 +7,7 @@ import 'account_tab.dart';
 import 'webview_screen.dart';
 import '../config.dart';
 import '../services/chat_service.dart';
+import '../services/connectivity_service.dart';
 import '../theme.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -58,7 +59,28 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(index: _tabHienTai, children: _tabs),
+      body: Column(
+        children: [
+          // Banner "Đang ngoại tuyến" - hiện NGAY LẬP TỨC khi mất mạng, tự ẩn
+          // khi có mạng trở lại, không cần vào lại app.
+          AnimatedBuilder(
+            animation: connectivityService,
+            builder: (context, _) => connectivityService.dangOnline
+                ? const SizedBox.shrink()
+                : Container(
+                    width: double.infinity,
+                    color: Colors.orange.shade700,
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: const Text(
+                      '📡 Đang ngoại tuyến - hiển thị dữ liệu đã lưu trước đó',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+          ),
+          Expanded(child: IndexedStack(index: _tabHienTai, children: _tabs)),
+        ],
+      ),
       // Nút nổi Trợ lý AI - bấm vào đâu, lúc nào cũng gọi được, không cần
       // chui vào tận tab Cộng đồng mới thấy. Ẩn ở tab Chat nội bộ (index 2)
       // vì nút nổi dễ che mất khung soạn tin nhắn ở đó.

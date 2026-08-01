@@ -3,6 +3,7 @@
 
     <!-- Truy cập mạng để gọi API -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <!-- Chụp ảnh gửi Chat -->
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- Định vị GPS để chia sẻ vị trí trong Chat -->

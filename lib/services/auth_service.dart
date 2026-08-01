@@ -18,6 +18,18 @@ class AuthService {
   static const _keyUserEmail = 'user_email';
   static const _keyUserPhone = 'user_phone';
   static const _keyChatAdmin = 'is_chat_admin';
+  static const _keyBiometricEnabled = 'sinh_trac_hoc_bat';
+
+  /// Có đang BẬT đăng nhập vân tay/Face ID không - lưu CHUNG storage với token
+  /// nên khi đăng xuất (deleteAll ở logout()) sẽ TỰ ĐỘNG tắt luôn, không cần
+  /// xử lý riêng - đúng ý nghĩa bảo mật (đăng xuất thì vân tay cũng vô hiệu).
+  static Future<bool> isBiometricEnabled() async {
+    return (await _storage.read(key: _keyBiometricEnabled)) == 'true';
+  }
+
+  static Future<void> setBiometricEnabled(bool bat) async {
+    await _storage.write(key: _keyBiometricEnabled, value: '$bat');
+  }
 
   /// Đăng nhập - gọi ĐÚNG API dùng chung tài khoản web, KHÔNG tự tạo tài khoản
   /// riêng cho app. Trả về null nếu thành công, hoặc chuỗi lỗi để hiển thị.

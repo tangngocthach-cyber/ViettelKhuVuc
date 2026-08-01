@@ -5,8 +5,9 @@ import '../theme.dart';
 class GridModuleItem {
   final IconData icon;
   final String label;
-  final String url;
-  const GridModuleItem({required this.icon, required this.label, required this.url});
+  final String? url;
+  final VoidCallback? onTap; // Nếu có, dùng hành động này THAY VÌ mở URL qua WebView (VD: mở camera quét QR)
+  const GridModuleItem({required this.icon, required this.label, this.url, this.onTap}) : assert(url != null || onTap != null, 'Phải có url hoặc onTap');
 }
 
 /// Lưới icon dùng CHUNG cho tab Trang chủ và tab Cộng đồng - bấm vào icon nào
@@ -38,10 +39,11 @@ class IconGridView extends StatelessWidget {
         final item = items[i];
         return InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => WebViewScreen(url: item.url, title: item.label)),
-          ),
+          onTap: item.onTap ??
+              () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => WebViewScreen(url: item.url!, title: item.label)),
+                  ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

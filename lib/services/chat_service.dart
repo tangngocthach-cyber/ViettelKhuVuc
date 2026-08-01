@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import '../config.dart';
 import '../models/chat_models.dart';
 import 'auth_service.dart';
@@ -10,17 +12,41 @@ class ChatService {
     return {'Authorization': 'Bearer $token'};
   }
 
+  static Future<File> _fileCacheHoiThoai() async {
+    final dir = await getApplicationDocumentsDirectory();
+    return File('${dir.path}/cache_chat_conversations.json');
+  }
+
   static Future<List<ChatConversation>> getConversations() async {
     try {
       final res = await http.get(Uri.parse(AppConfig.apiChatConversations), headers: await _authHeader()).timeout(const Duration(seconds: 15));
       final data = jsonDecode(res.body);
-      if (data['success'] != true) return [];
-      return (data['data'] as List).map((e) => ChatConversation.fromJson(e)).toList();
+      if (data['success'] != true) return await _docCacheHoiThoai();
+      final danhSachTho = data['data'] as List;
+      // Lưu lại NGUYÊN DỮ LIỆU THÔ (chưa parse) - để lần sau mất mạng vẫn đọc
+      // lại được đúng y hệt, không phụ thuộc việc ChatConversation có hàm
+      // toJson() hay không (hiện tại chưa có, tránh phải thêm để giảm rủi ro
+      // sai sót không cần thiết).
+      try {
+        await (await _fileCacheHoiThoai()).writeAsString(jsonEncode(danhSachTho));
+      } catch (e) {
+        // Ghi cache lỗi (VD hết dung lượng máy) không quan trọng, bỏ qua
+      }
+      return danhSachTho.map((e) => ChatConversation.fromJson(e)).toList();
     } catch (e) {
-      // Mất mạng/server lỗi/timeout: trả về danh sách rỗng thay vì ném lỗi -
-      // tránh làm màn hình Chat/nút "Đang tải" bị treo vĩnh viễn (bug thật đã
-      // gặp: nếu không bắt lỗi ở đây, _dangTai ở màn hình gọi hàm này không
-      // bao giờ được set về false vì exception chặn mất dòng setState sau đó).
+      // Mất mạng/server lỗi/timeout: thử đọc cache CŨ thay vì trả rỗng luôn -
+      // để tab Chat vẫn hiện được danh sách hội thoại gần nhất lúc offline.
+      return await _docCacheHoiThoai();
+    }
+  }
+
+  static Future<List<ChatConversation>> _docCacheHoiThoai() async {
+    try {
+      final file = await _fileCacheHoiThoai();
+      if (!await file.exists()) return [];
+      final danhSachTho = jsonDecode(await file.readAsString()) as List;
+      return danhSachTho.map((e) => ChatConversation.fromJson(e)).toList();
+    } catch (e) {
       return [];
     }
   }

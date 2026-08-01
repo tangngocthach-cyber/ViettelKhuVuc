@@ -3,6 +3,7 @@ import '../services/auth_service.dart';
 import '../services/fcm_service.dart';
 import '../services/version_service.dart';
 import '../theme.dart';
+import 'biometric_lock_screen.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
 import 'update_dialog.dart';
@@ -39,9 +40,16 @@ class _SplashScreenState extends State<SplashScreen> {
     }
     if (!mounted) return;
 
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => daDangNhap ? const HomeScreen() : const LoginScreen()),
-    );
+    Widget manDich;
+    if (!daDangNhap) {
+      manDich = const LoginScreen();
+    } else if (await AuthService.isBiometricEnabled()) {
+      manDich = const BiometricLockScreen();
+    } else {
+      manDich = const HomeScreen();
+    }
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => manDich));
   }
 
   @override

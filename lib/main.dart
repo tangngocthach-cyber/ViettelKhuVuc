@@ -7,6 +7,7 @@ import 'theme.dart';
 import 'screens/splash_screen.dart';
 import 'services/reminder_notification_service.dart';
 import 'services/fcm_service.dart';
+import 'services/connectivity_service.dart';
 
 /// Khóa điều hướng TOÀN CỤC - cho phép mở màn hình từ NGOÀI cây widget (VD
 /// khi người dùng bấm vào thông báo đẩy lúc app đang ở nền/đã tắt).
@@ -42,6 +43,8 @@ Future<void> main() async {
     // ném lỗi ở đây - KHÔNG được để lỗi này chặn mất runApp() (nguyên nhân
     // gây màn hình trắng vĩnh viễn, không crash log, đã xảy ra thực tế).
   }
+  await themeController.khoiTao();
+  connectivityService.khoiTao(); // không await - không chặn màn splash, tự cập nhật ngầm
   runApp(const VinhHungApp());
 }
 
@@ -50,21 +53,26 @@ class VinhHungApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      navigatorKey: navigatorKey,
-      title: 'Viettel Khu Vực Vĩnh Hưng',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
-      // Giới hạn hệ số phóng chữ tối đa để không vỡ layout trên máy có cài đặt
-      // "cỡ chữ lớn" hệ thống, đặc biệt quan trọng khi hiển thị trên tablet
-      builder: (context, child) {
-        final mq = MediaQuery.of(context);
-        return MediaQuery(
-          data: mq.copyWith(textScaler: mq.textScaler.clamp(minScaleFactor: .9, maxScaleFactor: 1.2)),
-          child: child!,
-        );
-      },
-      home: const SplashScreen(),
+    return AnimatedBuilder(
+      animation: themeController,
+      builder: (context, _) => MaterialApp(
+        navigatorKey: navigatorKey,
+        title: 'Viettel Khu Vực Vĩnh Hưng',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.light,
+        darkTheme: AppTheme.dark,
+        themeMode: themeController.themeMode,
+        // Giới hạn hệ số phóng chữ tối đa để không vỡ layout trên máy có cài đặt
+        // "cỡ chữ lớn" hệ thống, đặc biệt quan trọng khi hiển thị trên tablet
+        builder: (context, child) {
+          final mq = MediaQuery.of(context);
+          return MediaQuery(
+            data: mq.copyWith(textScaler: mq.textScaler.clamp(minScaleFactor: .9, maxScaleFactor: 1.2)),
+            child: child!,
+          );
+        },
+        home: const SplashScreen(),
+      ),
     );
   }
 }

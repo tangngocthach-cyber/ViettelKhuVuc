@@ -3,6 +3,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:share_plus/share_plus.dart';
 import '../config.dart';
 import '../services/auth_service.dart';
+import '../services/biometric_service.dart';
 import '../services/fcm_service.dart';
 import '../services/version_service.dart';
 import '../theme.dart';
@@ -19,6 +20,8 @@ class TaiKhoanTab extends StatefulWidget {
 class _TaiKhoanTabState extends State<TaiKhoanTab> {
   Map<String, String> _user = {};
   String _versionName = '';
+  bool _coCamBienVanTay = false;
+  bool _vanTayDangBat = false;
 
   @override
   void initState() {
@@ -29,10 +32,49 @@ class _TaiKhoanTabState extends State<TaiKhoanTab> {
   Future<void> _load() async {
     final user = await AuthService.getCurrentUser();
     final info = await PackageInfo.fromPlatform();
+    final coCamBien = await BiometricService.coSanSang();
+    final vanTayBat = await AuthService.isBiometricEnabled();
+    if (!mounted) return;
     setState(() {
       _user = user;
       _versionName = info.version;
+      _coCamBienVanTay = coCamBien;
+      _vanTayDangBat = vanTayBat;
     });
+  }
+
+  Future<void> _doiVanTay(bool batLen) async {
+    if (batLen) {
+      // Bắt xác thực NGAY LÚC BẬT để chắc chắn máy đọc được vân tay/khuôn mặt
+      // của đúng người đang cầm điện thoại - tránh trường hợp bật hộ nhầm.
+      final xacThucOk = await BiometricService.xacThuc(lyDo: 'Xác thực để bật đăng nhập vân tay');
+      if (!xacThucOk) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Xác thực không thành công, chưa bật được.')));
+        return;
+      }
+    }
+    await AuthService.setBiometricEnabled(batLen);
+    if (!mounted) return;
+    setState(() => _vanTayDangBat = batLen);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(batLen ? 'Đã bật đăng nhập vân tay.' : 'Đã tắt đăng nhập vân tay.')));
+  }
+
+  Future<void> _chonGiaoDien() async {
+    final chon = await showDialog<ThemeMode>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Chọn giao diện'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            RadioListTile(value: ThemeMode.light, groupValue: themeController.themeMode, title: const Text('Sáng'), onChanged: (v) => Navigator.pop(context, v)),
+            RadioListTile(value: ThemeMode.dark, groupValue: themeController.themeMode, title: const Text('Tối'), onChanged: (v) => Navigator.pop(context, v)),
+            RadioListTile(value: ThemeMode.system, groupValue: themeController.themeMode, title: const Text('Theo hệ thống'), onChanged: (v) => Navigator.pop(context, v)),
+          ],
+        ),
+      ),
+    );
+    if (chon != null) await themeController.doiCheDo(chon);
   }
 
   Future<void> _dangXuat() async {
@@ -92,6 +134,37 @@ class _TaiKhoanTabState extends State<TaiKhoanTab> {
                   ),
                 ],
               ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: Column(
+              children: [
+                AnimatedBuilder(
+                  animation: themeController,
+                  builder: (context, _) => ListTile(
+                    leading: const Icon(Icons.dark_mode, color: AppTheme.viettelRed),
+                    title: const Text('Giao diện'),
+                    subtitle: Text(switch (themeController.themeMode) {
+                      ThemeMode.light => 'Sáng',
+                      ThemeMode.dark => 'Tối',
+                      ThemeMode.system => 'Theo hệ thống',
+                    }),
+                    onTap: _chonGiaoDien,
+                  ),
+                ),
+                if (_coCamBienVanTay) ...[
+                  const Divider(height: 1),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.fingerprint, color: AppTheme.viettelRed),
+                    title: const Text('Đăng nhập bằng vân tay'),
+                    subtitle: const Text('Mở app nhanh không cần gõ mật khẩu'),
+                    value: _vanTayDangBat,
+                    onChanged: _doiVanTay,
+                    activeColor: AppTheme.viettelRed,
+                  ),
+                ],
+              ],
             ),
           ),
           const SizedBox(height: 16),

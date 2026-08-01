@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../config.dart';
 import '../widgets/icon_grid_view.dart';
+import 'qr_scan_screen.dart';
 
 /// QUAN TRỌNG: category id dưới đây lấy ĐÚNG từ bảng `categories` thật trên
 /// website (database.sql) - KHÔNG đoán slug, để mở đúng trang lọc sản phẩm.
@@ -10,6 +11,11 @@ class TrangChuTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = [
+      GridModuleItem(
+        icon: Icons.qr_code_scanner,
+        label: 'Quét mã QR',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const QrScanScreen())),
+      ),
       const GridModuleItem(icon: Icons.wifi, label: 'Internet Cáp Quang FTTH', url: '${AppConfig.baseUrl}/san-pham.php?cat=1'),
       const GridModuleItem(icon: Icons.router, label: 'Combo Internet-TH-Camera', url: '${AppConfig.baseUrl}/san-pham.php?cat=2'),
       const GridModuleItem(icon: Icons.sim_card, label: 'Di động trả trước', url: '${AppConfig.baseUrl}/san-pham.php?cat=3'),
