@@ -47,12 +47,30 @@ class LoaiGhiChu {
   final int mauHex;
   const LoaiGhiChu(this.ma, this.ten, this.mauHex);
 
+  /// Tiền tố đánh dấu đây là loại DO NGƯỜI DÙNG TỰ ĐẶT (không nằm trong danh
+  /// sách dựng sẵn) - lưu kèm luôn tên hiển thị vào trong mã, VD
+  /// "TUYCHON::Sửa hẹn khách VIP" - không cần thêm bảng/CSDL riêng.
+  static const _tienToTuyChon = 'TUYCHON::';
+
   static const List<LoaiGhiChu> tatCa = [
     LoaiGhiChu('khach_hang', 'Khách hàng', 0xFF2979FF),
     LoaiGhiChu('thu_cuoc', 'Thu cước', 0xFFFF9800),
+    LoaiGhiChu('cuoc_dong_truoc', 'Cước đóng trước', 0xFF00897B),
+    LoaiGhiChu('lap_ftth', 'Lắp FTTH', 0xFF5E35B1),
+    LoaiGhiChu('lap_truyen_hinh', 'Lắp Truyền hình', 0xFFD81B60),
     LoaiGhiChu('cham_soc', 'Chăm sóc', 0xFF43A047),
     LoaiGhiChu('khac', 'Khác', 0xFF757575),
   ];
 
-  static LoaiGhiChu tuMa(String ma) => tatCa.firstWhere((l) => l.ma == ma, orElse: () => tatCa.last);
+  static bool laLoaiTuyChon(String ma) => ma.startsWith(_tienToTuyChon);
+
+  static String taoMaTuyChon(String tenTuNhap) => '$_tienToTuyChon$tenTuNhap';
+
+  static LoaiGhiChu tuMa(String ma) {
+    if (laLoaiTuyChon(ma)) {
+      // Màu tím riêng cho loại tự đặt, dễ phân biệt với các loại dựng sẵn
+      return LoaiGhiChu(ma, ma.substring(_tienToTuyChon.length), 0xFF8E24AA);
+    }
+    return tatCa.firstWhere((l) => l.ma == ma, orElse: () => tatCa.last);
+  }
 }
