@@ -3,6 +3,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:geolocator/geolocator.dart';
 import '../config.dart';
 import '../services/auth_service.dart';
 import '../theme.dart';
@@ -70,18 +71,48 @@ class _WebViewScreenState extends State<WebViewScreen> {
           }
           return NavigationDecision.navigate;
         },
-      ));
+      ))
+      // Kênh giao tiếp JS -> Flutter: trang Bản đồ Hộp cáp gọi qua kênh này
+      // để NHỜ FLUTTER lấy vị trí bằng thư viện native (geolocator), thay vì
+      // dùng navigator.geolocation của chính WebView - đã xác nhận thực tế
+      // KHÔNG đáng tin cậy trên WebView (dù app đã được cấp đủ quyền Vị trí ở
+      // Cài đặt máy, WebView vẫn báo "chưa cho phép" trong khi mở CÙNG trang
+      // bằng trình duyệt thường lại chạy đúng - đây là hạn chế riêng của
+      // WebView, không phải thiếu quyền hay sai code trang web).
+      ..addJavaScriptChannel('FlutterViTri', onMessageReceived: (_) => _layViTriChoWeb());
 
-    // Bật navigator.geolocation cho WebView - mặc định Android WebView CHẶN
-    // JS xin định vị dù app đã có quyền ACCESS_FINE_LOCATION ở AndroidManifest
-    // - phải bật tường minh ở đây thì nút "Vị trí của tôi" trên Bản đồ Hộp
-    // cáp mới xin được định vị (khác trình duyệt thường tự cho phép sẵn).
+    // Bật navigator.geolocation cho WebView - dùng làm PHƯƠNG ÁN DỰ PHÒNG nếu
+    // trang được mở ngoài app (trình duyệt thường), không phải đường chính.
     final platform = _controller.platform;
     if (platform is AndroidWebViewController) {
       platform.setGeolocationEnabled(true);
     }
 
     _taiTrangCoDangNhap();
+  }
+
+  /// Lấy vị trí bằng thư viện geolocator NATIVE (giống hệt cách tính năng
+  /// chia sẻ vị trí trong Chat đang dùng, đã kiểm chứng chạy tốt trên máy
+  /// thật) rồi gửi kết quả VÀO LẠI trang web qua JavaScript.
+  Future<void> _layViTriChoWeb() async {
+    try {
+      var quyen = await Geolocator.checkPermission();
+      if (quyen == LocationPermission.denied) {
+        quyen = await Geolocator.requestPermission();
+      }
+      if (quyen == LocationPermission.denied || quyen == LocationPermission.deniedForever) {
+        _controller.runJavaScript("window.loiViTriTuApp && window.loiViTriTuApp('Bạn chưa cấp quyền Vị trí cho app.');");
+        return;
+      }
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        _controller.runJavaScript("window.loiViTriTuApp && window.loiViTriTuApp('Vui lòng bật định vị (GPS) trên máy.');");
+        return;
+      }
+      final viTri = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
+      _controller.runJavaScript('window.nhanViTriTuApp && window.nhanViTriTuApp(${viTri.latitude}, ${viTri.longitude});');
+    } catch (e) {
+      _controller.runJavaScript("window.loiViTriTuApp && window.loiViTriTuApp('Không lấy được vị trí, kiểm tra lại GPS.');");
+    }
   }
 
   Future<void> _taiTrangCoDangNhap() async {
