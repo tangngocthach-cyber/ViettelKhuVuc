@@ -10,7 +10,7 @@ import 'reminder_notification_service.dart';
 class GhiChuService {
   // Cộng thêm 900 triệu vào ID thông báo để KHÔNG trùng với ID nhắc hẹn của
   // Chat (vốn dùng messageId thật từ CSDL, chắc chắn nhỏ hơn nhiều con số này).
-  static const _bùTruId = 900000000;
+  static const _buTruId = 900000000;
 
   static Future<File> _fileDuLieu() async {
     final dir = await getApplicationDocumentsDirectory();
@@ -55,10 +55,10 @@ class GhiChuService {
 
     // Đồng bộ lại lịch nhắc hẹn: hủy lịch cũ trước (phòng trường hợp sửa giờ
     // hẹn), rồi đặt lại lịch mới nếu có hẹn giờ và chưa đánh dấu xong.
-    await ReminderNotificationService.huyLich(_bùTruId + ghiChu.id);
+    await ReminderNotificationService.huyLich(_buTruId + ghiChu.id);
     if (ghiChu.thoiGianNhac != null && !ghiChu.daXong) {
       await ReminderNotificationService.datLich(
-        messageId: _bùTruId + ghiChu.id,
+        messageId: _buTruId + ghiChu.id,
         tieuDe: ghiChu.tieuDe,
         moTa: ghiChu.noiDung.isNotEmpty ? ghiChu.noiDung : null,
         thoiGianNhac: ghiChu.thoiGianNhac!,
@@ -70,7 +70,7 @@ class GhiChuService {
     final ds = await layDanhSach();
     ds.removeWhere((e) => e.id == id);
     await _luuTatCa(ds);
-    await ReminderNotificationService.huyLich(_bùTruId + id);
+    await ReminderNotificationService.huyLich(_buTruId + id);
   }
 
   static Future<void> danhDauXong(int id, bool xong) async {
@@ -80,6 +80,6 @@ class GhiChuService {
     ds[viTri].daXong = xong;
     await _luuTatCa(ds);
     // Đánh dấu xong -> hủy luôn thông báo nhắc hẹn (không cần nhắc việc đã xong)
-    if (xong) await ReminderNotificationService.huyLich(_bùTruId + id);
+    if (xong) await ReminderNotificationService.huyLich(_buTruId + id);
   }
 }
