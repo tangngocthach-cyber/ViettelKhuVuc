@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../config.dart';
 import '../widgets/icon_grid_view.dart';
 import 'qr_scan_screen.dart';
+import 'calculator_screen.dart';
+import 'ghi_chu_screen.dart';
+import 'lich_screen.dart';
 
 /// QUAN TRỌNG: category id dưới đây lấy ĐÚNG từ bảng `categories` thật trên
 /// website (database.sql) - KHÔNG đoán slug, để mở đúng trang lọc sản phẩm.
@@ -15,6 +18,21 @@ class TrangChuTab extends StatelessWidget {
         icon: Icons.qr_code_scanner,
         label: 'Quét mã QR',
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const QrScanScreen())),
+      ),
+      GridModuleItem(
+        icon: Icons.calculate,
+        label: 'Máy tính',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CalculatorScreen())),
+      ),
+      GridModuleItem(
+        icon: Icons.note_alt,
+        label: 'Sổ ghi chú',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GhiChuScreen())),
+      ),
+      GridModuleItem(
+        icon: Icons.calendar_month,
+        label: 'Lịch Âm - Dương',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LichScreen())),
       ),
       const GridModuleItem(icon: Icons.wifi, label: 'Internet Cáp Quang FTTH', url: '${AppConfig.baseUrl}/san-pham.php?cat=1'),
       const GridModuleItem(icon: Icons.router, label: 'Combo Internet-TH-Camera', url: '${AppConfig.baseUrl}/san-pham.php?cat=2'),

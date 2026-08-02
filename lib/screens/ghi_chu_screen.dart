@@ -1,0 +1,382 @@
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '../models/ghi_chu.dart';
+import '../services/ghi_chu_service.dart';
+import '../theme.dart';
+
+class GhiChuScreen extends StatefulWidget {
+  const GhiChuScreen({super.key});
+
+  @override
+  State<GhiChuScreen> createState() => _GhiChuScreenState();
+}
+
+enum _BoLoc { tatCa, sapToi, quaHan, daXong }
+
+class _GhiChuScreenState extends State<GhiChuScreen> {
+  List<GhiChu> _tatCaGhiChu = [];
+  _BoLoc _boLoc = _BoLoc.tatCa;
+  bool _dangTai = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _taiDuLieu();
+  }
+
+  Future<void> _taiDuLieu() async {
+    final ds = await GhiChuService.layDanhSach();
+    if (!mounted) return;
+    setState(() {
+      _tatCaGhiChu = ds;
+      _dangTai = false;
+    });
+  }
+
+  List<GhiChu> get _dsHienThi {
+    final gio = DateTime.now();
+    switch (_boLoc) {
+      case _BoLoc.tatCa:
+        return _tatCaGhiChu.where((g) => !g.daXong).toList();
+      case _BoLoc.sapToi:
+        return _tatCaGhiChu.where((g) => !g.daXong && g.thoiGianNhac != null && g.thoiGianNhac!.isAfter(gio)).toList();
+      case _BoLoc.quaHan:
+        return _tatCaGhiChu.where((g) => !g.daXong && g.thoiGianNhac != null && g.thoiGianNhac!.isBefore(gio)).toList();
+      case _BoLoc.daXong:
+        return _tatCaGhiChu.where((g) => g.daXong).toList();
+    }
+  }
+
+  Future<void> _moThemSua({GhiChu? ghiChuSua}) async {
+    final ketQua = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => _FormGhiChu(ghiChuSua: ghiChuSua),
+    );
+    if (ketQua == true) _taiDuLieu();
+  }
+
+  Future<void> _xoa(GhiChu gc) async {
+    await GhiChuService.xoa(gc.id);
+    _taiDuLieu();
+  }
+
+  Future<void> _danhDauXong(GhiChu gc, bool xong) async {
+    await GhiChuService.danhDauXong(gc.id, xong);
+    _taiDuLieu();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ds = _dsHienThi;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Sổ ghi chú')),
+      body: Column(
+        children: [
+          _thanhLoc(),
+          Expanded(
+            child: _dangTai
+                ? const Center(child: CircularProgressIndicator())
+                : ds.isEmpty
+                    ? _trangThaiRong()
+                    : RefreshIndicator(
+                        onRefresh: _taiDuLieu,
+                        child: ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 90),
+                          itemCount: ds.length,
+                          itemBuilder: (context, i) => _theGhiChu(ds[i]),
+                        ),
+                      ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: AppTheme.viettelRed,
+        onPressed: () => _moThemSua(),
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _thanhLoc() {
+    final muc = [
+      (_BoLoc.tatCa, 'Tất cả'),
+      (_BoLoc.sapToi, 'Sắp tới'),
+      (_BoLoc.quaHan, 'Quá hạn'),
+      (_BoLoc.daXong, 'Đã xong'),
+    ];
+    return SizedBox(
+      height: 48,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        children: muc
+            .map((m) => Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Text(m.$2),
+                    selected: _boLoc == m.$1,
+                    onSelected: (_) => setState(() => _boLoc = m.$1),
+                    selectedColor: AppTheme.viettelRed,
+                    labelStyle: TextStyle(color: _boLoc == m.$1 ? Colors.white : Colors.black87),
+                  ),
+                ))
+            .toList(),
+      ),
+    );
+  }
+
+  Widget _trangThaiRong() {
+    final chu = switch (_boLoc) {
+      _BoLoc.tatCa => 'Chưa có ghi chú nào.\nBấm nút + để tạo ghi chú đầu tiên.',
+      _BoLoc.sapToi => 'Không có nhắc hẹn nào sắp tới.',
+      _BoLoc.quaHan => 'Không có việc nào quá hạn. 👍',
+      _BoLoc.daXong => 'Chưa có ghi chú nào được đánh dấu xong.',
+    };
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.note_alt_outlined, size: 64, color: Colors.grey.shade400),
+            const SizedBox(height: 12),
+            Text(chu, textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade600)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _theGhiChu(GhiChu gc) {
+    final loai = LoaiGhiChu.tuMa(gc.loai);
+    final quaHan = gc.thoiGianNhac != null && !gc.daXong && gc.thoiGianNhac!.isBefore(DateTime.now());
+
+    return Dismissible(
+      key: ValueKey(gc.id),
+      background: Container(
+        decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(12)),
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.only(left: 20),
+        child: const Icon(Icons.check, color: Colors.white),
+      ),
+      secondaryBackground: Container(
+        decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: const Icon(Icons.delete, color: Colors.white),
+      ),
+      confirmDismiss: (huong) async {
+        if (huong == DismissDirection.startToEnd) {
+          _danhDauXong(gc, !gc.daXong);
+          return false; // không xóa khỏi danh sách, chỉ đổi trạng thái rồi tự lọc lại
+        }
+        return true; // vuốt trái = xóa thật
+      },
+      onDismissed: (_) => _xoa(gc),
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 10),
+        elevation: 1,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _moThemSua(ghiChuSua: gc),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(width: 4, height: 42, decoration: BoxDecoration(color: Color(loai.mauHex), borderRadius: BorderRadius.circular(4))),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              gc.tieuDe,
+                              style: TextStyle(
+                                fontSize: 15.5,
+                                fontWeight: FontWeight.w600,
+                                decoration: gc.daXong ? TextDecoration.lineThrough : null,
+                                color: gc.daXong ? Colors.grey : Colors.black87,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(color: Color(loai.mauHex).withValues(alpha: .12), borderRadius: BorderRadius.circular(20)),
+                            child: Text(loai.ten, style: TextStyle(fontSize: 11, color: Color(loai.mauHex), fontWeight: FontWeight.w600)),
+                          ),
+                        ],
+                      ),
+                      if (gc.noiDung.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(gc.noiDung, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13.5, color: Colors.grey.shade700)),
+                      ],
+                      if (gc.thoiGianNhac != null) ...[
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(Icons.alarm, size: 14, color: quaHan ? Colors.red : Colors.grey.shade600),
+                            const SizedBox(width: 4),
+                            Text(
+                              DateFormat('HH:mm - dd/MM/yyyy').format(gc.thoiGianNhac!),
+                              style: TextStyle(fontSize: 12, color: quaHan ? Colors.red : Colors.grey.shade600, fontWeight: quaHan ? FontWeight.bold : null),
+                            ),
+                            if (quaHan) ...[
+                              const SizedBox(width: 6),
+                              const Text('QUÁ HẠN', style: TextStyle(fontSize: 10.5, color: Colors.red, fontWeight: FontWeight.bold)),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Form thêm/sửa 1 ghi chú - hiện dưới dạng bottom sheet.
+class _FormGhiChu extends StatefulWidget {
+  final GhiChu? ghiChuSua;
+  const _FormGhiChu({this.ghiChuSua});
+
+  @override
+  State<_FormGhiChu> createState() => _FormGhiChuState();
+}
+
+class _FormGhiChuState extends State<_FormGhiChu> {
+  late final TextEditingController _tieuDeCtrl;
+  late final TextEditingController _noiDungCtrl;
+  late String _loaiChon;
+  DateTime? _thoiGianNhac;
+
+  @override
+  void initState() {
+    super.initState();
+    final g = widget.ghiChuSua;
+    _tieuDeCtrl = TextEditingController(text: g?.tieuDe ?? '');
+    _noiDungCtrl = TextEditingController(text: g?.noiDung ?? '');
+    _loaiChon = g?.loai ?? 'khac';
+    _thoiGianNhac = g?.thoiGianNhac;
+  }
+
+  @override
+  void dispose() {
+    _tieuDeCtrl.dispose();
+    _noiDungCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _chonThoiGian() async {
+    final ngay = await showDatePicker(
+      context: context,
+      initialDate: _thoiGianNhac ?? DateTime.now().add(const Duration(hours: 1)),
+      firstDate: DateTime.now().subtract(const Duration(days: 1)),
+      lastDate: DateTime.now().add(const Duration(days: 730)),
+    );
+    if (ngay == null || !mounted) return;
+    final gio = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_thoiGianNhac ?? DateTime.now().add(const Duration(hours: 1))),
+    );
+    if (gio == null) return;
+    setState(() => _thoiGianNhac = DateTime(ngay.year, ngay.month, ngay.day, gio.hour, gio.minute));
+  }
+
+  Future<void> _luu() async {
+    if (_tieuDeCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vui lòng nhập tiêu đề.')));
+      return;
+    }
+    final gc = GhiChu(
+      id: widget.ghiChuSua?.id ?? DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      tieuDe: _tieuDeCtrl.text.trim(),
+      noiDung: _noiDungCtrl.text.trim(),
+      loai: _loaiChon,
+      thoiGianNhac: _thoiGianNhac,
+      daXong: widget.ghiChuSua?.daXong ?? false,
+      ngayTao: widget.ghiChuSua?.ngayTao ?? DateTime.now(),
+    );
+    await GhiChuService.luu(gc);
+    if (mounted) Navigator.pop(context, true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(left: 20, right: 20, top: 20, bottom: MediaQuery.of(context).viewInsets.bottom + 20),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(widget.ghiChuSua == null ? 'Ghi chú mới' : 'Sửa ghi chú', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _tieuDeCtrl,
+              autofocus: widget.ghiChuSua == null,
+              decoration: const InputDecoration(labelText: 'Tiêu đề', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _noiDungCtrl,
+              maxLines: 3,
+              decoration: const InputDecoration(labelText: 'Nội dung (không bắt buộc)', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              children: LoaiGhiChu.tatCa
+                  .map((l) => ChoiceChip(
+                        label: Text(l.ten),
+                        selected: _loaiChon == l.ma,
+                        selectedColor: Color(l.mauHex),
+                        labelStyle: TextStyle(color: _loaiChon == l.ma ? Colors.white : Colors.black87),
+                        onSelected: (_) => setState(() => _loaiChon = l.ma),
+                      ))
+                  .toList(),
+            ),
+            const SizedBox(height: 14),
+            InkWell(
+              onTap: _chonThoiGian,
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(8)),
+                child: Row(
+                  children: [
+                    Icon(Icons.alarm, color: _thoiGianNhac != null ? AppTheme.viettelRed : Colors.grey),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _thoiGianNhac != null ? DateFormat('HH:mm - dd/MM/yyyy').format(_thoiGianNhac!) : 'Đặt nhắc hẹn (không bắt buộc)',
+                        style: TextStyle(color: _thoiGianNhac != null ? Colors.black87 : Colors.grey.shade600),
+                      ),
+                    ),
+                    if (_thoiGianNhac != null)
+                      IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => setState(() => _thoiGianNhac = null)),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(onPressed: _luu, child: const Text('Lưu')),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
