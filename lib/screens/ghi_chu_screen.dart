@@ -466,6 +466,31 @@ class _FormGhiChuState extends State<_FormGhiChu> {
     setState(() => _thoiGianNhac = DateTime(ngay.year, ngay.month, ngay.day, gio.hour, gio.minute));
   }
 
+  Future<void> _tuDatLoai() async {
+    final ctrl = TextEditingController(
+      text: LoaiGhiChu.laLoaiTuyChon(_loaiChon) ? LoaiGhiChu.tuMa(_loaiChon).ten : '',
+    );
+    final tenNhap = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Tự đặt loại ghi chú'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          maxLength: 30,
+          decoration: const InputDecoration(hintText: 'VD: Bảo trì thiết bị, Sự cố...', border: OutlineInputBorder()),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
+          TextButton(onPressed: () => Navigator.pop(context, ctrl.text.trim()), child: const Text('Chọn')),
+        ],
+      ),
+    );
+    if (tenNhap != null && tenNhap.isNotEmpty) {
+      setState(() => _loaiChon = LoaiGhiChu.taoMaTuyChon(tenNhap));
+    }
+  }
+
   Future<void> _luu() async {
     if (_tieuDeCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vui lòng nhập tiêu đề.')));
@@ -517,15 +542,32 @@ class _FormGhiChuState extends State<_FormGhiChu> {
             const SizedBox(height: 14),
             Wrap(
               spacing: 8,
-              children: LoaiGhiChu.tatCa
-                  .map((l) => ChoiceChip(
-                        label: Text(l.ten),
-                        selected: _loaiChon == l.ma,
-                        selectedColor: Color(l.mauHex),
-                        labelStyle: TextStyle(color: _loaiChon == l.ma ? Colors.white : Colors.black87),
-                        onSelected: (_) => setState(() => _loaiChon = l.ma),
-                      ))
-                  .toList(),
+              runSpacing: 8,
+              children: [
+                ...LoaiGhiChu.tatCa.map((l) => ChoiceChip(
+                      label: Text(l.ten),
+                      selected: _loaiChon == l.ma,
+                      selectedColor: Color(l.mauHex),
+                      labelStyle: TextStyle(color: _loaiChon == l.ma ? Colors.white : Colors.black87),
+                      onSelected: (_) => setState(() => _loaiChon = l.ma),
+                    )),
+                // Nếu đang chọn 1 loại TỰ ĐẶT (không nằm trong danh sách dựng
+                // sẵn ở trên) -> hiện thêm 1 chip riêng cho đúng tên đã nhập,
+                // để người dùng thấy rõ đang chọn đúng loại mình vừa tạo.
+                if (LoaiGhiChu.laLoaiTuyChon(_loaiChon))
+                  ChoiceChip(
+                    label: Text(LoaiGhiChu.tuMa(_loaiChon).ten),
+                    selected: true,
+                    selectedColor: Color(LoaiGhiChu.tuMa(_loaiChon).mauHex),
+                    labelStyle: const TextStyle(color: Colors.white),
+                    onSelected: (_) {},
+                  ),
+                ActionChip(
+                  avatar: const Icon(Icons.add, size: 18),
+                  label: const Text('Tự đặt loại'),
+                  onPressed: _tuDatLoai,
+                ),
+              ],
             ),
             const SizedBox(height: 14),
             InkWell(
