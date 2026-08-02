@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import '../config.dart';
 import '../services/auth_service.dart';
 import '../services/fcm_service.dart';
 import 'home_screen.dart';
+import 'webview_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -104,6 +106,14 @@ class _LoginScreenState extends State<LoginScreen> {
                           ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.4))
                           : const Text('Đăng nhập'),
                     ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const WebViewScreen(url: '${AppConfig.baseUrl}/tai-khoan-quen-mat-khau.php', title: 'Quên mật khẩu')),
+                    ),
+                    child: const Text('Quên mật khẩu?'),
                   ),
                 ],
               ),
