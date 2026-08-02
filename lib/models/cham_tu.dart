@@ -7,6 +7,7 @@ class ChamTu {
   final String diaChi;
   final String anhUrl;
   final String ghiChu;
+  final String? maTuGoc; // Chỉ có ý nghĩa với Tủ 8 - mã tủ cứng gốc đấu nối tới
   final String trangThai; // 'cho_duyet' | 'da_duyet' | 'tu_choi'
   final String? lyDoTuChoi;
   final int customerId;
@@ -22,6 +23,7 @@ class ChamTu {
     required this.diaChi,
     required this.anhUrl,
     required this.ghiChu,
+    this.maTuGoc,
     required this.trangThai,
     this.lyDoTuChoi,
     required this.customerId,
@@ -38,6 +40,7 @@ class ChamTu {
         diaChi: j['dia_chi'] ?? '',
         anhUrl: j['anh_url'] ?? '',
         ghiChu: j['ghi_chu'] ?? '',
+        maTuGoc: j['ma_tu_goc'],
         trangThai: j['trang_thai'] ?? 'cho_duyet',
         lyDoTuChoi: j['ly_do_tu_choi'],
         customerId: int.parse('${j['customer_id']}'),

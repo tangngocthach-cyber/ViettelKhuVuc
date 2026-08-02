@@ -16,6 +16,7 @@ import '../../services/reminder_notification_service.dart';
 import '../../theme.dart';
 import '../../widgets/message_bubble.dart';
 import 'chat_search_screen.dart';
+import 'nhom_chat_screen.dart';
 
 class ChatDetailScreen extends StatefulWidget {
   final ChatConversation conversation;
@@ -251,6 +252,64 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     final thanhCong = await ChatService.forwardMessage(messageId: tin.id, targetConversationId: dichChon.id);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(thanhCong ? 'Đã chuyển tiếp đến "${dichChon.ten}".' : 'Chuyển tiếp thất bại, thử lại sau.')));
+  }
+
+  Future<void> _xemAiDaXem(ChatMessage tin) async {
+    final ds = await ChatService.layAiDaXem(tin.id);
+    if (!mounted) return;
+    _hienDanhSachNguoiXemThich(tieuDe: 'Đã xem', danhSach: ds, rong: 'Chưa có ai xem tin nhắn này.');
+  }
+
+  Future<void> _xemAiDaThich(ChatMessage tin) async {
+    final ds = await ChatService.layAiDaThich(tin.id);
+    if (!mounted) return;
+    _hienDanhSachNguoiXemThich(
+      tieuDe: 'Đã bày tỏ cảm xúc',
+      danhSach: ds,
+      rong: 'Chưa có ai bày tỏ cảm xúc.',
+      hienReaction: true,
+    );
+  }
+
+  /// Hiện bottom sheet danh sách "ai đã xem" hoặc "ai đã thích" - dùng chung
+  /// 1 giao diện, chỉ khác có hiện emoji reaction hay không.
+  void _hienDanhSachNguoiXemThich({required String tieuDe, required List<Map<String, dynamic>> danhSach, required String rong, bool hienReaction = false}) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(tieuDe, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              if (danhSach.isEmpty)
+                Padding(padding: const EdgeInsets.symmetric(vertical: 16), child: Text(rong, style: TextStyle(color: Colors.grey.shade600)))
+              else
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: danhSach.length,
+                    itemBuilder: (context, i) {
+                      final nguoi = danhSach[i];
+                      final loaiReaction = nguoi['loai_reaction'] as String?;
+                      return ListTile(
+                        dense: true,
+                        leading: const CircleAvatar(child: Icon(Icons.person)),
+                        title: Text('${nguoi['name'] ?? ''}'),
+                        trailing: hienReaction && loaiReaction != null ? Text(ChatReactions.emojiTheoLoai[loaiReaction] ?? '', style: const TextStyle(fontSize: 20)) : null,
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _batDauTraLoi(ChatMessage tin) {
@@ -623,6 +682,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     Navigator.push(context, MaterialPageRoute(builder: (_) => ChatSearchScreen(conversationId: widget.conversation.id)));
   }
 
+  Future<void> _moQuanLyNhom() async {
+    // Trả về true nếu có đổi tên/ảnh nhóm/rời-giải tán nhóm - lúc đó nên quay
+    // lại danh sách hội thoại để thấy đúng thông tin mới nhất thay vì đứng
+    // yên tại màn chat với tên/ảnh nhóm CŨ đã lưu sẵn trong widget.conversation.
+    final coThayDoi = await Navigator.push(context, MaterialPageRoute(builder: (_) => NhomChatScreen(conversation: widget.conversation)));
+    if (coThayDoi == true && mounted) Navigator.pop(context);
+  }
+
   Future<void> _hienTinDaGhim() async {
     final ds = await ChatService.getPinnedMessages(widget.conversation.id);
     if (!mounted) return;
@@ -666,31 +733,34 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          children: [
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: Colors.white24,
-              backgroundImage: widget.conversation.anhDaiDien != null && widget.conversation.anhDaiDien!.isNotEmpty
-                  ? NetworkImage('${AppConfig.baseUrl}${widget.conversation.anhDaiDien}')
-                  : null,
-              child: (widget.conversation.anhDaiDien == null || widget.conversation.anhDaiDien!.isEmpty)
-                  ? Icon(widget.conversation.loai == 'nhom' ? Icons.groups : Icons.person, color: Colors.white, size: 16)
-                  : null,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(widget.conversation.ten, style: const TextStyle(fontSize: 16), overflow: TextOverflow.ellipsis),
-                  if (_dangGoNguoiKhac.isNotEmpty)
-                    Text('${_dangGoNguoiKhac.join(", ")} đang nhập...', style: const TextStyle(fontSize: 11.5, color: Colors.white70)),
-                ],
+        title: InkWell(
+          onTap: widget.conversation.loai == 'nhom' ? _moQuanLyNhom : null,
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: Colors.white24,
+                backgroundImage: widget.conversation.anhDaiDien != null && widget.conversation.anhDaiDien!.isNotEmpty
+                    ? NetworkImage('${AppConfig.baseUrl}${widget.conversation.anhDaiDien}')
+                    : null,
+                child: (widget.conversation.anhDaiDien == null || widget.conversation.anhDaiDien!.isEmpty)
+                    ? Icon(widget.conversation.loai == 'nhom' ? Icons.groups : Icons.person, color: Colors.white, size: 16)
+                    : null,
               ),
-            ),
-          ],
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(widget.conversation.ten, style: const TextStyle(fontSize: 16), overflow: TextOverflow.ellipsis),
+                    if (_dangGoNguoiKhac.isNotEmpty)
+                      Text('${_dangGoNguoiKhac.join(", ")} đang nhập...', style: const TextStyle(fontSize: 11.5, color: Colors.white70)),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           IconButton(icon: const Icon(Icons.push_pin_outlined), tooltip: 'Tin nhắn đã ghim', onPressed: _hienTinDaGhim),
@@ -752,6 +822,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                                 onTraLoi: _batDauTraLoi,
                                 onVotePoll: _xuLyBinhChon,
                                 onForward: _xuLyChuyenTiep,
+                                onXemAiDaXem: _xemAiDaXem,
+                                onXemAiDaThich: _xemAiDaThich,
                               );
                             },
                           ),

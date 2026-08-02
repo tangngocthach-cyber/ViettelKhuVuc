@@ -22,6 +22,8 @@ class MessageBubble extends StatelessWidget {
   final void Function(ChatMessage)? onTraLoi;
   final Future<void> Function(ChatMessage, int optionId)? onVotePoll;
   final void Function(ChatMessage)? onForward;
+  final void Function(ChatMessage)? onXemAiDaXem;
+  final void Function(ChatMessage)? onXemAiDaThich;
 
   const MessageBubble({
     super.key,
@@ -36,6 +38,8 @@ class MessageBubble extends StatelessWidget {
     this.onTraLoi,
     this.onVotePoll,
     this.onForward,
+    this.onXemAiDaXem,
+    this.onXemAiDaThich,
   });
 
   void _hienThanhReactionNhanh(BuildContext context) {
@@ -109,6 +113,28 @@ class MessageBubble extends StatelessWidget {
                 onTap: () {
                   Navigator.pop(context);
                   onForward?.call(message);
+                },
+              ),
+            // Chỉ hiện khi tin nhắn ĐÃ CÓ người thả reaction - tránh hiện mục
+            // trống vô nghĩa cho tin chưa ai bấm thích.
+            if (message.tongSoReaction > 0)
+              ListTile(
+                leading: const Icon(Icons.favorite_border, color: AppTheme.viettelRed),
+                title: const Text('Xem ai đã bày tỏ cảm xúc'),
+                onTap: () {
+                  Navigator.pop(context);
+                  onXemAiDaThich?.call(message);
+                },
+              ),
+            // "Ai đã xem" chỉ có ý nghĩa với tin nhắn CỦA CHÍNH MÌNH (giống
+            // Zalo - không hiện mục này cho tin của người khác gửi)
+            if (laCuaMinh && !message.daThuHoi)
+              ListTile(
+                leading: const Icon(Icons.visibility_outlined, color: AppTheme.viettelRed),
+                title: const Text('Xem ai đã xem'),
+                onTap: () {
+                  Navigator.pop(context);
+                  onXemAiDaXem?.call(message);
                 },
               ),
             if (coTheXoa && !message.daThuHoi)

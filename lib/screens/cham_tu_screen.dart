@@ -1,15 +1,18 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import '../config.dart';
 import '../models/cham_tu.dart';
 import '../services/cham_tu_service.dart';
 import '../theme.dart';
+import 'webview_screen.dart';
 
-/// Màn Chấm tủ - luồng thao tác NGẮN GỌN theo đúng yêu cầu: chọn loại tủ ->
-/// chấm vị trí -> chụp ảnh -> Lưu. Mọi thứ còn lại (ID, thời gian, người tạo,
-/// địa chỉ...) hệ thống tự xử lý ở phía server, người dùng không cần nhập tay.
+/// Màn Chấm tủ - luồng thao tác NGẮN GỌN: chọn loại tủ -> chấm vị trí TRỰC
+/// TIẾP trên bản đồ (chạm bất kỳ đâu, KHÔNG bắt buộc đúng vị trí khảo sát
+/// thực tế - làm việc trên bản đồ trực quan hơn định vị GPS tự động) -> chụp
+/// ảnh -> Lưu. Mọi thứ còn lại (ID, thời gian, người tạo, địa chỉ...) hệ
+/// thống tự xử lý ở phía server, người dùng không cần nhập tay.
 ///
 /// Truyền [chamTuSua] để mở màn ở chế độ SỬA (điền sẵn dữ liệu cũ, ảnh mới
 /// không bắt buộc - không chọn ảnh mới thì giữ nguyên ảnh cũ).
@@ -25,77 +28,49 @@ class _ChamTuScreenState extends State<ChamTuScreen> {
   String? _loaiTuChon;
   double? _lat;
   double? _lng;
-  bool _dangLayViTri = false;
-  String? _loiViTri;
   File? _anhChon; // ảnh MỚI vừa chụp/chọn (null = chưa đổi ảnh)
   final _ghiChuCtrl = TextEditingController();
+  final _maTuGocCtrl = TextEditingController();
   bool _dangLuu = false;
 
   bool get _dangSua => widget.chamTuSua != null;
+  bool get _laTu8 => _loaiTuChon == LoaiTu.tu8;
 
   @override
   void initState() {
     super.initState();
     if (_dangSua) {
-      // Chế độ SỬA - điền sẵn dữ liệu cũ, KHÔNG tự lấy GPS mới (giữ đúng vị
-      // trí đã chấm trước đó, chỉ đổi khi người dùng chủ động bấm lấy lại).
+      // Chế độ SỬA - điền sẵn dữ liệu cũ, giữ nguyên vị trí đã chấm trước đó,
+      // chỉ đổi khi người dùng chủ động bấm "Chọn lại vị trí".
       final g = widget.chamTuSua!;
       _loaiTuChon = g.loaiTu;
       _ghiChuCtrl.text = g.ghiChu;
+      _maTuGocCtrl.text = g.maTuGoc ?? '';
       _lat = g.latitude;
       _lng = g.longitude;
-    } else {
-      _layViTri(); // tự động lấy GPS ngay khi mở màn - đỡ phải bấm thêm bước nào
     }
   }
 
   @override
   void dispose() {
     _ghiChuCtrl.dispose();
+    _maTuGocCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _layViTri() async {
-    setState(() {
-      _dangLayViTri = true;
-      _loiViTri = null;
-    });
-    try {
-      var quyen = await Geolocator.checkPermission();
-      if (quyen == LocationPermission.denied) {
-        quyen = await Geolocator.requestPermission();
-      }
-      if (quyen == LocationPermission.denied || quyen == LocationPermission.deniedForever) {
-        setState(() {
-          _dangLayViTri = false;
-          _loiViTri = 'Chưa cấp quyền Vị trí cho app. Vào Cài đặt máy để bật.';
-        });
-        return;
-      }
-      if (!await Geolocator.isLocationServiceEnabled()) {
-        setState(() {
-          _dangLayViTri = false;
-          _loiViTri = 'Vui lòng bật định vị (GPS) trên máy.';
-        });
-        return;
-      }
-      final viTri = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-      ).timeout(const Duration(seconds: 20));
-      if (mounted) {
-        setState(() {
-          _lat = viTri.latitude;
-          _lng = viTri.longitude;
-          _dangLayViTri = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _dangLayViTri = false;
-          _loiViTri = 'Không lấy được vị trí, thử lại ở nơi thoáng hơn.';
-        });
-      }
+  /// Mở bản đồ cho người dùng CHẠM CHỌN vị trí trực tiếp - không cần đúng vị
+  /// trí khảo sát thực tế ngoài hiện trường, làm việc trên bản đồ trực quan
+  /// hơn hẳn so với chờ GPS tự động dò (đặc biệt trong nhà/nơi tín hiệu yếu).
+  Future<void> _moBanDoChonViTri() async {
+    final ketQua = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(builder: (_) => const WebViewScreen(url: AppConfig.urlChonViTriChamTu, title: 'Chọn vị trí trên bản đồ')),
+    );
+    if (ketQua != null && mounted) {
+      setState(() {
+        _lat = ketQua['lat'] as double;
+        _lng = ketQua['lng'] as double;
+      });
     }
   }
 
@@ -136,7 +111,7 @@ class _ChamTuScreenState extends State<ChamTuScreen> {
       return;
     }
     if (_lat == null || _lng == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Chưa có tọa độ GPS - bấm "Lấy lại vị trí" và thử lại.')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vui lòng chấm vị trí trên bản đồ.')));
       return;
     }
     // Chế độ TẠO MỚI bắt buộc phải có ảnh - chế độ SỬA thì không bắt buộc
@@ -147,6 +122,10 @@ class _ChamTuScreenState extends State<ChamTuScreen> {
     }
 
     setState(() => _dangLuu = true);
+    // Mã tủ gốc CHỈ có ý nghĩa với Tủ 8 - chọn Tủ cứng thì luôn gửi rỗng dù
+    // trước đó lỡ có gõ gì vào ô đó (tránh dữ liệu rác không đúng ngữ cảnh).
+    final maTuGoc = _laTu8 ? _maTuGocCtrl.text.trim() : null;
+
     String? loi;
     if (_dangSua) {
       loi = await ChamTuService.suaDeXuat(
@@ -156,6 +135,7 @@ class _ChamTuScreenState extends State<ChamTuScreen> {
         longitude: _lng!,
         anhMoi: _anhChon,
         ghiChu: _ghiChuCtrl.text.trim(),
+        maTuGoc: maTuGoc,
       );
     } else {
       final thietBi = await _layThongTinThietBi();
@@ -166,6 +146,7 @@ class _ChamTuScreenState extends State<ChamTuScreen> {
         anh: _anhChon!,
         ghiChu: _ghiChuCtrl.text.trim(),
         thietBi: thietBi,
+        maTuGoc: maTuGoc,
       );
     }
 
@@ -198,8 +179,22 @@ class _ChamTuScreenState extends State<ChamTuScreen> {
                 Expanded(child: _theLoaiTu(LoaiTu.tu8, Icons.dns)),
               ],
             ),
+            // Ô "Mã tủ gốc" CHỈ hiện khi chọn Tủ 8 - ghi rõ tủ 8 này đấu nối
+            // từ tủ cứng gốc nào, phục vụ tra cứu/quản lý hạ tầng sau này.
+            if (_laTu8) ...[
+              const SizedBox(height: 14),
+              TextField(
+                controller: _maTuGocCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Mã tủ gốc (tủ cứng đấu nối tới)',
+                  hintText: 'VD: TC-VH-015',
+                  prefixIcon: Icon(Icons.link, size: 20),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
             const SizedBox(height: 22),
-            const Text('2. Vị trí GPS', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54)),
+            const Text('2. Chấm vị trí trên bản đồ', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54)),
             const SizedBox(height: 10),
             _theViTri(),
             const SizedBox(height: 22),
@@ -262,21 +257,23 @@ class _ChamTuScreenState extends State<ChamTuScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (_dangLayViTri)
-            const Row(children: [SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 10), Text('Đang xác định vị trí...')])
-          else if (_loiViTri != null)
-            Row(children: [const Icon(Icons.error_outline, color: Colors.red, size: 18), const SizedBox(width: 6), Expanded(child: Text(_loiViTri!, style: const TextStyle(color: Colors.red, fontSize: 13)))])
-          else if (_lat != null && _lng != null)
+          if (_lat != null && _lng != null)
             Row(children: [
-              const Icon(Icons.my_location, color: Colors.green, size: 18),
+              const Icon(Icons.location_on, color: Colors.green, size: 18),
               const SizedBox(width: 6),
               Expanded(child: Text('${_lat!.toStringAsFixed(6)}, ${_lng!.toStringAsFixed(6)}', style: const TextStyle(fontSize: 13))),
+            ])
+          else
+            Row(children: [
+              Icon(Icons.location_off_outlined, color: Colors.grey.shade500, size: 18),
+              const SizedBox(width: 6),
+              Text('Chưa chấm vị trí nào', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
             ]),
           const SizedBox(height: 8),
           OutlinedButton.icon(
-            onPressed: _dangLayViTri ? null : _layViTri,
-            icon: const Icon(Icons.refresh, size: 18),
-            label: const Text('Lấy lại vị trí'),
+            onPressed: _moBanDoChonViTri,
+            icon: const Icon(Icons.map, size: 18),
+            label: Text(_lat != null ? 'Chọn lại vị trí' : 'Mở bản đồ chấm vị trí'),
           ),
         ],
       ),

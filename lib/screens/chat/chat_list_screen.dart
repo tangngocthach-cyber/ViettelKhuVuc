@@ -5,6 +5,7 @@ import '../../models/chat_models.dart';
 import '../../services/chat_service.dart';
 import '../../theme.dart';
 import 'chat_detail_screen.dart';
+import 'tao_nhom_chat_screen.dart';
 
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
@@ -31,6 +32,19 @@ class _ChatListScreenState extends State<ChatListScreen> {
       _dsHoiThoai = ds;
       _dangTai = false;
     });
+  }
+
+  Future<void> _moTaoNhom() async {
+    final convId = await Navigator.push<int>(context, MaterialPageRoute(builder: (_) => const TaoNhomChatScreen()));
+    if (convId == null) return;
+    await _taiDuLieu();
+    if (!mounted) return;
+    // Tạo xong -> mở thẳng vào nhóm mới luôn, đỡ phải tự tìm trong danh sách
+    final nhomMoiTao = _dsHoiThoai.where((c) => c.id == convId);
+    if (nhomMoiTao.isNotEmpty) {
+      await Navigator.push(context, MaterialPageRoute(builder: (_) => ChatDetailScreen(conversation: nhomMoiTao.first)));
+      _taiDuLieu();
+    }
   }
 
   @override
@@ -102,6 +116,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
                       );
                     },
                   ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: AppTheme.viettelRed,
+        tooltip: 'Tạo nhóm mới',
+        onPressed: _moTaoNhom,
+        child: const Icon(Icons.group_add, color: Colors.white),
       ),
     );
   }

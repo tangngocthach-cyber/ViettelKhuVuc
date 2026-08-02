@@ -19,6 +19,7 @@ class AppConfig {
   static const String apiChamTuRestore = '$baseUrl/api/cham-tu/restore.php';
   static const String apiChamTuNhapExcel = '$baseUrl/api/cham-tu/nhap-excel.php';
   static const String urlBanDoChamTu = '$baseUrl/ban-do-cham-tu.php';
+  static const String urlChonViTriChamTu = '$baseUrl/chon-vi-tri-cham-tu.php';
   static const String apiPolicies = '$baseUrl/api/catalog/policies.php';
   static const String apiVersionCheck = '$baseUrl/api/version/check.php';
   static const String apiChatConversations = '$baseUrl/api/chat/conversations.php';
@@ -35,6 +36,17 @@ class AppConfig {
   static const String apiChatPollVote = '$baseUrl/api/chat/poll_vote.php';
   static const String apiChatForward = '$baseUrl/api/chat/forward.php';
   static const String apiChatReminderCreate = '$baseUrl/api/chat/reminder_create.php';
+  static const String apiChatTaoNhom = '$baseUrl/api/chat/tao_nhom.php';
+  static const String apiChatThemThanhVien = '$baseUrl/api/chat/them_thanh_vien.php';
+  static const String apiChatXoaThanhVien = '$baseUrl/api/chat/xoa_thanh_vien.php';
+  static const String apiChatRoiNhom = '$baseUrl/api/chat/roi_nhom.php';
+  static const String apiChatDoiVaiTro = '$baseUrl/api/chat/doi_vai_tro.php';
+  static const String apiChatDoiThongTinNhom = '$baseUrl/api/chat/doi_thong_tin_nhom.php';
+  static const String apiChatGiaiTanNhom = '$baseUrl/api/chat/giai_tan_nhom.php';
+  static const String apiChatThanhVien = '$baseUrl/api/chat/thanh_vien.php';
+  static const String apiChatDanhSachLienHe = '$baseUrl/api/chat/danh_sach_lien_he.php';
+  static const String apiChatAiDaXem = '$baseUrl/api/chat/ai_da_xem.php';
+  static const String apiChatAiDaThich = '$baseUrl/api/chat/ai_da_thich.php';
   static const String apiFcmRegisterToken = '$baseUrl/api/fcm/register_token.php';
   static const String apiFcmUnregisterToken = '$baseUrl/api/fcm/unregister_token.php';
   static const String apiWebTicket = '$baseUrl/api/auth/web_ticket.php';

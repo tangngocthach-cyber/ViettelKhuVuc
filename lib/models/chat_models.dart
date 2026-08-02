@@ -195,3 +195,50 @@ class ChatMessage {
         reactionCuaToi: j['reaction_cua_toi'],
       );
 }
+
+/// 1 thành viên trong nhóm chat, kèm vai trò (Trưởng nhóm/Phó nhóm/Thành viên).
+class ChatGroupMember {
+  final int customerId;
+  final String name;
+  final String email;
+  final String vaiTro; // 'truong_nhom' | 'pho_nhom' | 'thanh_vien'
+  final DateTime joinedAt;
+
+  ChatGroupMember({required this.customerId, required this.name, required this.email, required this.vaiTro, required this.joinedAt});
+
+  bool get laTruongNhom => vaiTro == 'truong_nhom';
+  bool get laPhoNhom => vaiTro == 'pho_nhom';
+
+  String get tenVaiTro {
+    switch (vaiTro) {
+      case 'truong_nhom':
+        return 'Trưởng nhóm';
+      case 'pho_nhom':
+        return 'Phó nhóm';
+      default:
+        return 'Thành viên';
+    }
+  }
+
+  factory ChatGroupMember.fromJson(Map<String, dynamic> j) => ChatGroupMember(
+        customerId: _docInt(j['customer_id']),
+        name: j['name'] ?? '',
+        email: j['email'] ?? '',
+        vaiTro: j['vai_tro'] ?? 'thanh_vien',
+        joinedAt: DateTime.tryParse(j['joined_at'] ?? '') ?? DateTime.now(),
+      );
+}
+
+/// 1 liên hệ (nhân viên) - dùng cho màn chọn thành viên khi tạo/thêm vào nhóm.
+class ChatLienHe {
+  final int id;
+  final String name;
+  final String email;
+  ChatLienHe({required this.id, required this.name, required this.email});
+
+  factory ChatLienHe.fromJson(Map<String, dynamic> j) => ChatLienHe(
+        id: _docInt(j['id']),
+        name: j['name'] ?? '',
+        email: j['email'] ?? '',
+      );
+}

@@ -59,15 +59,13 @@ class _CongDongTabState extends State<CongDongTab> {
       const GridModuleItem(icon: Icons.table_chart, label: 'Kho Dữ liệu bán hàng', url: AppConfig.urlKhoDuLieuExcel),
       const GridModuleItem(icon: Icons.smart_toy, label: 'Trợ lý KPI (AI)', url: AppConfig.urlTroLyKPI),
     ];
-    final chamTu = [
+    final haTangMang = [
+      const GridModuleItem(icon: Icons.map, label: 'Bản đồ Hộp cáp GPON', url: AppConfig.urlBanDoHopCap),
       GridModuleItem(
         icon: Icons.add_a_photo,
         label: 'Chấm tủ đề xuất',
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChamTuDanhSachScreen())),
       ),
-    ];
-    final haTangMang = [
-      const GridModuleItem(icon: Icons.map, label: 'Bản đồ Hộp cáp GPON', url: AppConfig.urlBanDoHopCap),
     ];
     final hocTap = [
       const GridModuleItem(icon: Icons.school, label: 'E-Learning', url: AppConfig.urlKhoaHoc),
@@ -112,13 +110,18 @@ class _CongDongTabState extends State<CongDongTab> {
           IconGridView(items: congViec, cuonRieng: false),
           // Danh mục CHỈ hiện khi được cấp quyền riêng - ẩn hẳn (không chỉ mờ
           // đi hay chặn sau khi bấm) nếu chưa được Admin cấp quyền.
-          if (_coQuyenHopCap) ...[
+          // Gộp chung 1 danh mục "Hạ tầng mạng" - hiện danh mục nếu có ÍT
+          // NHẤT 1 trong 2 quyền, nhưng chỉ hiện ĐÚNG icon nào mình có quyền
+          // (VD chỉ có quyền Chấm tủ thì không thấy icon Bản đồ GPON).
+          if (_coQuyenHopCap || _coQuyenChamTu) ...[
             _tieuDeNhom('Hạ tầng mạng'),
-            IconGridView(items: haTangMang, cuonRieng: false),
-          ],
-          if (_coQuyenChamTu) ...[
-            _tieuDeNhom('Đề xuất hạ tầng'),
-            IconGridView(items: chamTu, cuonRieng: false),
+            IconGridView(
+              items: [
+                if (_coQuyenHopCap) haTangMang[0],
+                if (_coQuyenChamTu) haTangMang[1],
+              ],
+              cuonRieng: false,
+            ),
           ],
           _tieuDeNhom('Học tập & Tài liệu'),
           IconGridView(items: hocTap, cuonRieng: false),

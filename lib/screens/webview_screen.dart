@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -94,7 +95,12 @@ class _WebViewScreenState extends State<WebViewScreen> {
       // Cài đặt máy, WebView vẫn báo "chưa cho phép" trong khi mở CÙNG trang
       // bằng trình duyệt thường lại chạy đúng - đây là hạn chế riêng của
       // WebView, không phải thiếu quyền hay sai code trang web).
-      ..addJavaScriptChannel('FlutterViTri', onMessageReceived: (_) => _layViTriChoWeb());
+      ..addJavaScriptChannel('FlutterViTri', onMessageReceived: (_) => _layViTriChoWeb())
+      // Kênh riêng cho trang "Chọn vị trí Chấm tủ trên bản đồ" - khi người
+      // dùng chạm bản đồ chọn xong vị trí và bấm Xác nhận, trang web gọi qua
+      // kênh này gửi tọa độ về, Flutter nhận và ĐÓNG màn WebView luôn, trả
+      // kết quả về cho màn Chấm tủ phía trên (không cần thêm màn hình riêng).
+      ..addJavaScriptChannel('FlutterChonViTriCamTu', onMessageReceived: (msg) => _xacNhanViTriChamTu(msg.message));
 
     // Bật navigator.geolocation cho WebView - dùng làm PHƯƠNG ÁN DỰ PHÒNG nếu
     // trang được mở ngoài app (trình duyệt thường), không phải đường chính.
@@ -127,6 +133,21 @@ class _WebViewScreenState extends State<WebViewScreen> {
       _controller.runJavaScript('window.nhanViTriTuApp && window.nhanViTriTuApp(${viTri.latitude}, ${viTri.longitude});');
     } catch (e) {
       _controller.runJavaScript("window.loiViTriTuApp && window.loiViTriTuApp('Không lấy được vị trí, kiểm tra lại GPS.');");
+    }
+  }
+
+  /// Trang "Chọn vị trí Chấm tủ" gửi tọa độ đã chạm chọn về qua đây - đóng
+  /// luôn màn WebView và trả kết quả {lat, lng} về cho màn Chấm tủ.
+  void _xacNhanViTriChamTu(String jsonChuoi) {
+    try {
+      final data = jsonDecode(jsonChuoi);
+      final lat = double.tryParse('${data['lat']}');
+      final lng = double.tryParse('${data['lng']}');
+      if (lat != null && lng != null && mounted) {
+        Navigator.pop(context, {'lat': lat, 'lng': lng});
+      }
+    } catch (e) {
+      // Dữ liệu gửi về không hợp lệ - bỏ qua, người dùng có thể thử chọn lại
     }
   }
 

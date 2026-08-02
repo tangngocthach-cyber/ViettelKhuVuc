@@ -17,6 +17,7 @@ class ChamTuService {
     required File anh,
     String ghiChu = '',
     String thietBi = '',
+    String? maTuGoc,
   }) async {
     try {
       final token = await AuthService.getToken();
@@ -29,6 +30,7 @@ class ChamTuService {
       request.fields['longitude'] = '$longitude';
       request.fields['ghi_chu'] = ghiChu;
       request.fields['thiet_bi'] = thietBi;
+      if (maTuGoc != null && maTuGoc.isNotEmpty) request.fields['ma_tu_goc'] = maTuGoc;
       request.files.add(await http.MultipartFile.fromPath('anh', anh.path));
 
       final streamed = await request.send().timeout(const Duration(seconds: 60));
@@ -83,6 +85,7 @@ class ChamTuService {
     required double longitude,
     File? anhMoi,
     String ghiChu = '',
+    String? maTuGoc,
   }) async {
     try {
       final token = await AuthService.getToken();
@@ -95,6 +98,7 @@ class ChamTuService {
       request.fields['latitude'] = '$latitude';
       request.fields['longitude'] = '$longitude';
       request.fields['ghi_chu'] = ghiChu;
+      request.fields['ma_tu_goc'] = maTuGoc ?? '';
       if (anhMoi != null) request.files.add(await http.MultipartFile.fromPath('anh', anhMoi.path));
 
       final streamed = await request.send().timeout(const Duration(seconds: 60));
@@ -229,6 +233,7 @@ class ChamTuService {
       excel_lib.TextCellValue('STT'),
       excel_lib.TextCellValue('ID'),
       excel_lib.TextCellValue('Loại tủ'),
+      excel_lib.TextCellValue('Mã tủ gốc'),
       excel_lib.TextCellValue('Latitude'),
       excel_lib.TextCellValue('Longitude'),
       excel_lib.TextCellValue('Link Google Maps'),
@@ -246,6 +251,7 @@ class ChamTuService {
         excel_lib.IntCellValue(stt++),
         excel_lib.IntCellValue(ct.id),
         excel_lib.TextCellValue(LoaiTu.ten(ct.loaiTu)),
+        excel_lib.TextCellValue(ct.maTuGoc ?? ''),
         excel_lib.DoubleCellValue(ct.latitude),
         excel_lib.DoubleCellValue(ct.longitude),
         excel_lib.TextCellValue(ct.linkGoogleMaps),
@@ -257,8 +263,8 @@ class ChamTuService {
         excel_lib.TextCellValue(TrangThaiChamTu.ten(ct.trangThai)),
       ]);
     }
-    trang.setColumnWidth(6, 35);
-    trang.setColumnWidth(9, 40);
+    trang.setColumnWidth(7, 35);
+    trang.setColumnWidth(10, 40);
 
     final duLieu = book.encode();
     final dir = await getTemporaryDirectory();
@@ -278,16 +284,17 @@ class ChamTuService {
       // Dòng đầu là tiêu đề cột - bỏ qua, bắt đầu đọc từ dòng thứ 2.
       for (var i = 1; i < trang.maxRows; i++) {
         final dong = trang.row(i);
-        if (dong.length < 12) continue;
+        if (dong.length < 13) continue;
         String layChuoi(int cot) => dong[cot]?.value?.toString() ?? '';
         ketQua.add({
           'loai_tu': layChuoi(2) == 'Tủ cứng' ? LoaiTu.tuCung : LoaiTu.tu8,
-          'latitude': double.tryParse(layChuoi(3)),
-          'longitude': double.tryParse(layChuoi(4)),
-          'dia_chi': layChuoi(6),
-          'anh_url': layChuoi(9),
-          'ghi_chu': layChuoi(10),
-          'trang_thai': layChuoi(11) == 'Đã duyệt' ? 'da_duyet' : (layChuoi(11) == 'Từ chối' ? 'tu_choi' : 'cho_duyet'),
+          'ma_tu_goc': layChuoi(3),
+          'latitude': double.tryParse(layChuoi(4)),
+          'longitude': double.tryParse(layChuoi(5)),
+          'dia_chi': layChuoi(7),
+          'anh_url': layChuoi(10),
+          'ghi_chu': layChuoi(11),
+          'trang_thai': layChuoi(12) == 'Đã duyệt' ? 'da_duyet' : (layChuoi(12) == 'Từ chối' ? 'tu_choi' : 'cho_duyet'),
         });
       }
     } catch (e) {

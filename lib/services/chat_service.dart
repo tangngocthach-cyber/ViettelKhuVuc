@@ -264,4 +264,146 @@ class ChatService {
     if (data['success'] != true) return null;
     return ChatMessage.fromJson(data['message']);
   }
+
+  // ============================================================================
+  // QUẢN LÝ NHÓM CHAT - tạo nhóm, thêm/xóa thành viên, bầu Trưởng/Phó nhóm,
+  // đổi thông tin nhóm, giải tán nhóm - trước đây CHỈ làm được qua web Admin.
+  // ============================================================================
+
+  /// Tạo nhóm chat mới - trả về conversation_id nếu thành công, null nếu lỗi
+  /// (kèm lý do trong [loi] nếu truyền vào).
+  static Future<int?> taoNhom({required String tenNhom, required List<int> thanhVien}) async {
+    final res = await http.post(
+      Uri.parse(AppConfig.apiChatTaoNhom),
+      headers: {...await _authHeader(), 'Content-Type': 'application/json'},
+      body: jsonEncode({'ten_nhom': tenNhom, 'thanh_vien': thanhVien}),
+    ).timeout(const Duration(seconds: 20));
+    final data = jsonDecode(res.body);
+    if (data['success'] != true) return null;
+    return int.tryParse('${data['conversation_id']}');
+  }
+
+  static Future<String?> themThanhVien({required int conversationId, required List<int> thanhVien}) async {
+    final res = await http.post(
+      Uri.parse(AppConfig.apiChatThemThanhVien),
+      headers: {...await _authHeader(), 'Content-Type': 'application/json'},
+      body: jsonEncode({'conversation_id': conversationId, 'thanh_vien': thanhVien}),
+    ).timeout(const Duration(seconds: 15));
+    final data = jsonDecode(res.body);
+    if (data['success'] == true) return null;
+    return data['message']?.toString() ?? 'Thêm thành viên thất bại.';
+  }
+
+  static Future<String?> xoaThanhVien({required int conversationId, required int customerId}) async {
+    final res = await http.post(
+      Uri.parse(AppConfig.apiChatXoaThanhVien),
+      headers: {...await _authHeader(), 'Content-Type': 'application/json'},
+      body: jsonEncode({'conversation_id': conversationId, 'customer_id': customerId}),
+    ).timeout(const Duration(seconds: 15));
+    final data = jsonDecode(res.body);
+    if (data['success'] == true) return null;
+    return data['message']?.toString() ?? 'Xóa thành viên thất bại.';
+  }
+
+  /// Tự rời khỏi nhóm - nếu là Trưởng nhóm, hệ thống TỰ ĐỘNG chuyển quyền
+  /// cho người khác (không cần app xử lý gì thêm).
+  static Future<String?> roiNhom(int conversationId) async {
+    final res = await http.post(
+      Uri.parse(AppConfig.apiChatRoiNhom),
+      headers: {...await _authHeader(), 'Content-Type': 'application/json'},
+      body: jsonEncode({'conversation_id': conversationId}),
+    ).timeout(const Duration(seconds: 15));
+    final data = jsonDecode(res.body);
+    if (data['success'] == true) return null;
+    return data['message']?.toString() ?? 'Rời nhóm thất bại.';
+  }
+
+  /// Đổi vai trò 1 thành viên - [vaiTroMoi]: 'thanh_vien' | 'pho_nhom' | 'truong_nhom'
+  static Future<String?> doiVaiTro({required int conversationId, required int customerId, required String vaiTroMoi}) async {
+    final res = await http.post(
+      Uri.parse(AppConfig.apiChatDoiVaiTro),
+      headers: {...await _authHeader(), 'Content-Type': 'application/json'},
+      body: jsonEncode({'conversation_id': conversationId, 'customer_id': customerId, 'vai_tro_moi': vaiTroMoi}),
+    ).timeout(const Duration(seconds: 15));
+    final data = jsonDecode(res.body);
+    if (data['success'] == true) return null;
+    return data['message']?.toString() ?? 'Đổi vai trò thất bại.';
+  }
+
+  /// Đổi tên và/hoặc ảnh đại diện nhóm - [anhMoi] không bắt buộc.
+  static Future<String?> doiThongTinNhom({required int conversationId, String? tenNhomMoi, String? duongDanAnhMoi}) async {
+    final token = await AuthService.getToken();
+    final request = http.MultipartRequest('POST', Uri.parse(AppConfig.apiChatDoiThongTinNhom));
+    request.headers['Authorization'] = 'Bearer $token';
+    request.fields['conversation_id'] = '$conversationId';
+    if (tenNhomMoi != null && tenNhomMoi.isNotEmpty) request.fields['ten_nhom'] = tenNhomMoi;
+    if (duongDanAnhMoi != null) request.files.add(await http.MultipartFile.fromPath('anh_dai_dien', duongDanAnhMoi));
+
+    final streamed = await request.send().timeout(const Duration(seconds: 30));
+    final res = await http.Response.fromStream(streamed);
+    final data = jsonDecode(res.body);
+    if (data['success'] == true) return null;
+    return data['message']?.toString() ?? 'Cập nhật thông tin nhóm thất bại.';
+  }
+
+  static Future<String?> giaiTanNhom(int conversationId) async {
+    final res = await http.post(
+      Uri.parse(AppConfig.apiChatGiaiTanNhom),
+      headers: {...await _authHeader(), 'Content-Type': 'application/json'},
+      body: jsonEncode({'conversation_id': conversationId}),
+    ).timeout(const Duration(seconds: 15));
+    final data = jsonDecode(res.body);
+    if (data['success'] == true) return null;
+    return data['message']?.toString() ?? 'Giải tán nhóm thất bại.';
+  }
+
+  static Future<List<ChatGroupMember>> layThanhVienNhom(int conversationId) async {
+    try {
+      final uri = Uri.parse(AppConfig.apiChatThanhVien).replace(queryParameters: {'conversation_id': '$conversationId'});
+      final res = await http.get(uri, headers: await _authHeader()).timeout(const Duration(seconds: 15));
+      final data = jsonDecode(res.body);
+      if (data['success'] != true) return [];
+      return (data['data'] as List).map((e) => ChatGroupMember.fromJson(e)).toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// Danh sách toàn bộ nhân viên - dùng cho màn chọn thành viên khi tạo/thêm vào nhóm.
+  static Future<List<ChatLienHe>> layDanhSachLienHe() async {
+    try {
+      final res = await http.get(Uri.parse(AppConfig.apiChatDanhSachLienHe), headers: await _authHeader()).timeout(const Duration(seconds: 15));
+      final data = jsonDecode(res.body);
+      if (data['success'] != true) return [];
+      return (data['data'] as List).map((e) => ChatLienHe.fromJson(e)).toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// Ai đã xem 1 tin nhắn (kiểu Zalo) - trả về danh sách {customer_id, name}
+  static Future<List<Map<String, dynamic>>> layAiDaXem(int messageId) async {
+    try {
+      final uri = Uri.parse(AppConfig.apiChatAiDaXem).replace(queryParameters: {'message_id': '$messageId'});
+      final res = await http.get(uri, headers: await _authHeader()).timeout(const Duration(seconds: 15));
+      final data = jsonDecode(res.body);
+      if (data['success'] != true) return [];
+      return List<Map<String, dynamic>>.from(data['data'] ?? []);
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// Ai đã thả reaction cho 1 tin nhắn, kèm đúng loại reaction từng người
+  static Future<List<Map<String, dynamic>>> layAiDaThich(int messageId) async {
+    try {
+      final uri = Uri.parse(AppConfig.apiChatAiDaThich).replace(queryParameters: {'message_id': '$messageId'});
+      final res = await http.get(uri, headers: await _authHeader()).timeout(const Duration(seconds: 15));
+      final data = jsonDecode(res.body);
+      if (data['success'] != true) return [];
+      return List<Map<String, dynamic>>.from(data['data'] ?? []);
+    } catch (e) {
+      return [];
+    }
+  }
 }

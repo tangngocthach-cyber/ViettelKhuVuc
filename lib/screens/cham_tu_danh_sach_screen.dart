@@ -515,6 +515,10 @@ class _ChamTuDanhSachScreenState extends State<ChamTuDanhSachScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(ct.diaChi.isEmpty ? '(Chưa có địa chỉ)' : ct.diaChi, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5)),
+                        if ((ct.maTuGoc ?? '').isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text('🔗 Tủ gốc: ${ct.maTuGoc}', style: const TextStyle(fontSize: 11.5, color: Colors.teal, fontWeight: FontWeight.w600)),
+                        ],
                         const SizedBox(height: 4),
                         Text('${ct.tenNguoiTao} · ${DateFormat('HH:mm dd/MM/yyyy').format(ct.ngayTao)}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
                       ],
@@ -564,6 +568,14 @@ class _ChamTuDanhSachScreenState extends State<ChamTuDanhSachScreen> {
               ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.network(ct.anhUrl, width: double.infinity, height: 220, fit: BoxFit.cover)),
               const SizedBox(height: 14),
               Text(LoaiTu.ten(ct.loaiTu), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+              if ((ct.maTuGoc ?? '').isNotEmpty) ...[
+                const SizedBox(height: 3),
+                Row(children: [
+                  const Icon(Icons.link, size: 14, color: Colors.teal),
+                  const SizedBox(width: 4),
+                  Text('Đấu nối từ tủ gốc: ${ct.maTuGoc}', style: const TextStyle(fontSize: 13, color: Colors.teal, fontWeight: FontWeight.w600)),
+                ]),
+              ],
               const SizedBox(height: 6),
               Text(ct.diaChi.isEmpty ? '(Chưa có địa chỉ)' : ct.diaChi, style: const TextStyle(fontSize: 14)),
               const SizedBox(height: 6),
