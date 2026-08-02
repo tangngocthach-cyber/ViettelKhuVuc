@@ -432,6 +432,7 @@ class _FormGhiChuState extends State<_FormGhiChu> {
   late final TextEditingController _noiDungCtrl;
   late String _loaiChon;
   DateTime? _thoiGianNhac;
+  bool _dangLuu = false; // chặn bấm Lưu nhiều lần liên tiếp tạo trùng ghi chú
 
   @override
   void initState() {
@@ -492,12 +493,17 @@ class _FormGhiChuState extends State<_FormGhiChu> {
   }
 
   Future<void> _luu() async {
+    if (_dangLuu) return; // ĐANG lưu rồi - bỏ qua các lần bấm thêm, tránh tạo trùng
     if (_tieuDeCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vui lòng nhập tiêu đề.')));
       return;
     }
+    setState(() => _dangLuu = true);
     final gc = GhiChu(
-      id: widget.ghiChuSua?.id ?? DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      // Dùng MILI-GIÂY (không chia /1000 như trước) làm ID ghi chú mới - loại
+      // bỏ hoàn toàn khả năng 2 lần tạo trong CÙNG 1 GIÂY bị trùng ID (dù giờ
+      // đã có _dangLuu chặn bấm nhiều lần, vẫn giữ thêm lớp an toàn này).
+      id: widget.ghiChuSua?.id ?? DateTime.now().millisecondsSinceEpoch,
       tieuDe: _tieuDeCtrl.text.trim(),
       noiDung: _noiDungCtrl.text.trim(),
       loai: _loaiChon,
@@ -505,8 +511,15 @@ class _FormGhiChuState extends State<_FormGhiChu> {
       daXong: widget.ghiChuSua?.daXong ?? false,
       ngayTao: widget.ghiChuSua?.ngayTao ?? DateTime.now(),
     );
-    await GhiChuService.luu(gc);
-    if (mounted) Navigator.pop(context, true);
+    try {
+      await GhiChuService.luu(gc);
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _dangLuu = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lưu thất bại: $e')));
+      }
+    }
   }
 
   @override
@@ -594,7 +607,12 @@ class _FormGhiChuState extends State<_FormGhiChu> {
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton(onPressed: _luu, child: const Text('Lưu')),
+              child: ElevatedButton(
+                onPressed: _dangLuu ? null : _luu,
+                child: _dangLuu
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.4))
+                    : const Text('Lưu'),
+              ),
             ),
           ],
         ),
