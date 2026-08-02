@@ -62,7 +62,7 @@ class _CongDongTabState extends State<CongDongTab> {
     final haTangMang = [
       const GridModuleItem(icon: Icons.map, label: 'Bản đồ Hộp cáp GPON', url: AppConfig.urlBanDoHopCap),
       GridModuleItem(
-        icon: Icons.add_a_photo,
+        icon: Icons.add_location_alt,
         label: 'Chấm tủ đề xuất',
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChamTuDanhSachScreen())),
       ),
