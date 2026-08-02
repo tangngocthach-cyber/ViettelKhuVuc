@@ -6,6 +6,7 @@ import 'calculator_screen.dart';
 import 'ghi_chu_screen.dart';
 import 'lich_screen.dart';
 import 'qr_scan_screen.dart';
+import 'cham_tu_danh_sach_screen.dart';
 
 /// Tab Cộng đồng - ĐẦY ĐỦ công cụ nội bộ như menu thật trên website (không chỉ
 /// 4 mục Diễn đàn/Tìm kiếm/Quay số/Bốc thăm như bản đầu). Quyền xem từng trang
@@ -26,6 +27,7 @@ class CongDongTab extends StatefulWidget {
 
 class _CongDongTabState extends State<CongDongTab> {
   bool _coQuyenHopCap = false; // Mặc định ẨN - an toàn hơn là lỡ hiện nhầm
+  bool _coQuyenChamTu = false; // Mặc định ẨN - phải được Admin cấp riêng mới chấm tủ được
 
   @override
   void initState() {
@@ -34,8 +36,16 @@ class _CongDongTabState extends State<CongDongTab> {
   }
 
   Future<void> _kiemTraQuyen() async {
-    final coQuyen = await AuthService.hasHopCapAccess();
-    if (mounted) setState(() => _coQuyenHopCap = coQuyen);
+    final coHopCap = await AuthService.hasHopCapAccess();
+    // Có quyền dùng CƠ BẢN hoặc là Admin của module đều được thấy mục này -
+    // Admin không cần được cấp thêm quyền dùng riêng (đã có quyền cao hơn).
+    final coChamTu = await AuthService.hasChamTuAccess() || await AuthService.isChamTuAdmin();
+    if (mounted) {
+      setState(() {
+        _coQuyenHopCap = coHopCap;
+        _coQuyenChamTu = coChamTu;
+      });
+    }
   }
 
   @override
@@ -48,6 +58,13 @@ class _CongDongTabState extends State<CongDongTab> {
       const GridModuleItem(icon: Icons.link, label: 'Tiện ích nội bộ', url: AppConfig.urlTienIchNoiBo),
       const GridModuleItem(icon: Icons.table_chart, label: 'Kho Dữ liệu bán hàng', url: AppConfig.urlKhoDuLieuExcel),
       const GridModuleItem(icon: Icons.smart_toy, label: 'Trợ lý KPI (AI)', url: AppConfig.urlTroLyKPI),
+    ];
+    final chamTu = [
+      GridModuleItem(
+        icon: Icons.add_a_photo,
+        label: 'Chấm tủ đề xuất',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChamTuDanhSachScreen())),
+      ),
     ];
     final haTangMang = [
       const GridModuleItem(icon: Icons.map, label: 'Bản đồ Hộp cáp GPON', url: AppConfig.urlBanDoHopCap),
@@ -98,6 +115,10 @@ class _CongDongTabState extends State<CongDongTab> {
           if (_coQuyenHopCap) ...[
             _tieuDeNhom('Hạ tầng mạng'),
             IconGridView(items: haTangMang, cuonRieng: false),
+          ],
+          if (_coQuyenChamTu) ...[
+            _tieuDeNhom('Đề xuất hạ tầng'),
+            IconGridView(items: chamTu, cuonRieng: false),
           ],
           _tieuDeNhom('Học tập & Tài liệu'),
           IconGridView(items: hocTap, cuonRieng: false),

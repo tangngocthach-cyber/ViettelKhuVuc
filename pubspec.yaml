@@ -1,7 +1,7 @@
 name: vinhhung_app
 description: Ứng dụng di động Viettel Khu Vực Vĩnh Hưng
 publish_to: 'none'
-version: 1.0.3+3
+version: 1.0.2+2
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -29,6 +29,7 @@ dependencies:
 
   # Tự cập nhật app: lấy version hiện tại, xin quyền cài từ nguồn ngoài
   package_info_plus: ^8.0.0
+  device_info_plus: ^11.2.0
   permission_handler: ^11.3.1
 
   # Mở link ra NGOÀI site (VD NotebookLM, link "mở tab mới") bằng trình duyệt

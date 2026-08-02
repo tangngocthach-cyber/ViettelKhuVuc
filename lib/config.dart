@@ -9,6 +9,16 @@ class AppConfig {
   static const String apiMe = '$baseUrl/api/auth/me.php';
   static const String apiProducts = '$baseUrl/api/catalog/products.php';
   static const String apiNews = '$baseUrl/api/catalog/news.php';
+  static const String apiChamTuTao = '$baseUrl/api/cham-tu/tao.php';
+  static const String apiChamTuDanhSach = '$baseUrl/api/cham-tu/danh-sach.php';
+  static const String apiChamTuSua = '$baseUrl/api/cham-tu/sua.php';
+  static const String apiChamTuXoa = '$baseUrl/api/cham-tu/xoa.php';
+  static const String apiChamTuDuyet = '$baseUrl/api/cham-tu/duyet.php';
+  static const String apiChamTuLichSu = '$baseUrl/api/cham-tu/lich-su.php';
+  static const String apiChamTuBackup = '$baseUrl/api/cham-tu/backup.php';
+  static const String apiChamTuRestore = '$baseUrl/api/cham-tu/restore.php';
+  static const String apiChamTuNhapExcel = '$baseUrl/api/cham-tu/nhap-excel.php';
+  static const String urlBanDoChamTu = '$baseUrl/ban-do-cham-tu.php';
   static const String apiPolicies = '$baseUrl/api/catalog/policies.php';
   static const String apiVersionCheck = '$baseUrl/api/version/check.php';
   static const String apiChatConversations = '$baseUrl/api/chat/conversations.php';

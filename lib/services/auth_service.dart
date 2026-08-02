@@ -19,6 +19,8 @@ class AuthService {
   static const _keyUserPhone = 'user_phone';
   static const _keyChatAdmin = 'is_chat_admin';
   static const _keyHopCapAccess = 'hop_cap_gpon_access';
+  static const _keyChamTuAccess = 'cham_tu_access';
+  static const _keyChamTuAdmin = 'cham_tu_admin';
   static const _keyBiometricEnabled = 'sinh_trac_hoc_bat';
 
   /// Có đang BẬT đăng nhập vân tay/Face ID không - lưu CHUNG storage với token
@@ -76,6 +78,8 @@ class AuthService {
         if (data['success'] == true) {
           await _storage.write(key: _keyChatAdmin, value: '${data['user']['is_chat_admin'] ?? false}');
           await _storage.write(key: _keyHopCapAccess, value: '${data['user']['hop_cap_gpon_access'] ?? false}');
+          await _storage.write(key: _keyChamTuAccess, value: '${data['user']['cham_tu_access'] ?? false}');
+          await _storage.write(key: _keyChamTuAdmin, value: '${data['user']['cham_tu_admin'] ?? false}');
         }
       }
     } catch (e) {
@@ -121,6 +125,18 @@ class AuthService {
     return (await _storage.read(key: _keyHopCapAccess)) == 'true';
   }
 
+  /// Có quyền SỬ DỤNG tính năng "Chấm tủ đề xuất" không - do Admin cấp riêng,
+  /// mặc định KHÔNG có quyền cho tới khi được cấp (an toàn hơn).
+  static Future<bool> hasChamTuAccess() async {
+    return (await _storage.read(key: _keyChamTuAccess)) == 'true';
+  }
+
+  /// Có phải Admin của module Chấm tủ không (duyệt/từ chối/sửa/xóa của
+  /// người khác) - KHÁC hasChamTuAccess() (đó chỉ là quyền dùng cơ bản).
+  static Future<bool> isChamTuAdmin() async {
+    return (await _storage.read(key: _keyChamTuAdmin)) == 'true';
+  }
+
   /// Kiểm tra token còn hiệu lực trên server hay không (gọi khi mở app) -
   /// nếu server báo hết hạn, TỰ ĐỘNG xóa token cục bộ để chuyển về màn Đăng nhập.
   /// Đồng thời ĐỒNG BỘ LẠI cờ Quản trị Chat mới nhất (phòng khi Admin vừa cấp/gỡ quyền).
@@ -138,6 +154,8 @@ class AuthService {
         if (data['success'] == true) {
           await _storage.write(key: _keyChatAdmin, value: '${data['user']['is_chat_admin'] ?? false}');
           await _storage.write(key: _keyHopCapAccess, value: '${data['user']['hop_cap_gpon_access'] ?? false}');
+          await _storage.write(key: _keyChamTuAccess, value: '${data['user']['cham_tu_access'] ?? false}');
+          await _storage.write(key: _keyChamTuAdmin, value: '${data['user']['cham_tu_admin'] ?? false}');
         }
       }
       return res.statusCode == 200;
