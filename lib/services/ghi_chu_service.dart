@@ -16,6 +16,12 @@ class GhiChuService {
   // Chat (vốn dùng messageId thật từ CSDL, chắc chắn nhỏ hơn nhiều con số này).
   static const _buTruId = 900000000;
 
+  /// Tính ID thông báo AN TOÀN từ ID ghi chú (mili-giây, 13 chữ số) - BẮT
+  /// BUỘC phải rút gọn bằng phép chia dư (%) trước khi cộng, nếu không sẽ
+  /// TRÀN SỐ nguyên 32-bit mà Android dùng cho ID thông báo (tối đa khoảng
+  /// 2,1 tỷ), làm hỏng/lỗi lịch nhắc hẹn một cách âm thầm, khó phát hiện.
+  static int _idThongBao(int ghiChuId) => _buTruId + (ghiChuId % 1000000000);
+
   static Future<File> _fileDuLieu() async {
     final dir = await getApplicationDocumentsDirectory();
     return File('${dir.path}/so_ghi_chu.json');
@@ -59,10 +65,10 @@ class GhiChuService {
 
     // Đồng bộ lại lịch nhắc hẹn: hủy lịch cũ trước (phòng trường hợp sửa giờ
     // hẹn), rồi đặt lại lịch mới nếu có hẹn giờ và chưa đánh dấu xong.
-    await ReminderNotificationService.huyLich(_buTruId + ghiChu.id);
+    await ReminderNotificationService.huyLich(_idThongBao(ghiChu.id));
     if (ghiChu.thoiGianNhac != null && !ghiChu.daXong) {
       await ReminderNotificationService.datLich(
-        messageId: _buTruId + ghiChu.id,
+        messageId: _idThongBao(ghiChu.id),
         tieuDe: ghiChu.tieuDe,
         moTa: ghiChu.noiDung.isNotEmpty ? ghiChu.noiDung : null,
         thoiGianNhac: ghiChu.thoiGianNhac!,
@@ -74,7 +80,7 @@ class GhiChuService {
     final ds = await layDanhSach();
     ds.removeWhere((e) => e.id == id);
     await _luuTatCa(ds);
-    await ReminderNotificationService.huyLich(_buTruId + id);
+    await ReminderNotificationService.huyLich(_idThongBao(id));
   }
 
   static Future<void> danhDauXong(int id, bool xong) async {
@@ -84,7 +90,7 @@ class GhiChuService {
     ds[viTri].daXong = xong;
     await _luuTatCa(ds);
     // Đánh dấu xong -> hủy luôn thông báo nhắc hẹn (không cần nhắc việc đã xong)
-    if (xong) await ReminderNotificationService.huyLich(_buTruId + id);
+    if (xong) await ReminderNotificationService.huyLich(_idThongBao(id));
   }
 
   // ============================================================================
@@ -134,7 +140,7 @@ class GhiChuService {
     for (final gc in dsHienCo) {
       if (gc.thoiGianNhac != null && !gc.daXong) {
         await ReminderNotificationService.datLich(
-          messageId: _buTruId + gc.id,
+          messageId: _idThongBao(gc.id),
           tieuDe: gc.tieuDe,
           moTa: gc.noiDung.isNotEmpty ? gc.noiDung : null,
           thoiGianNhac: gc.thoiGianNhac!,
