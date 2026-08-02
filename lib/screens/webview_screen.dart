@@ -81,7 +81,21 @@ class _WebViewScreenState extends State<WebViewScreen> {
           const duoiFileTai = ['.pdf', '.xlsx', '.xls', '.doc', '.docx', '.ppt', '.pptx', '.zip', '.csv', '.apk'];
           final laLinkTaiFile = path.contains('tai-lieu-tai-xuong.php') || duoiFileTai.any((duoi) => path.endsWith(duoi));
 
-          if (!laDomainCuaSite || laLinkTaiFile) {
+          if (laLinkTaiFile) {
+            // LỖI THẬT ĐÃ GẶP: mở thẳng link file bằng trình duyệt ngoài máy
+            // KHÔNG mang theo phiên đăng nhập của WebView (2 nơi lưu cookie
+            // HOÀN TOÀN TÁCH BIỆT) - trang tải file (Tài liệu, Kho Dữ liệu bán
+            // hàng...) đều yêu cầu đăng nhập, nên trình duyệt ngoài bị đá về
+            // trang đăng nhập thay vì tải file, THẤT BẠI ÂM THẦM (không báo
+            // lỗi gì, chỉ đơn giản là không tải được). Cách sửa: xin 1 vé đăng
+            // nhập tạm MỚI (giống hệt cách mở trang chính), lồng vào URL tải
+            // file rồi mới mở bằng trình duyệt ngoài - để trình duyệt ngoài
+            // CŨNG có phiên đăng nhập hợp lệ trước khi tải.
+            _moLinkTaiFileCoDangNhap(uri);
+            return NavigationDecision.prevent;
+          }
+
+          if (!laDomainCuaSite) {
             if (uri != null) { await launchUrl(uri, mode: LaunchMode.externalApplication); }
             return NavigationDecision.prevent;
           }
@@ -148,6 +162,29 @@ class _WebViewScreenState extends State<WebViewScreen> {
       }
     } catch (e) {
       // Dữ liệu gửi về không hợp lệ - bỏ qua, người dùng có thể thử chọn lại
+    }
+  }
+
+  /// Mở link tải file (Tài liệu, Kho Dữ liệu bán hàng...) bằng trình duyệt
+  /// ngoài máy NHƯNG lồng kèm vé đăng nhập tạm - để trình duyệt ngoài (vốn
+  /// KHÔNG chung phiên đăng nhập với WebView) cũng đăng nhập được trước khi
+  /// tải, tránh bị đá về trang đăng nhập khiến tải file thất bại âm thầm.
+  Future<void> _moLinkTaiFileCoDangNhap(Uri? uriGoc) async {
+    if (uriGoc == null) return;
+    try {
+      final ticket = await AuthService.getWebTicket();
+      if (ticket == null) {
+        // Không xin được vé (VD mất mạng) - vẫn thử mở link gốc, còn hơn không làm gì
+        await launchUrl(uriGoc, mode: LaunchMode.externalApplication);
+        return;
+      }
+      final duongDanCanTai = uriGoc.path + (uriGoc.query.isNotEmpty ? '?${uriGoc.query}' : '');
+      final urlQuaVe = '${AppConfig.urlSessionLogin}?ticket=$ticket&redirect=${Uri.encodeComponent(duongDanCanTai)}';
+      await launchUrl(Uri.parse(urlQuaVe), mode: LaunchMode.externalApplication);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Không mở được file tải xuống, kiểm tra lại mạng và thử lại.')));
+      }
     }
   }
 
