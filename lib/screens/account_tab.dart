@@ -8,6 +8,7 @@ import '../services/fcm_service.dart';
 import '../services/version_service.dart';
 import '../theme.dart';
 import 'login_screen.dart';
+import 'biometric_lock_screen.dart';
 import 'update_dialog.dart';
 
 class TaiKhoanTab extends StatefulWidget {
@@ -82,6 +83,45 @@ class _TaiKhoanTabState extends State<TaiKhoanTab> {
   }
 
   Future<void> _dangXuat() async {
+    final coVanTay = await AuthService.isBiometricEnabled();
+
+    if (coVanTay) {
+      // Đã bật vân tay -> cho chọn "Khóa" (giữ nguyên phiên đăng nhập, lần
+      // sau mở app chỉ cần vân tay, KHÔNG cần gõ lại mật khẩu) hoặc
+      // "Đăng xuất hẳn" (xóa phiên thật - dùng khi đổi máy/cho mượn máy).
+      final luaChon = await showDialog<String>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Thoát ứng dụng'),
+          content: const Text(
+            'Bạn đã bật đăng nhập vân tay. Chọn "Khóa" để lần sau mở app chỉ '
+            'cần vân tay, không cần gõ lại mật khẩu - hoặc "Đăng xuất hẳn" nếu '
+            'muốn xóa phiên đăng nhập thật sự (VD: đổi máy, cho mượn máy).',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, 'huy'), child: const Text('Hủy')),
+            TextButton(onPressed: () => Navigator.pop(context, 'khoa'), child: const Text('Khóa')),
+            TextButton(onPressed: () => Navigator.pop(context, 'dang_xuat'), child: const Text('Đăng xuất hẳn', style: TextStyle(color: Colors.red))),
+          ],
+        ),
+      );
+
+      if (luaChon == 'khoa') {
+        // KHÔNG xóa gì cả - giữ nguyên token/phiên đăng nhập, chỉ điều hướng
+        // về màn khóa vân tay. Lần mở lại chỉ cần xác thực vân tay là vào
+        // thẳng app, không cần đăng nhập lại từ đầu.
+        if (!mounted) return;
+        Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const BiometricLockScreen()), (route) => false);
+      } else if (luaChon == 'dang_xuat') {
+        await FcmService.huyDangKy();
+        await AuthService.logout();
+        if (!mounted) return;
+        Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const LoginScreen()), (route) => false);
+      }
+      return;
+    }
+
+    // Chưa bật vân tay -> hành vi cũ, đăng xuất thật, lần sau phải gõ mật khẩu
     final xacNhan = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
