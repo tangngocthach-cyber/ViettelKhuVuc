@@ -62,8 +62,20 @@ class _GhiChuScreenState extends State<GhiChuScreen> {
     if (ketQua == true) {
       await _taiDuLieu();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(ghiChuSua == null ? 'Đã lưu ghi chú mới.' : 'Đã cập nhật ghi chú.'), duration: const Duration(seconds: 2)),
+        final messenger = ScaffoldMessenger.of(context);
+        messenger.clearSnackBars(); // xóa thông báo cũ đang xếp hàng chờ (nếu có) - tránh bị nuốt mất thông báo mới
+        messenger.showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white, size: 20),
+                const SizedBox(width: 10),
+                Text(ghiChuSua == null ? 'Đã lưu ghi chú mới.' : 'Đã cập nhật ghi chú.'),
+              ],
+            ),
+            backgroundColor: Colors.green.shade700,
+            duration: const Duration(seconds: 3),
+          ),
         );
       }
     }
@@ -90,13 +102,6 @@ class _GhiChuScreenState extends State<GhiChuScreen> {
   Future<void> _xoa(GhiChu gc) async {
     await GhiChuService.xoa(gc.id);
     _taiDuLieu();
-  }
-
-  void _batDauChonNhieu(int id) {
-    setState(() {
-      _dangChonNhieu = true;
-      _idDaChon.add(id);
-    });
   }
 
   void _toggleChon(int id) {
@@ -208,6 +213,11 @@ class _GhiChuScreenState extends State<GhiChuScreen> {
           : AppBar(
               title: const Text('Sổ ghi chú'),
               actions: [
+                IconButton(
+                  icon: const Icon(Icons.checklist),
+                  tooltip: 'Chọn nhiều để xóa/đánh dấu xong hàng loạt',
+                  onPressed: () => setState(() => _dangChonNhieu = true),
+                ),
                 PopupMenuButton<String>(
                   onSelected: (gt) {
                     if (gt == 'sao_luu') _sauLuu();
@@ -306,59 +316,40 @@ class _GhiChuScreenState extends State<GhiChuScreen> {
     final quaHan = gc.thoiGianNhac != null && !gc.daXong && gc.thoiGianNhac!.isBefore(DateTime.now());
     final dangDuocChon = _idDaChon.contains(gc.id);
 
-    return Dismissible(
-      key: ValueKey(gc.id),
-      // Tắt hẳn vuốt khi đang ở chế độ chọn nhiều - tránh thao tác nhầm
-      direction: _dangChonNhieu ? DismissDirection.none : DismissDirection.horizontal,
-      background: Container(
-        decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(12)),
-        alignment: Alignment.centerLeft,
-        padding: const EdgeInsets.only(left: 20),
-        child: const Icon(Icons.check, color: Colors.white),
+    // QUAN TRỌNG: KHÔNG dùng Dismissible (vuốt để xóa/đánh dấu xong) kết hợp
+    // chung với onLongPress (giữ tay để chọn nhiều) - đây CHÍNH LÀ nguyên
+    // nhân lỗi thật đã gặp: 2 cử chỉ (vuốt ngang và giữ tay) cùng tranh chấp
+    // trên 1 vùng chạm khiến Flutter đôi khi hiểu "giữ tay rồi thả ra" thành
+    // "đã vuốt xóa dở dang", tự động xóa ngoài ý muốn. Thay bằng CÁC NÚT BẤM
+    // TƯỜNG MINH - không thể hiểu nhầm, an toàn tuyệt đối cho dữ liệu.
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      elevation: 1,
+      color: dangDuocChon ? AppTheme.viettelRed.withValues(alpha: .08) : null,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: dangDuocChon ? const BorderSide(color: AppTheme.viettelRed, width: 1.5) : BorderSide.none,
       ),
-      secondaryBackground: Container(
-        decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)),
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        child: const Icon(Icons.delete, color: Colors.white),
-      ),
-      confirmDismiss: (huong) async {
-        if (huong == DismissDirection.startToEnd) {
-          _danhDauXong(gc, !gc.daXong);
-          return false; // không xóa khỏi danh sách, chỉ đổi trạng thái rồi tự lọc lại
-        }
-        // Vuốt trái = xóa - BẮT BUỘC hỏi xác nhận trước (hành động không thể
-        // hoàn tác, lỗi thật đã gặp: trước đây xóa ngay không hỏi lại).
-        return await _xacNhanXoa(1);
-      },
-      onDismissed: (_) => _xoa(gc),
-      child: Card(
-        margin: const EdgeInsets.only(bottom: 10),
-        elevation: 1,
-        color: dangDuocChon ? AppTheme.viettelRed.withValues(alpha: .08) : null,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: dangDuocChon ? const BorderSide(color: AppTheme.viettelRed, width: 1.5) : BorderSide.none,
-        ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () => _dangChonNhieu ? _toggleChon(gc.id) : _moThemSua(ghiChuSua: gc),
-          onLongPress: () => _dangChonNhieu ? null : _batDauChonNhieu(gc.id),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Ở chế độ chọn nhiều: hiện checkbox CHỌN. Bình thường: hiện
-                // checkbox ĐÁNH DẤU XONG rõ ràng (không chỉ ẩn trong vuốt tay
-                // như trước - dễ bấm nhầm/khó phát hiện tính năng).
-                if (_dangChonNhieu)
-                  Checkbox(value: dangDuocChon, onChanged: (_) => _toggleChon(gc.id), activeColor: AppTheme.viettelRed)
-                else
-                  Checkbox(value: gc.daXong, onChanged: (v) => _danhDauXong(gc, v ?? false), activeColor: AppTheme.viettelRed),
-                Container(width: 4, height: 42, decoration: BoxDecoration(color: Color(loai.mauHex), borderRadius: BorderRadius.circular(4))),
-                const SizedBox(width: 12),
-                Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => _dangChonNhieu ? _toggleChon(gc.id) : _moThemSua(ghiChuSua: gc),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Ở chế độ chọn nhiều: hiện checkbox CHỌN. Bình thường: hiện
+              // checkbox ĐÁNH DẤU XONG - cả 2 đều là BẤM TRỰC TIẾP, không
+              // liên quan gì tới vuốt/giữ tay nữa.
+              if (_dangChonNhieu)
+                Checkbox(value: dangDuocChon, onChanged: (_) => _toggleChon(gc.id), activeColor: AppTheme.viettelRed)
+              else
+                Checkbox(value: gc.daXong, onChanged: (v) => _danhDauXong(gc, v ?? false), activeColor: AppTheme.viettelRed),
+              Container(width: 4, height: 42, margin: const EdgeInsets.only(top: 12), decoration: BoxDecoration(color: Color(loai.mauHex), borderRadius: BorderRadius.circular(4))),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -406,8 +397,20 @@ class _GhiChuScreenState extends State<GhiChuScreen> {
                     ],
                   ),
                 ),
-              ],
-            ),
+              ),
+              // Nút xóa RIÊNG, luôn hiện rõ (trừ lúc đang chọn nhiều) - bấm vào
+              // MỚI hỏi xác nhận rồi mới xóa, không còn liên quan gì tới thao
+              // tác vuốt/giữ tay mơ hồ dễ xóa nhầm như trước.
+              if (!_dangChonNhieu)
+                IconButton(
+                  icon: Icon(Icons.delete_outline, color: Colors.grey.shade500, size: 22),
+                  tooltip: 'Xóa ghi chú',
+                  onPressed: () async {
+                    final xacNhan = await _xacNhanXoa(1);
+                    if (xacNhan) _xoa(gc);
+                  },
+                ),
+            ],
           ),
         ),
       ),
