@@ -180,35 +180,40 @@ class _LichScreenState extends State<LichScreen> {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '${thuTrongTuan[ngay.weekday % 7]}, ${ngay.day}/${ngay.month}/${ngay.year}',
-              style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Âm lịch: ${amLich[0]}/${amLich[1]}${amLich[3] == 1 ? " (nhuận)" : ""}/${amLich[2]} - Năm ${AmLich.namCanChi(amLich[2])}',
-              style: TextStyle(fontSize: 15, color: Colors.grey.shade700),
-            ),
-            if (danhSachLe.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              ...danhSachLe.map((le) => Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.celebration, color: AppTheme.viettelRed, size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(child: Text(le.ten, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600))),
-                      ],
-                    ),
-                  )),
+      builder: (_) => SafeArea(
+        // BẮT BUỘC bọc SafeArea ở đây - nếu không, nội dung bottom sheet bị
+        // THANH ĐIỀU HƯỚNG CỦA ĐIỆN THOẠI (3 nút Back/Home/Recent) đè lên
+        // phần cuối, khiến chữ bị khuất khó đọc (lỗi thật đã gặp).
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${thuTrongTuan[ngay.weekday % 7]}, ${ngay.day}/${ngay.month}/${ngay.year}',
+                style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Âm lịch: ${amLich[0]}/${amLich[1]}${amLich[3] == 1 ? " (nhuận)" : ""}/${amLich[2]} - Năm ${AmLich.namCanChi(amLich[2])}',
+                style: TextStyle(fontSize: 15, color: Colors.grey.shade700),
+              ),
+              if (danhSachLe.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                ...danhSachLe.map((le) => Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.celebration, color: AppTheme.viettelRed, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(le.ten, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600))),
+                        ],
+                      ),
+                    )),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

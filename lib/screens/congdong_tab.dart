@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import '../config.dart';
 import '../services/auth_service.dart';
 import '../widgets/icon_grid_view.dart';
+import 'calculator_screen.dart';
+import 'ghi_chu_screen.dart';
+import 'lich_screen.dart';
+import 'qr_scan_screen.dart';
 
 /// Tab Cộng đồng - ĐẦY ĐỦ công cụ nội bộ như menu thật trên website (không chỉ
 /// 4 mục Diễn đàn/Tìm kiếm/Quay số/Bốc thăm như bản đầu). Quyền xem từng trang
@@ -60,6 +64,28 @@ class _CongDongTabState extends State<CongDongTab> {
       const GridModuleItem(icon: Icons.casino, label: 'Quay số trúng thưởng', url: AppConfig.urlQuaySo),
       const GridModuleItem(icon: Icons.card_giftcard, label: 'Bốc thăm trúng thưởng', url: AppConfig.urlBocTham),
     ];
+    final tienIch = [
+      GridModuleItem(
+        icon: Icons.qr_code_scanner,
+        label: 'Quét mã QR',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const QrScanScreen())),
+      ),
+      GridModuleItem(
+        icon: Icons.calculate,
+        label: 'Máy tính',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CalculatorScreen())),
+      ),
+      GridModuleItem(
+        icon: Icons.note_alt,
+        label: 'Sổ ghi chú',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GhiChuScreen())),
+      ),
+      GridModuleItem(
+        icon: Icons.calendar_month,
+        label: 'Lịch Âm - Dương',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LichScreen())),
+      ),
+    ];
 
     return Scaffold(
       appBar: AppBar(title: const Text('Cộng đồng')),
@@ -77,6 +103,8 @@ class _CongDongTabState extends State<CongDongTab> {
           IconGridView(items: hocTap, cuonRieng: false),
           _tieuDeNhom('Cộng đồng & Ưu đãi'),
           IconGridView(items: congDong, cuonRieng: false),
+          _tieuDeNhom('Tiện ích'),
+          IconGridView(items: tienIch, cuonRieng: false),
           const SizedBox(height: 24),
         ],
       ),

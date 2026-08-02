@@ -29,6 +29,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
   late final WebViewController _controller;
   bool _dangTai = true;
   bool _loiMang = false;
+  bool _trangDaTaiXongLanNao = false; // reset mỗi khi bắt đầu tải trang mới
 
   @override
   void initState() {
@@ -39,12 +40,26 @@ class _WebViewScreenState extends State<WebViewScreen> {
         onPageStarted: (_) => setState(() {
           _dangTai = true;
           _loiMang = false;
+          _trangDaTaiXongLanNao = false;
         }),
-        onPageFinished: (_) => setState(() => _dangTai = false),
-        onWebResourceError: (error) => setState(() {
+        onPageFinished: (_) => setState(() {
           _dangTai = false;
-          _loiMang = true;
+          _trangDaTaiXongLanNao = true;
         }),
+        onWebResourceError: (error) {
+          // CHỈ báo lỗi toàn trang nếu trang CHÍNH chưa từng tải xong lần nào.
+          // Nếu trang đã tải xong rồi (VD: bản đồ đã hiện ra), lỗi này chỉ là
+          // 1 TÀI NGUYÊN PHỤ bị lỗi tạm (như 1 ô ảnh bản đồ/tile khi zoom) -
+          // KHÔNG được che mất nội dung đã tải thành công (lỗi thật đã gặp:
+          // bản đồ dùng hàng trăm ảnh tile nhỏ, chỉ 1 cái lỗi mạng thoáng qua
+          // cũng đủ khiến toàn bộ bản đồ bị che bởi màn "mất mạng" sai lệch).
+          if (!_trangDaTaiXongLanNao) {
+            setState(() {
+              _dangTai = false;
+              _loiMang = true;
+            });
+          }
+        },
         onNavigationRequest: (request) async {
           final uri = Uri.tryParse(request.url);
           final host = uri?.host ?? '';

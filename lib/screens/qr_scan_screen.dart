@@ -20,14 +20,35 @@ class QrScanScreen extends StatefulWidget {
   State<QrScanScreen> createState() => _QrScanScreenState();
 }
 
-class _QrScanScreenState extends State<QrScanScreen> {
+class _QrScanScreenState extends State<QrScanScreen> with WidgetsBindingObserver {
   final _controller = MobileScannerController(detectionSpeed: DetectionSpeed.noDuplicates);
   bool _dangXuLy = false; // chặn quét trùng liên tục trong lúc đang hiện kết quả
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     super.dispose();
+  }
+
+  /// Chủ động DỪNG camera khi app chuyển xuống nền, KHỞI ĐỘNG LẠI khi quay
+  /// lại - đúng khuyến nghị chính thức của mobile_scanner. Bỏ qua bước này dễ
+  /// khiến camera bị "kẹt" trạng thái lỗi trên một số máy (đặc biệt Xiaomi/
+  /// MIUI), gây lỗi native Camera2/CameraX như đã gặp thực tế.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!_controller.value.isInitialized) return;
+    if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
+      _controller.stop();
+    } else if (state == AppLifecycleState.resumed) {
+      _controller.start();
+    }
   }
 
   Future<void> _khiQuetDuoc(BarcodeCapture capture) async {
@@ -166,6 +187,13 @@ class _QrScanScreenState extends State<QrScanScreen> {
                       const Icon(Icons.error_outline, color: Colors.white, size: 48),
                       const SizedBox(height: 16),
                       Text(lyDo, style: const TextStyle(color: Colors.white), textAlign: TextAlign.center),
+                      const SizedBox(height: 20),
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(foregroundColor: Colors.white, side: const BorderSide(color: Colors.white)),
+                        onPressed: () => _controller.start(),
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Thử lại'),
+                      ),
                     ],
                   ),
                 ),

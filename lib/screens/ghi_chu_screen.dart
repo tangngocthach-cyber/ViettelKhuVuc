@@ -1,5 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
 import '../models/ghi_chu.dart';
 import '../services/ghi_chu_service.dart';
 import '../theme.dart';
@@ -67,11 +70,77 @@ class _GhiChuScreenState extends State<GhiChuScreen> {
     _taiDuLieu();
   }
 
+  Future<void> _sauLuu() async {
+    try {
+      final file = await GhiChuService.xuatBackup();
+      if (!mounted) return;
+      await Share.shareXFiles([XFile(file.path)], text: 'File sao lưu Sổ ghi chú - Viettel Khu Vực Vĩnh Hưng');
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sao lưu thất bại: $e')));
+    }
+  }
+
+  Future<void> _khoiPhuc() async {
+    try {
+      final ketQua = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['json']);
+      if (ketQua == null || ketQua.files.single.path == null) return; // người dùng bấm Hủy
+
+      final xacNhan = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Khôi phục dữ liệu'),
+          content: const Text(
+            'Khôi phục sẽ THÊM MỚI/CẬP NHẬT ghi chú từ file sao lưu vào Sổ ghi '
+            'chú hiện tại - KHÔNG xóa các ghi chú đang có sẵn. Tiếp tục?',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Hủy')),
+            TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Khôi phục')),
+          ],
+        ),
+      );
+      if (xacNhan != true) return;
+
+      final soLuong = await GhiChuService.khoiPhucTuFile(File(ketQua.files.single.path!));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Đã khôi phục $soLuong ghi chú.')));
+      _taiDuLieu();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Khôi phục thất bại: file không đúng định dạng sao lưu.')));
+    }
+  }
+
+  Future<void> _xuatExcel() async {
+    try {
+      final file = await GhiChuService.xuatCsv();
+      if (!mounted) return;
+      await Share.shareXFiles([XFile(file.path)], text: 'Danh sách ghi chú - mở trực tiếp bằng Excel');
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Xuất file thất bại: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ds = _dsHienThi;
     return Scaffold(
-      appBar: AppBar(title: const Text('Sổ ghi chú')),
+      appBar: AppBar(
+        title: const Text('Sổ ghi chú'),
+        actions: [
+          PopupMenuButton<String>(
+            onSelected: (gt) {
+              if (gt == 'sao_luu') _sauLuu();
+              if (gt == 'khoi_phuc') _khoiPhuc();
+              if (gt == 'xuat_excel') _xuatExcel();
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'sao_luu', child: ListTile(leading: Icon(Icons.backup), title: Text('Sao lưu'), contentPadding: EdgeInsets.zero)),
+              PopupMenuItem(value: 'khoi_phuc', child: ListTile(leading: Icon(Icons.restore), title: Text('Khôi phục'), contentPadding: EdgeInsets.zero)),
+              PopupMenuItem(value: 'xuat_excel', child: ListTile(leading: Icon(Icons.table_chart), title: Text('Xuất Excel'), contentPadding: EdgeInsets.zero)),
+            ],
+          ),
+        ],
+      ),
       body: Column(
         children: [
           _thanhLoc(),
@@ -315,7 +384,15 @@ class _FormGhiChuState extends State<_FormGhiChu> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(left: 20, right: 20, top: 20, bottom: MediaQuery.of(context).viewInsets.bottom + 20),
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 20,
+        // Cộng thêm CẢ 2: khoảng trống do bàn phím che (viewInsets) VÀ vùng an
+        // toàn do thanh điều hướng điện thoại che (padding.bottom) - thiếu 1
+        // trong 2 đều khiến nút "Lưu" bị khuất khó bấm (lỗi thật đã gặp).
+        bottom: MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom + 20,
+      ),
       child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
