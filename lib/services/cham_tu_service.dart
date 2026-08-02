@@ -189,7 +189,7 @@ class ChamTuService {
       if (res.statusCode == 200 && data['success'] == true) {
         return (thanhCong: true, thongBao: 'Đã khôi phục ${data['so_luong_de_xuat']} đề xuất.');
       }
-      return (thanhCong: false, thongBao: data['message'] ?? 'Khôi phục thất bại.');
+      return (thanhCong: false, thongBao: (data['message'] ?? 'Khôi phục thất bại.').toString());
     } catch (e) {
       return (thanhCong: false, thongBao: 'File không đúng định dạng hoặc lỗi kết nối.');
     }
@@ -212,7 +212,7 @@ class ChamTuService {
       if (res.statusCode == 200 && data['success'] == true) {
         return (thanhCong: true, thongBao: 'Đã nhập ${data['thanh_cong']} dòng, bỏ qua ${data['bo_qua']} dòng lỗi.');
       }
-      return (thanhCong: false, thongBao: data['message'] ?? 'Nhập dữ liệu thất bại.');
+      return (thanhCong: false, thongBao: (data['message'] ?? 'Nhập dữ liệu thất bại.').toString());
     } catch (e) {
       return (thanhCong: false, thongBao: 'File không đúng định dạng hoặc lỗi kết nối.');
     }
