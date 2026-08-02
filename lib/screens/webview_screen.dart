@@ -150,18 +150,27 @@ class _WebViewScreenState extends State<WebViewScreen> {
     }
   }
 
-  /// Trang "Chọn vị trí Chấm tủ" gửi tọa độ đã chạm chọn về qua đây - đóng
-  /// luôn màn WebView và trả kết quả {lat, lng} về cho màn Chấm tủ.
+  /// Nhận tín hiệu từ 2 trang khác nhau qua CHUNG 1 kênh:
+  /// - Trang "Chọn vị trí đơn giản" (dùng khi Sửa) gửi {lat, lng} - đóng màn
+  ///   và trả tọa độ về cho form Flutter tự điền vào.
+  /// - Trang "Chấm tủ đầy đủ trên bản đồ" (dùng khi Tạo mới) gửi {thanh_cong:
+  ///   true} SAU KHI đã tự lưu xong toàn bộ (loại tủ, ảnh, ghi chú) - đóng
+  ///   màn và báo cho màn danh sách biết để tự tải lại, không cần trả tọa độ
+  ///   gì nữa vì đã lưu xong hết rồi.
   void _xacNhanViTriChamTu(String jsonChuoi) {
     try {
       final data = jsonDecode(jsonChuoi);
+      if (data['thanh_cong'] == true) {
+        if (mounted) Navigator.pop(context, true);
+        return;
+      }
       final lat = double.tryParse('${data['lat']}');
       final lng = double.tryParse('${data['lng']}');
       if (lat != null && lng != null && mounted) {
         Navigator.pop(context, {'lat': lat, 'lng': lng});
       }
     } catch (e) {
-      // Dữ liệu gửi về không hợp lệ - bỏ qua, người dùng có thể thử chọn lại
+      // Dữ liệu gửi về không hợp lệ - bỏ qua, người dùng có thể thử lại
     }
   }
 

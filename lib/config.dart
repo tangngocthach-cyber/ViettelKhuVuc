@@ -20,6 +20,7 @@ class AppConfig {
   static const String apiChamTuNhapExcel = '$baseUrl/api/cham-tu/nhap-excel.php';
   static const String urlBanDoChamTu = '$baseUrl/ban-do-cham-tu.php';
   static const String urlChonViTriChamTu = '$baseUrl/chon-vi-tri-cham-tu.php';
+  static const String urlChonViTriDonGian = '$baseUrl/chon-vi-tri-don-gian.php';
   static const String apiPolicies = '$baseUrl/api/catalog/policies.php';
   static const String apiVersionCheck = '$baseUrl/api/version/check.php';
   static const String apiChatConversations = '$baseUrl/api/chat/conversations.php';

@@ -140,8 +140,11 @@ class _ChamTuDanhSachScreenState extends State<ChamTuDanhSachScreen> {
     }
   }
 
-  void _moBanDoChungXem() {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => const WebViewScreen(url: AppConfig.urlBanDoChamTu, title: 'Bản đồ Chấm tủ')));
+  Future<void> _moBanDoChungXem() async {
+    final token = await AuthService.getToken();
+    final url = '${AppConfig.urlBanDoChamTu}?token=${token ?? ''}';
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => WebViewScreen(url: url, title: 'Bản đồ Chấm tủ')));
+    _taiDuLieu(); // có thể vừa sửa vị trí ngay trên bản đồ - tải lại cho chắc
   }
 
   Future<void> _moSua(ChamTu ct) async {
@@ -416,7 +419,10 @@ class _ChamTuDanhSachScreenState extends State<ChamTuDanhSachScreen> {
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppTheme.viettelRed,
         onPressed: () async {
-          final ketQua = await Navigator.push(context, MaterialPageRoute(builder: (_) => const ChamTuScreen()));
+          final token = await AuthService.getToken();
+          if (!mounted) return;
+          final url = '${AppConfig.urlChonViTriChamTu}?token=${token ?? ''}';
+          final ketQua = await Navigator.push(context, MaterialPageRoute(builder: (_) => WebViewScreen(url: url, title: 'Chấm tủ trên bản đồ')));
           if (ketQua == true) _taiDuLieu();
         },
         child: const Icon(Icons.add_a_photo, color: Colors.white),

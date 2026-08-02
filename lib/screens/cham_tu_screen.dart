@@ -64,7 +64,7 @@ class _ChamTuScreenState extends State<ChamTuScreen> {
   Future<void> _moBanDoChonViTri() async {
     final ketQua = await Navigator.push<Map<String, dynamic>>(
       context,
-      MaterialPageRoute(builder: (_) => const WebViewScreen(url: AppConfig.urlChonViTriChamTu, title: 'Chọn vị trí trên bản đồ')),
+      MaterialPageRoute(builder: (_) => const WebViewScreen(url: AppConfig.urlChonViTriDonGian, title: 'Chọn vị trí trên bản đồ')),
     );
     if (ketQua != null && mounted) {
       setState(() {
