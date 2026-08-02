@@ -83,18 +83,23 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       // Nút nổi Trợ lý AI - bấm vào đâu, lúc nào cũng gọi được, không cần
       // chui vào tận tab Cộng đồng mới thấy. Ẩn ở tab Chat nội bộ (index 2)
-      // vì nút nổi dễ che mất khung soạn tin nhắn ở đó.
-      floatingActionButton: _tabHienTai == 2
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const WebViewScreen(url: AppConfig.urlHoiDap, title: 'Hỏi đáp tự động')),
-              ),
-              backgroundColor: AppTheme.viettelRed,
-              icon: const Icon(Icons.chat_bubble, color: Colors.white),
-              label: const Text('Hỏi đáp', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+      // vì nút nổi dễ che mất khung soạn tin nhắn ở đó. Cũng ẩn nếu người
+      // dùng đã tự TẮT trong Tài khoản > Cài đặt (đỡ che tầm nhìn khi không cần).
+      floatingActionButton: AnimatedBuilder(
+        animation: hoiDapBubbleController,
+        builder: (context, _) {
+          if (_tabHienTai == 2 || !hoiDapBubbleController.hienThi) return const SizedBox.shrink();
+          return FloatingActionButton.extended(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const WebViewScreen(url: AppConfig.urlHoiDap, title: 'Hỏi đáp tự động')),
             ),
+            backgroundColor: AppTheme.viettelRed,
+            icon: const Icon(Icons.chat_bubble, color: Colors.white),
+            label: const Text('Hỏi đáp', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+          );
+        },
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _tabHienTai,
         onTap: (i) {

@@ -208,6 +208,18 @@ class _TaiKhoanTabState extends State<TaiKhoanTab> {
                     activeThumbColor: AppTheme.viettelRed,
                   ),
                 ],
+                const Divider(height: 1),
+                AnimatedBuilder(
+                  animation: hoiDapBubbleController,
+                  builder: (context, _) => SwitchListTile(
+                    secondary: const Icon(Icons.chat_bubble, color: AppTheme.viettelRed),
+                    title: const Text('Nút nổi "Hỏi đáp"'),
+                    subtitle: const Text('Tắt đi nếu thấy che khuất tầm nhìn'),
+                    value: hoiDapBubbleController.hienThi,
+                    onChanged: hoiDapBubbleController.doiTrangThai,
+                    activeThumbColor: AppTheme.viettelRed,
+                  ),
+                ),
               ],
             ),
           ),

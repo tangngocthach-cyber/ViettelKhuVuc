@@ -1,7 +1,7 @@
 name: vinhhung_app
 description: Ứng dụng di động Viettel Khu Vực Vĩnh Hưng
 publish_to: 'none'
-version: 1.0.7+7
+version: 1.0.2+2
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -54,6 +54,9 @@ dependencies:
 
   # Quét mã QR/vạch (sản phẩm, hợp đồng) bằng camera
   mobile_scanner: ^6.0.2
+
+  # Xuất file Excel (.xlsx) thật cho Sổ ghi chú
+  excel: ^4.0.6
 
   # Thông báo hẹn giờ cục bộ cho tính năng "Nhắc hẹn" trong Chat - hoạt động
   # được cả khi không có Internet tại đúng thời điểm hẹn (đặt lịch trước ngay

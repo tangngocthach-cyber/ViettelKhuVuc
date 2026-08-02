@@ -44,6 +44,7 @@ Future<void> main() async {
     // gây màn hình trắng vĩnh viễn, không crash log, đã xảy ra thực tế).
   }
   await themeController.khoiTao();
+  await hoiDapBubbleController.khoiTao();
   connectivityService.khoiTao(); // không await - không chặn màn splash, tự cập nhật ngầm
   runApp(const VinhHungApp());
 }

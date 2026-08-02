@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
+import 'package:excel/excel.dart' as excel_lib;
 import '../models/ghi_chu.dart';
 import 'reminder_notification_service.dart';
 
@@ -143,35 +144,47 @@ class GhiChuService {
     return soLuongKhoiPhuc;
   }
 
-  /// Xuất ghi chú ra file CSV - Excel/Google Sheets mở trực tiếp được (không
-  /// cần thư viện .xlsx phức tạp, tránh rủi ro lỗi API như đã từng gặp). Có
-  /// thêm dấu BOM (\uFEFF) ở đầu file để Excel hiển thị ĐÚNG tiếng Việt có
-  /// dấu, không bị lỗi phông chữ loạn ký tự khi mở trên Excel Windows.
-  static Future<File> xuatCsv() async {
+  /// Xuất ghi chú ra file Excel THẬT (.xlsx) - Excel/Google Sheets/WPS Office
+  /// đều mở trực tiếp được, đúng định dạng bảng tính chuẩn (không phải CSV).
+  static Future<File> xuatXlsx() async {
     final ds = await layDanhSach();
     final dinhDangGio = (DateTime? dt) => dt == null ? '' : '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    final thoat = (String s) => '"${s.replaceAll('"', '""')}"'; // Escape dấu ngoặc kép chuẩn CSV
 
-    final dong = StringBuffer();
-    dong.writeln([thoat('Tiêu đề'), thoat('Nội dung'), thoat('Loại'), thoat('Thời gian nhắc'), thoat('Trạng thái'), thoat('Ngày tạo')].join(','));
+    final book = excel_lib.Excel.createExcel();
+    const tenTrang = 'Ghi chú';
+    final trang = book[tenTrang];
+    // Excel.createExcel() tự tạo sẵn 1 "Sheet1" thừa - xóa đi, chỉ giữ đúng
+    // 1 trang tên "Ghi chú" cho gọn gàng, dễ nhìn.
+    if (book.sheets.containsKey('Sheet1')) book.delete('Sheet1');
+
+    trang.appendRow([
+      excel_lib.TextCellValue('Tiêu đề'),
+      excel_lib.TextCellValue('Nội dung'),
+      excel_lib.TextCellValue('Loại'),
+      excel_lib.TextCellValue('Thời gian nhắc'),
+      excel_lib.TextCellValue('Trạng thái'),
+      excel_lib.TextCellValue('Ngày tạo'),
+    ]);
+
     for (final gc in ds) {
-      final loai = LoaiGhiChu.tuMa(gc.loai).ten;
-      final trangThai = gc.daXong ? 'Đã xong' : 'Chưa xong';
-      dong.writeln([
-        thoat(gc.tieuDe),
-        thoat(gc.noiDung),
-        thoat(loai),
-        thoat(dinhDangGio(gc.thoiGianNhac)),
-        thoat(trangThai),
-        thoat(dinhDangGio(gc.ngayTao)),
-      ].join(','));
+      trang.appendRow([
+        excel_lib.TextCellValue(gc.tieuDe),
+        excel_lib.TextCellValue(gc.noiDung),
+        excel_lib.TextCellValue(LoaiGhiChu.tuMa(gc.loai).ten),
+        excel_lib.TextCellValue(dinhDangGio(gc.thoiGianNhac)),
+        excel_lib.TextCellValue(gc.daXong ? 'Đã xong' : 'Chưa xong'),
+        excel_lib.TextCellValue(dinhDangGio(gc.ngayTao)),
+      ]);
     }
 
+    // Nới rộng cột Tiêu đề/Nội dung cho dễ đọc thay vì để mặc định quá hẹp
+    trang.setColumnWidth(0, 28);
+    trang.setColumnWidth(1, 40);
+
+    final duLieu = book.encode();
     final dir = await getTemporaryDirectory();
-    final tenFile = 'ghi-chu-${DateTime.now().millisecondsSinceEpoch}.csv';
-    final file = File('${dir.path}/$tenFile');
-    // \uFEFF = BOM UTF-8, bắt buộc phải có để Excel không hiển thị sai tiếng Việt
-    await file.writeAsString('\uFEFF${dong.toString()}');
+    final file = File('${dir.path}/ghi-chu-${DateTime.now().millisecondsSinceEpoch}.xlsx');
+    await file.writeAsBytes(duLieu!);
     return file;
   }
 }

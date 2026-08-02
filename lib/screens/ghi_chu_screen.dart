@@ -20,6 +20,8 @@ class _GhiChuScreenState extends State<GhiChuScreen> {
   List<GhiChu> _tatCaGhiChu = [];
   _BoLoc _boLoc = _BoLoc.tatCa;
   bool _dangTai = true;
+  bool _dangChonNhieu = false;
+  final Set<int> _idDaChon = {};
 
   @override
   void initState() {
@@ -57,11 +59,81 @@ class _GhiChuScreenState extends State<GhiChuScreen> {
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => _FormGhiChu(ghiChuSua: ghiChuSua),
     );
-    if (ketQua == true) _taiDuLieu();
+    if (ketQua == true) {
+      await _taiDuLieu();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ghiChuSua == null ? 'Đã lưu ghi chú mới.' : 'Đã cập nhật ghi chú.'), duration: const Duration(seconds: 2)),
+        );
+      }
+    }
+  }
+
+  /// Hỏi xác nhận trước khi xóa - dùng chung cho cả xóa 1 ghi chú (vuốt trái)
+  /// và xóa nhiều ghi chú cùng lúc (chế độ chọn nhiều). Xóa dữ liệu là hành
+  /// động KHÔNG THỂ HOÀN TÁC nên bắt buộc phải hỏi lại trước khi thực hiện.
+  Future<bool> _xacNhanXoa(int soLuong) async {
+    final dongY = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Xác nhận xóa'),
+        content: Text(soLuong == 1 ? 'Xóa ghi chú này? Không thể hoàn tác.' : 'Xóa $soLuong ghi chú đã chọn? Không thể hoàn tác.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Hủy')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Xóa', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+    return dongY == true;
   }
 
   Future<void> _xoa(GhiChu gc) async {
     await GhiChuService.xoa(gc.id);
+    _taiDuLieu();
+  }
+
+  void _batDauChonNhieu(int id) {
+    setState(() {
+      _dangChonNhieu = true;
+      _idDaChon.add(id);
+    });
+  }
+
+  void _toggleChon(int id) {
+    setState(() {
+      if (_idDaChon.contains(id)) {
+        _idDaChon.remove(id);
+        if (_idDaChon.isEmpty) _dangChonNhieu = false; // bỏ chọn hết -> tự thoát chế độ chọn nhiều
+      } else {
+        _idDaChon.add(id);
+      }
+    });
+  }
+
+  void _thoatChonNhieu() {
+    setState(() {
+      _dangChonNhieu = false;
+      _idDaChon.clear();
+    });
+  }
+
+  Future<void> _xoaHangLoat() async {
+    if (_idDaChon.isEmpty) return;
+    final xacNhan = await _xacNhanXoa(_idDaChon.length);
+    if (!xacNhan) return;
+    for (final id in _idDaChon.toList()) {
+      await GhiChuService.xoa(id);
+    }
+    _thoatChonNhieu();
+    _taiDuLieu();
+  }
+
+  Future<void> _danhDauXongHangLoat() async {
+    if (_idDaChon.isEmpty) return;
+    for (final id in _idDaChon.toList()) {
+      await GhiChuService.danhDauXong(id, true);
+    }
+    _thoatChonNhieu();
     _taiDuLieu();
   }
 
@@ -112,7 +184,7 @@ class _GhiChuScreenState extends State<GhiChuScreen> {
 
   Future<void> _xuatExcel() async {
     try {
-      final file = await GhiChuService.xuatCsv();
+      final file = await GhiChuService.xuatXlsx();
       if (!mounted) return;
       await Share.shareXFiles([XFile(file.path)], text: 'Danh sách ghi chú - mở trực tiếp bằng Excel');
     } catch (e) {
@@ -124,23 +196,32 @@ class _GhiChuScreenState extends State<GhiChuScreen> {
   Widget build(BuildContext context) {
     final ds = _dsHienThi;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Sổ ghi chú'),
-        actions: [
-          PopupMenuButton<String>(
-            onSelected: (gt) {
-              if (gt == 'sao_luu') _sauLuu();
-              if (gt == 'khoi_phuc') _khoiPhuc();
-              if (gt == 'xuat_excel') _xuatExcel();
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'sao_luu', child: ListTile(leading: Icon(Icons.backup), title: Text('Sao lưu'), contentPadding: EdgeInsets.zero)),
-              PopupMenuItem(value: 'khoi_phuc', child: ListTile(leading: Icon(Icons.restore), title: Text('Khôi phục'), contentPadding: EdgeInsets.zero)),
-              PopupMenuItem(value: 'xuat_excel', child: ListTile(leading: Icon(Icons.table_chart), title: Text('Xuất Excel'), contentPadding: EdgeInsets.zero)),
-            ],
-          ),
-        ],
-      ),
+      appBar: _dangChonNhieu
+          ? AppBar(
+              leading: IconButton(icon: const Icon(Icons.close), onPressed: _thoatChonNhieu),
+              title: Text('Đã chọn ${_idDaChon.length}'),
+              actions: [
+                IconButton(icon: const Icon(Icons.check_circle_outline), tooltip: 'Đánh dấu xong', onPressed: _danhDauXongHangLoat),
+                IconButton(icon: const Icon(Icons.delete), tooltip: 'Xóa đã chọn', onPressed: _xoaHangLoat),
+              ],
+            )
+          : AppBar(
+              title: const Text('Sổ ghi chú'),
+              actions: [
+                PopupMenuButton<String>(
+                  onSelected: (gt) {
+                    if (gt == 'sao_luu') _sauLuu();
+                    if (gt == 'khoi_phuc') _khoiPhuc();
+                    if (gt == 'xuat_excel') _xuatExcel();
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'sao_luu', child: ListTile(leading: Icon(Icons.backup), title: Text('Sao lưu'), contentPadding: EdgeInsets.zero)),
+                    PopupMenuItem(value: 'khoi_phuc', child: ListTile(leading: Icon(Icons.restore), title: Text('Khôi phục'), contentPadding: EdgeInsets.zero)),
+                    PopupMenuItem(value: 'xuat_excel', child: ListTile(leading: Icon(Icons.table_chart), title: Text('Xuất Excel'), contentPadding: EdgeInsets.zero)),
+                  ],
+                ),
+              ],
+            ),
       body: Column(
         children: [
           _thanhLoc(),
@@ -160,11 +241,13 @@ class _GhiChuScreenState extends State<GhiChuScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: AppTheme.viettelRed,
-        onPressed: () => _moThemSua(),
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
+      floatingActionButton: _dangChonNhieu
+          ? null
+          : FloatingActionButton(
+              backgroundColor: AppTheme.viettelRed,
+              onPressed: () => _moThemSua(),
+              child: const Icon(Icons.add, color: Colors.white),
+            ),
     );
   }
 
@@ -221,9 +304,12 @@ class _GhiChuScreenState extends State<GhiChuScreen> {
   Widget _theGhiChu(GhiChu gc) {
     final loai = LoaiGhiChu.tuMa(gc.loai);
     final quaHan = gc.thoiGianNhac != null && !gc.daXong && gc.thoiGianNhac!.isBefore(DateTime.now());
+    final dangDuocChon = _idDaChon.contains(gc.id);
 
     return Dismissible(
       key: ValueKey(gc.id),
+      // Tắt hẳn vuốt khi đang ở chế độ chọn nhiều - tránh thao tác nhầm
+      direction: _dangChonNhieu ? DismissDirection.none : DismissDirection.horizontal,
       background: Container(
         decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(12)),
         alignment: Alignment.centerLeft,
@@ -241,21 +327,35 @@ class _GhiChuScreenState extends State<GhiChuScreen> {
           _danhDauXong(gc, !gc.daXong);
           return false; // không xóa khỏi danh sách, chỉ đổi trạng thái rồi tự lọc lại
         }
-        return true; // vuốt trái = xóa thật
+        // Vuốt trái = xóa - BẮT BUỘC hỏi xác nhận trước (hành động không thể
+        // hoàn tác, lỗi thật đã gặp: trước đây xóa ngay không hỏi lại).
+        return await _xacNhanXoa(1);
       },
       onDismissed: (_) => _xoa(gc),
       child: Card(
         margin: const EdgeInsets.only(bottom: 10),
         elevation: 1,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        color: dangDuocChon ? AppTheme.viettelRed.withValues(alpha: .08) : null,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: dangDuocChon ? const BorderSide(color: AppTheme.viettelRed, width: 1.5) : BorderSide.none,
+        ),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: () => _moThemSua(ghiChuSua: gc),
+          onTap: () => _dangChonNhieu ? _toggleChon(gc.id) : _moThemSua(ghiChuSua: gc),
+          onLongPress: () => _dangChonNhieu ? null : _batDauChonNhieu(gc.id),
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Ở chế độ chọn nhiều: hiện checkbox CHỌN. Bình thường: hiện
+                // checkbox ĐÁNH DẤU XONG rõ ràng (không chỉ ẩn trong vuốt tay
+                // như trước - dễ bấm nhầm/khó phát hiện tính năng).
+                if (_dangChonNhieu)
+                  Checkbox(value: dangDuocChon, onChanged: (_) => _toggleChon(gc.id), activeColor: AppTheme.viettelRed)
+                else
+                  Checkbox(value: gc.daXong, onChanged: (v) => _danhDauXong(gc, v ?? false), activeColor: AppTheme.viettelRed),
                 Container(width: 4, height: 42, decoration: BoxDecoration(color: Color(loai.mauHex), borderRadius: BorderRadius.circular(4))),
                 const SizedBox(width: 12),
                 Expanded(

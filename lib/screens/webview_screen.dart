@@ -198,24 +198,26 @@ class _WebViewScreenState extends State<WebViewScreen> {
           IconButton(icon: const Icon(Icons.refresh), onPressed: () => _controller.reload()),
         ],
       ),
-      body: Stack(
-        children: [
-          if (!_loiMang) WebViewWidget(controller: _controller),
-          if (_dangTai && !_loiMang) const Center(child: CircularProgressIndicator(color: AppTheme.viettelRed)),
-          if (_loiMang)
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.wifi_off, size: 56, color: Colors.grey),
-                  const SizedBox(height: 12),
-                  const Text('Không tải được trang, kiểm tra lại mạng Internet.'),
-                  const SizedBox(height: 16),
-                  ElevatedButton(onPressed: _taiTrangCoDangNhap, child: const Text('Thử lại')),
-                ],
+      body: SafeArea(
+        child: Stack(
+          children: [
+            if (!_loiMang) WebViewWidget(controller: _controller),
+            if (_dangTai && !_loiMang) const Center(child: CircularProgressIndicator(color: AppTheme.viettelRed)),
+            if (_loiMang)
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.wifi_off, size: 56, color: Colors.grey),
+                    const SizedBox(height: 12),
+                    const Text('Không tải được trang, kiểm tra lại mạng Internet.'),
+                    const SizedBox(height: 16),
+                    ElevatedButton(onPressed: _taiTrangCoDangNhap, child: const Text('Thử lại')),
+                  ],
+                ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

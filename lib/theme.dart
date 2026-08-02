@@ -121,3 +121,35 @@ class ThemeController extends ChangeNotifier {
     }
   }
 }
+
+/// Bật/tắt nút nổi "Hỏi đáp" trên Trang chủ - một số người thấy nút này che
+/// khuất tầm nhìn khi không cần dùng tới, cho phép tự tắt đi. Mặc định BẬT
+/// (giữ nguyên trải nghiệm cũ cho người chưa từng đổi cài đặt này).
+final hoiDapBubbleController = HoiDapBubbleController();
+
+class HoiDapBubbleController extends ChangeNotifier {
+  static const _khoaLuu = 'hien_nut_hoi_dap';
+  bool _hienThi = true;
+  bool get hienThi => _hienThi;
+
+  Future<void> khoiTao() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _hienThi = prefs.getBool(_khoaLuu) ?? true;
+      notifyListeners();
+    } catch (e) {
+      // Đọc lỗi thì giữ mặc định BẬT, không sao cả
+    }
+  }
+
+  Future<void> doiTrangThai(bool moi) async {
+    _hienThi = moi;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_khoaLuu, moi);
+    } catch (e) {
+      // Lưu lỗi thì thôi, lần sau mở lại app vẫn dùng được nhờ notifyListeners() ở trên
+    }
+  }
+}
