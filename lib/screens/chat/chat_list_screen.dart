@@ -3,9 +3,11 @@ import 'package:intl/intl.dart';
 import '../../config.dart';
 import '../../models/chat_models.dart';
 import '../../services/chat_service.dart';
+import '../../services/catalog_service.dart';
 import '../../theme.dart';
 import 'chat_detail_screen.dart';
 import 'tao_nhom_chat_screen.dart';
+import '../webview_screen.dart';
 
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
@@ -17,11 +19,24 @@ class ChatListScreen extends StatefulWidget {
 class _ChatListScreenState extends State<ChatListScreen> {
   List<ChatConversation> _dsHoiThoai = [];
   bool _dangTai = true;
+  List<dynamic> _dsTinTuc = [];
 
   @override
   void initState() {
     super.initState();
     _taiDuLieu();
+    _taiTinTuc();
+  }
+
+  /// Tin tức mới nhất - hiện cố định đầu màn Chat để mọi người luôn thấy
+  /// tin mới đăng trên web, không cần chủ động vào mục Tin tức riêng.
+  /// Hiện CACHE trước cho nhanh (không chờ mạng), rồi đồng bộ mới nhất ngầm
+  /// phía sau và tự cập nhật lại UI khi xong.
+  Future<void> _taiTinTuc() async {
+    final cache = await CatalogService.getCached('news');
+    if (mounted && cache.isNotEmpty) setState(() => _dsTinTuc = cache);
+    final moiNhat = await CatalogService.sync('news');
+    if (mounted && moiNhat.isNotEmpty) setState(() => _dsTinTuc = moiNhat);
   }
 
   Future<void> _taiDuLieu() async {
@@ -51,28 +66,35 @@ class _ChatListScreenState extends State<ChatListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Chat nội bộ')),
-      body: RefreshIndicator(
-        onRefresh: _taiDuLieu,
-        color: AppTheme.viettelRed,
-        child: _dangTai
-            ? const Center(child: CircularProgressIndicator(color: AppTheme.viettelRed))
-            : _dsHoiThoai.isEmpty
-                ? ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    children: const [
-                      SizedBox(height: 120),
-                      Center(child: Icon(Icons.chat_bubble_outline, size: 56, color: Colors.grey)),
-                      SizedBox(height: 12),
-                      Center(child: Text('Chưa có cuộc trò chuyện nào.\nLiên hệ Admin để được thêm vào nhóm.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey))),
-                    ],
-                  )
-                : ListView.separated(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    itemCount: _dsHoiThoai.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1, indent: 76),
-                    itemBuilder: (context, i) {
-                      final c = _dsHoiThoai[i];
-                      final coTinChuaDoc = c.soTinChuaDoc > 0;
+      body: Column(
+        children: [
+          _bangTinTucCoDinh(),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () async {
+                await _taiDuLieu();
+                await _taiTinTuc();
+              },
+              color: AppTheme.viettelRed,
+              child: _dangTai
+                  ? const Center(child: CircularProgressIndicator(color: AppTheme.viettelRed))
+                  : _dsHoiThoai.isEmpty
+                      ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: const [
+                            SizedBox(height: 120),
+                            Center(child: Icon(Icons.chat_bubble_outline, size: 56, color: Colors.grey)),
+                            SizedBox(height: 12),
+                            Center(child: Text('Chưa có cuộc trò chuyện nào.\nLiên hệ Admin để được thêm vào nhóm.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey))),
+                          ],
+                        )
+                      : ListView.separated(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          itemCount: _dsHoiThoai.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1, indent: 76),
+                          itemBuilder: (context, i) {
+                            final c = _dsHoiThoai[i];
+                            final coTinChuaDoc = c.soTinChuaDoc > 0;
                       return ListTile(
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                         leading: CircleAvatar(
@@ -116,6 +138,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
                       );
                     },
                   ),
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppTheme.viettelRed,
@@ -124,6 +149,48 @@ class _ChatListScreenState extends State<ChatListScreen> {
         child: const Icon(Icons.group_add, color: Colors.white),
       ),
     );
+  }
+
+  /// Banner tin tức mới nhất - cố định phía trên, KHÔNG cuộn theo danh sách
+  /// hội thoại, để mọi người luôn thấy được tin mới đăng trên web.
+  Widget _bangTinTucCoDinh() {
+    if (_dsTinTuc.isEmpty) return const SizedBox.shrink();
+    final tinMoiNhat = _dsTinTuc.first;
+    final tieuDe = _layTruongTinTuc(tinMoiNhat, ['title', 'tieu_de', 'ten', 'name']) ?? 'Tin tức mới';
+    return Material(
+      color: Colors.amber.shade50,
+      child: InkWell(
+        onTap: () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const WebViewScreen(url: AppConfig.urlTinTuc, title: 'Tin tức')));
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.amber.shade200))),
+          child: Row(
+            children: [
+              const Icon(Icons.campaign, color: Colors.orange, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(tieuDe, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+              ),
+              Icon(Icons.chevron_right, color: Colors.grey.shade600, size: 18),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Đọc 1 trường từ dữ liệu tin tức - thử LẦN LƯỢT nhiều tên trường khả dĩ
+  /// (server có thể đặt tên khác nhau tùy module) để tránh lỗi khi tên
+  /// trường không khớp đúng 100% như dự đoán.
+  String? _layTruongTinTuc(dynamic item, List<String> tenTruongKhaDi) {
+    if (item is! Map) return null;
+    for (final ten in tenTruongKhaDi) {
+      final giaTri = item[ten];
+      if (giaTri != null && giaTri.toString().trim().isNotEmpty) return giaTri.toString();
+    }
+    return null;
   }
 
   String _dinhDangGio(DateTime t) {

@@ -16,7 +16,11 @@ import '../../services/reminder_notification_service.dart';
 import '../../theme.dart';
 import '../../widgets/message_bubble.dart';
 import 'chat_search_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'nhom_chat_screen.dart';
+import 'chat_media_screen.dart';
+import 'chon_nen_chat_screen.dart';
+import '../../models/chat_background.dart';
 
 class ChatDetailScreen extends StatefulWidget {
   final ChatConversation conversation;
@@ -48,12 +52,25 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   int _giayGhiAm = 0;
   Timer? _timerGhiAm;
   String? _duongDanGhiAm;
+  ChatBackground _nenChat = ChatBackground.macDinh;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _khoiTao();
+    _taiNenChat();
+  }
+
+  Future<void> _taiNenChat() async {
+    final prefs = await SharedPreferences.getInstance();
+    final idDaLuu = prefs.getString('nen_chat_${widget.conversation.id}');
+    if (idDaLuu != null && mounted) setState(() => _nenChat = ChatBackground.tuId(idDaLuu));
+  }
+
+  Future<void> _moChonNenChat() async {
+    final coDoi = await Navigator.push(context, MaterialPageRoute(builder: (_) => ChonNenChatScreen(conversationId: widget.conversation.id)));
+    if (coDoi == true) _taiNenChat();
   }
 
   bool _loiTaiBanDau = false;
@@ -732,6 +749,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // Đảm bảo Scaffold tự đẩy nội dung lên khi bàn phím/thanh điều hướng
+      // che khuất - khai báo TƯỜNG MINH thay vì để mặc định, phòng trường
+      // hợp thanh điều hướng dạng cử chỉ (gesture nav) của 1 số dòng máy
+      // không được tính đúng vào vùng an toàn nếu chỉ dựa vào giá trị ngầm định.
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         title: InkWell(
           onTap: widget.conversation.loai == 'nhom' ? _moQuanLyNhom : null,
@@ -764,11 +786,22 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         ),
         actions: [
           IconButton(icon: const Icon(Icons.push_pin_outlined), tooltip: 'Tin nhắn đã ghim', onPressed: _hienTinDaGhim),
+          IconButton(
+            icon: const Icon(Icons.perm_media_outlined),
+            tooltip: 'Ảnh, File, Link',
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ChatMediaScreen(conversationId: widget.conversation.id, tinNhanVanBanHienCo: _tinNhan))),
+          ),
+          IconButton(
+            icon: const Icon(Icons.wallpaper),
+            tooltip: 'Đổi nền chat',
+            onPressed: _moChonNenChat,
+          ),
           IconButton(icon: const Icon(Icons.search), tooltip: 'Tìm kiếm', onPressed: _moTimKiem),
         ],
       ),
       body: Stack(
         children: [
+          Container(width: double.infinity, height: double.infinity, decoration: _nenChat.decoration),
           Column(
             children: [
               Expanded(

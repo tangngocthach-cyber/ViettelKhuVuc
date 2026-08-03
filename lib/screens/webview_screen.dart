@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:open_filex/open_filex.dart';
 import '../config.dart';
 import '../services/auth_service.dart';
 import '../theme.dart';
@@ -30,6 +34,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
   late final WebViewController _controller;
   bool _dangTai = true;
   bool _loiMang = false;
+  bool _dangTaiFile = false; // đang tải file tài liệu về máy - hiện overlay loading riêng
   bool _trangDaTaiXongLanNao = false; // reset mỗi khi bắt đầu tải trang mới
 
   @override
@@ -174,27 +179,99 @@ class _WebViewScreenState extends State<WebViewScreen> {
     }
   }
 
-  /// Mở link tải file (Tài liệu, Kho Dữ liệu bán hàng...) bằng trình duyệt
-  /// ngoài máy NHƯNG lồng kèm vé đăng nhập tạm - để trình duyệt ngoài (vốn
-  /// KHÔNG chung phiên đăng nhập với WebView) cũng đăng nhập được trước khi
-  /// tải, tránh bị đá về trang đăng nhập khiến tải file thất bại âm thầm.
+  /// Tải file tài liệu (Tài liệu, Kho Dữ liệu bán hàng...) TRỰC TIẾP TRONG
+  /// APP - không còn mở bằng trình duyệt ngoài máy (Chrome) như trước.
+  ///
+  /// LỖI THẬT ĐÃ GẶP với cách làm cũ (mở trình duyệt ngoài): Chrome có bộ
+  /// nhớ đệm/cookie RIÊNG, độc lập với WebView - mỗi lần tải, app xin 1 vé
+  /// đăng nhập MỚI, nhưng nếu Chrome đã lưu cookie/trang từ LẦN TRƯỚC (dù đã
+  /// hết hạn), nó có thể ưu tiên dùng lại cache cũ thay vì xử lý vé mới,
+  /// khiến tải LẶP LẠI bị lỗi mỗi khi thoát vào lại - không ổn định.
+  ///
+  /// CÁCH SỬA TRIỆT ĐỂ: dùng HttpClient RIÊNG cho MỖI LẦN tải (tạo mới và
+  /// hủy ngay sau khi xong) - tự động giữ cookie xuyên suốt CHUỖI CHUYỂN
+  /// HƯỚNG (vé -> phiên đăng nhập được thiết lập -> file thật) trong CÙNG 1
+  /// lần gọi, không còn phụ thuộc bộ nhớ đệm của bất kỳ trình duyệt nào.
   Future<void> _moLinkTaiFileCoDangNhap(Uri? uriGoc) async {
-    if (uriGoc == null) return;
+    if (uriGoc == null || _dangTaiFile) return;
+    setState(() => _dangTaiFile = true);
+    HttpClient? client;
     try {
       final ticket = await AuthService.getWebTicket();
       if (ticket == null) {
-        // Không xin được vé (VD mất mạng) - vẫn thử mở link gốc, còn hơn không làm gì
-        await launchUrl(uriGoc, mode: LaunchMode.externalApplication);
-        return;
+        throw Exception('Không lấy được vé đăng nhập tạm - kiểm tra lại mạng.');
       }
       final duongDanCanTai = uriGoc.path + (uriGoc.query.isNotEmpty ? '?${uriGoc.query}' : '');
-      final urlQuaVe = '${AppConfig.urlSessionLogin}?ticket=$ticket&redirect=${Uri.encodeComponent(duongDanCanTai)}';
-      await launchUrl(Uri.parse(urlQuaVe), mode: LaunchMode.externalApplication);
+      final urlQuaVe = Uri.parse('${AppConfig.urlSessionLogin}?ticket=$ticket&redirect=${Uri.encodeComponent(duongDanCanTai)}');
+
+      client = HttpClient();
+      client.connectionTimeout = const Duration(seconds: 20);
+      final request = await client.getUrl(urlQuaVe);
+      final response = await request.close();
+
+      if (response.statusCode != 200) {
+        throw Exception('Máy chủ trả về lỗi ${response.statusCode}, không tải được file.');
+      }
+
+      // Đọc toàn bộ nội dung file vào bộ nhớ - đủ dùng cho tài liệu/Excel
+      // thông thường (không phải video/file cực lớn).
+      final bytesBuilder = BytesBuilder();
+      await for (final phanDoan in response) {
+        bytesBuilder.add(phanDoan);
+      }
+      final duLieuFile = bytesBuilder.toBytes();
+      if (duLieuFile.isEmpty) {
+        throw Exception('File tải về rỗng, có thể đã hết hạn hoặc không tồn tại.');
+      }
+
+      // Lấy TÊN FILE thật từ header Content-Disposition server trả về (nếu
+      // có) - QUAN TRỌNG để giữ đúng phần đuôi file (.xlsx/.pdf/...), nhờ đó
+      // OpenFilex mới biết mở bằng đúng ứng dụng tương ứng.
+      String tenFile = _layTenFileTuHeader(response.headers.value('content-disposition')) ?? _layTenFileTuUrl(uriGoc);
+
+      final thuMucTam = await getTemporaryDirectory();
+      final duongDanLuu = '${thuMucTam.path}/$tenFile';
+      final fileDaLuu = File(duongDanLuu);
+      await fileDaLuu.writeAsBytes(duLieuFile);
+
+      if (!mounted) return;
+      setState(() => _dangTaiFile = false);
+      final ketQuaMo = await OpenFilex.open(duongDanLuu);
+      if (ketQuaMo.type != ResultType.done && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Đã tải xong nhưng không mở được file: ${ketQuaMo.message}')));
+      }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Không mở được file tải xuống, kiểm tra lại mạng và thử lại.')));
+        setState(() => _dangTaiFile = false);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Không tải được file, kiểm tra lại mạng và thử lại.')));
+      }
+    } finally {
+      client?.close(force: true);
+    }
+  }
+
+  /// Đọc tên file từ header Content-Disposition dạng: attachment;
+  /// filename="ten-file.xlsx" hoặc filename*=UTF-8''ten-file.xlsx
+  String? _layTenFileTuHeader(String? header) {
+    if (header == null) return null;
+    final khopUtf8 = RegExp(r"filename\*=UTF-8''([^;]+)").firstMatch(header);
+    if (khopUtf8 != null) {
+      try {
+        return Uri.decodeComponent(khopUtf8.group(1)!.trim());
+      } catch (e) {
+        // giải mã lỗi thì thử cách khác bên dưới
       }
     }
+    final khopThuong = RegExp(r'filename="?([^";]+)"?').firstMatch(header);
+    return khopThuong?.group(1)?.trim();
+  }
+
+  /// Dự phòng khi không có tên file trong header - lấy từ đoạn cuối URL,
+  /// đảm bảo LUÔN có phần đuôi file hợp lệ để OpenFilex mở đúng ứng dụng.
+  String _layTenFileTuUrl(Uri uri) {
+    final phanCuoi = uri.pathSegments.isNotEmpty ? uri.pathSegments.last : 'tai-lieu';
+    final coDuoiFile = RegExp(r'\.[a-zA-Z0-9]{2,5}$').hasMatch(phanCuoi);
+    return coDuoiFile ? phanCuoi : '$phanCuoi.pdf';
   }
 
   Future<void> _taiTrangCoDangNhap() async {
@@ -270,6 +347,25 @@ class _WebViewScreenState extends State<WebViewScreen> {
           children: [
             if (!_loiMang) WebViewWidget(controller: _controller),
             if (_dangTai && !_loiMang) const Center(child: CircularProgressIndicator(color: AppTheme.viettelRed)),
+            if (_dangTaiFile)
+              Container(
+                color: Colors.black45,
+                child: const Center(
+                  child: Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(color: AppTheme.viettelRed),
+                          SizedBox(height: 14),
+                          Text('Đang tải file...'),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             if (_loiMang)
               Center(
                 child: Column(

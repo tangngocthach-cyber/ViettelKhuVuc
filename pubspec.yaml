@@ -1,7 +1,8 @@
 name: vinhhung_app
 description: Ứng dụng di động Viettel Khu Vực Vĩnh Hưng
 publish_to: 'none'
-version: 1.0.7+7
+version: 1.0.2+2
+
 environment:
   sdk: '>=3.0.0 <4.0.0'
 
@@ -44,6 +45,8 @@ dependencies:
 
   # Lấy vị trí hiện tại để chia sẻ trong Chat (thư viện định vị GPS)
   geolocator: ^13.0.1
+  torch_light: ^1.1.0
+  flutter_compass: ^0.8.1
 
   # Lưu token đăng nhập AN TOÀN (mã hóa bằng Keystore của máy) - thay cho
   # SharedPreferences thường (không mã hóa)

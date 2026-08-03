@@ -48,6 +48,7 @@ class AppConfig {
   static const String apiChatDanhSachLienHe = '$baseUrl/api/chat/danh_sach_lien_he.php';
   static const String apiChatAiDaXem = '$baseUrl/api/chat/ai_da_xem.php';
   static const String apiChatAiDaThich = '$baseUrl/api/chat/ai_da_thich.php';
+  static const String apiChatMediaFiles = '$baseUrl/api/chat/media_files.php';
   static const String apiFcmRegisterToken = '$baseUrl/api/fcm/register_token.php';
   static const String apiFcmUnregisterToken = '$baseUrl/api/fcm/unregister_token.php';
   static const String apiWebTicket = '$baseUrl/api/auth/web_ticket.php';

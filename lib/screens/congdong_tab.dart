@@ -7,6 +7,12 @@ import 'ghi_chu_screen.dart';
 import 'lich_screen.dart';
 import 'qr_scan_screen.dart';
 import 'cham_tu_danh_sach_screen.dart';
+import 'ticket_vui_screen.dart';
+import 'dong_ho_bam_gio_screen.dart';
+import 'den_pin_screen.dart';
+import 'la_ban_screen.dart';
+import 'thuoc_do_screen.dart';
+import 'speedtest_screen.dart';
 
 /// Tab Cộng đồng - ĐẦY ĐỦ công cụ nội bộ như menu thật trên website (không chỉ
 /// 4 mục Diễn đàn/Tìm kiếm/Quay số/Bốc thăm như bản đầu). Quyền xem từng trang
@@ -75,6 +81,11 @@ class _CongDongTabState extends State<CongDongTab> {
     ];
     final congDong = [
       const GridModuleItem(icon: Icons.forum, label: 'Diễn đàn thảo luận', url: AppConfig.urlDienDan),
+      GridModuleItem(
+        icon: Icons.celebration,
+        label: '100 câu hỏi vui',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TicketVuiScreen())),
+      ),
       const GridModuleItem(icon: Icons.search, label: 'Tìm kiếm', url: AppConfig.urlTimKiem),
       const GridModuleItem(icon: Icons.casino, label: 'Quay số trúng thưởng', url: AppConfig.urlQuaySo),
       const GridModuleItem(icon: Icons.card_giftcard, label: 'Bốc thăm trúng thưởng', url: AppConfig.urlBocTham),
@@ -99,6 +110,31 @@ class _CongDongTabState extends State<CongDongTab> {
         icon: Icons.calendar_month,
         label: 'Lịch Âm - Dương',
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LichScreen())),
+      ),
+      GridModuleItem(
+        icon: Icons.timer,
+        label: 'Bấm giờ',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DongHoBamGioScreen())),
+      ),
+      GridModuleItem(
+        icon: Icons.flashlight_on,
+        label: 'Đèn pin',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DenPinScreen())),
+      ),
+      GridModuleItem(
+        icon: Icons.explore,
+        label: 'La bàn',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LaBanScreen())),
+      ),
+      GridModuleItem(
+        icon: Icons.straighten,
+        label: 'Thước đo',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ThuocDoScreen())),
+      ),
+      GridModuleItem(
+        icon: Icons.speed,
+        label: 'Speedtest',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SpeedtestScreen())),
       ),
     ];
 

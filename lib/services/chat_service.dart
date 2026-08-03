@@ -406,4 +406,18 @@ class ChatService {
       return [];
     }
   }
+
+  /// Toàn bộ Ảnh/File đã gửi trong 1 cuộc trò chuyện - phục vụ màn "Xem Ảnh,
+  /// File, Link" kiểu Zalo.
+  static Future<List<ChatMessage>> layMediaFiles(int conversationId) async {
+    try {
+      final uri = Uri.parse(AppConfig.apiChatMediaFiles).replace(queryParameters: {'conversation_id': '$conversationId'});
+      final res = await http.get(uri, headers: await _authHeader()).timeout(const Duration(seconds: 15));
+      final data = jsonDecode(res.body);
+      if (data['success'] != true) return [];
+      return (data['data'] as List).map((e) => ChatMessage.fromJson(e)).toList();
+    } catch (e) {
+      return [];
+    }
+  }
 }
