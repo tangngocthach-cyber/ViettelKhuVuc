@@ -82,20 +82,24 @@ class _WebViewScreenState extends State<WebViewScreen> {
 
           // Link TẢI FILE (dù cùng domain) -> WebView của Flutter KHÔNG tự tải
           // file được (không có "Download Manager" như trình duyệt thường), nên
-          // phải giao cho trình duyệt ngoài máy tải và lưu đúng vào máy.
-          const duoiFileTai = ['.pdf', '.xlsx', '.xls', '.doc', '.docx', '.ppt', '.pptx', '.zip', '.csv', '.apk'];
-          final laLinkTaiFile = path.contains('tai-lieu-tai-xuong.php') || duoiFileTai.any((duoi) => path.endsWith(duoi));
+          // phải tự tải trong app rồi mở bằng OpenFilex.
+          //
+          // LỖI THẬT ĐÃ GẶP (lần 2): trước đây CHỈ nhận diện đúng tên file
+          // "tai-lieu-tai-xuong.php" - nhưng hệ thống có NHIỀU trang tải file
+          // khác theo cùng quy ước đặt tên (VD "excel-tai-xuong.php" ở Kho Dữ
+          // liệu bán hàng) mà KHÔNG khớp điều kiện cũ, khiến các trang đó rơi
+          // vào nhánh "mở như trang web thường" - WebView cố hiển thị file
+          // Excel/PDF như 1 trang HTML, KHÔNG PHẢN HỒI GÌ (không lỗi, không
+          // tải - im lặng thất bại, đúng hiện tượng đã gặp).
+          //
+          // SỬA DỨT ĐIỂM: nhận diện theo QUY ƯỚC CHUNG "...tai-xuong.php"
+          // (mọi trang tải file trong hệ thống này đều đặt tên theo mẫu này)
+          // - áp dụng cho MỌI trang hiện có VÀ tương lai cùng quy ước, không
+          // cần liệt kê từng tên cụ thể nữa.
+          const duoiFileTai = ['.pdf', '.xlsx', '.xls', '.doc', '.docx', '.ppt', '.pptx', '.zip', '.csv', '.apk', '.rar', '.txt'];
+          final laLinkTaiFile = path.contains('tai-xuong.php') || path.contains('download.php') || duoiFileTai.any((duoi) => path.endsWith(duoi));
 
           if (laLinkTaiFile) {
-            // LỖI THẬT ĐÃ GẶP: mở thẳng link file bằng trình duyệt ngoài máy
-            // KHÔNG mang theo phiên đăng nhập của WebView (2 nơi lưu cookie
-            // HOÀN TOÀN TÁCH BIỆT) - trang tải file (Tài liệu, Kho Dữ liệu bán
-            // hàng...) đều yêu cầu đăng nhập, nên trình duyệt ngoài bị đá về
-            // trang đăng nhập thay vì tải file, THẤT BẠI ÂM THẦM (không báo
-            // lỗi gì, chỉ đơn giản là không tải được). Cách sửa: xin 1 vé đăng
-            // nhập tạm MỚI (giống hệt cách mở trang chính), lồng vào URL tải
-            // file rồi mới mở bằng trình duyệt ngoài - để trình duyệt ngoài
-            // CŨNG có phiên đăng nhập hợp lệ trước khi tải.
             _moLinkTaiFileCoDangNhap(uri);
             return NavigationDecision.prevent;
           }
