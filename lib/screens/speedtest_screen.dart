@@ -5,9 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../theme.dart';
 
-/// Speedtest - đo tốc độ mạng thật (Ping/Tải xuống/Tải lên) bằng endpoint
-/// công khai của Cloudflare (speed.cloudflare.com) - dịch vụ speed-test phổ
-/// biến, miễn phí, không cần đăng ký/API key.
+/// Speedtest hiện đại - đồng hồ đo tốc độ dạng cung tròn có animation mượt,
+/// đo Ping/Tải xuống/Tải lên THẬT qua endpoint công khai Cloudflare, kèm
+/// giải thích ý nghĩa từng thông số và đánh giá chất lượng mạng.
 class SpeedtestScreen extends StatefulWidget {
   const SpeedtestScreen({super.key});
 
@@ -17,12 +17,36 @@ class SpeedtestScreen extends StatefulWidget {
 
 enum _GiaiDoan { chuaBatDau, dangDoPing, dangTaiXuong, dangTaiLen, xongHoanTat, loi }
 
-class _SpeedtestScreenState extends State<SpeedtestScreen> {
+class _SpeedtestScreenState extends State<SpeedtestScreen> with SingleTickerProviderStateMixin {
   _GiaiDoan _giaiDoan = _GiaiDoan.chuaBatDau;
   int? _pingMs;
   double? _tocDoTaiXuongMbps;
   double? _tocDoTaiLenMbps;
   String? _thongBaoLoi;
+
+  late AnimationController _kimController;
+  double _giaTriKimHienThi = 0; // Mbps đang hiện trên đồng hồ (mượt dần tới giá trị thật)
+  static const double _mbpsToiDaTrenDongHo = 200; // giá trị cao nhất kim có thể chỉ tới
+
+  @override
+  void initState() {
+    super.initState();
+    _kimController = AnimationController(vsync: this, duration: const Duration(milliseconds: 400));
+  }
+
+  @override
+  void dispose() {
+    _kimController.dispose();
+    super.dispose();
+  }
+
+  void _capNhatKim(double mbpsMoi) {
+    final tuGiaTri = _giaTriKimHienThi;
+    final denGiaTri = mbpsMoi.clamp(0, _mbpsToiDaTrenDongHo).toDouble();
+    final animation = Tween<double>(begin: tuGiaTri, end: denGiaTri).animate(CurvedAnimation(parent: _kimController, curve: Curves.easeOutCubic));
+    animation.addListener(() => setState(() => _giaTriKimHienThi = animation.value));
+    _kimController.forward(from: 0);
+  }
 
   Future<void> _batDauDoToc() async {
     setState(() {
@@ -31,10 +55,11 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
       _tocDoTaiXuongMbps = null;
       _tocDoTaiLenMbps = null;
       _thongBaoLoi = null;
+      _giaTriKimHienThi = 0;
     });
 
     try {
-      // ---- 1. ĐO PING - đo 3 lần lấy trung bình cho ổn định ----
+      // ---- 1. ĐO PING ----
       final dsPing = <int>[];
       for (var i = 0; i < 3; i++) {
         final batDau = DateTime.now();
@@ -43,31 +68,32 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
       }
       dsPing.sort();
       if (!mounted) return;
-      setState(() => _pingMs = dsPing[dsPing.length ~/ 2]); // lấy giá trị trung vị, ổn định hơn trung bình
+      setState(() => _pingMs = dsPing[dsPing.length ~/ 2]);
 
-      // ---- 2. ĐO TỐC ĐỘ TẢI XUỐNG - tải 20MB, đo thời gian thực tế ----
+      // ---- 2. TẢI XUỐNG - đo theo TỪNG PHẦN (không chờ tải xong mới biết tốc
+      // độ) để kim đồng hồ chạy MƯỢT theo tốc độ THẬT đang đo, không chỉ nhảy
+      // 1 phát lúc xong. ----
       setState(() => _giaiDoan = _GiaiDoan.dangTaiXuong);
-      const soByteTai = 20 * 1000 * 1000; // 20MB
-      final batDauTai = DateTime.now();
-      final resTaiXuong = await http.get(Uri.parse('https://speed.cloudflare.com/__down?bytes=$soByteTai')).timeout(const Duration(seconds: 30));
-      final thoiGianTaiGiay = DateTime.now().difference(batDauTai).inMilliseconds / 1000;
-      final soByteThucNhan = resTaiXuong.bodyBytes.length;
+      final tocDoTaiXuong = await _doTocDoTaiXuong();
       if (!mounted) return;
-      if (thoiGianTaiGiay > 0) {
-        // Mbps = (số byte * 8 bit) / thời gian(s) / 1_000_000
-        setState(() => _tocDoTaiXuongMbps = (soByteThucNhan * 8) / thoiGianTaiGiay / 1000000);
-      }
+      setState(() => _tocDoTaiXuongMbps = tocDoTaiXuong);
 
-      // ---- 3. ĐO TỐC ĐỘ TẢI LÊN - gửi 5MB dữ liệu ngẫu nhiên ----
-      setState(() => _giaiDoan = _GiaiDoan.dangTaiLen);
-      const soByteGui = 5 * 1000 * 1000; // 5MB
+      // ---- 3. TẢI LÊN ----
+      setState(() {
+        _giaiDoan = _GiaiDoan.dangTaiLen;
+        _giaTriKimHienThi = 0;
+      });
+      _kimController.reset();
+      const soByteGui = 5 * 1000 * 1000;
       final duLieuGui = Uint8List.fromList(List.generate(soByteGui, (_) => Random().nextInt(256)));
       final batDauGui = DateTime.now();
       await http.post(Uri.parse('https://speed.cloudflare.com/__up'), body: duLieuGui).timeout(const Duration(seconds: 30));
       final thoiGianGuiGiay = DateTime.now().difference(batDauGui).inMilliseconds / 1000;
       if (!mounted) return;
       if (thoiGianGuiGiay > 0) {
-        setState(() => _tocDoTaiLenMbps = (soByteGui * 8) / thoiGianGuiGiay / 1000000);
+        final tocDoTaiLen = (soByteGui * 8) / thoiGianGuiGiay / 1000000;
+        setState(() => _tocDoTaiLenMbps = tocDoTaiLen);
+        _capNhatKim(tocDoTaiLen);
       }
 
       setState(() => _giaiDoan = _GiaiDoan.xongHoanTat);
@@ -80,49 +106,112 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
     }
   }
 
-  String _nhanGiaiDoan() {
-    switch (_giaiDoan) {
-      case _GiaiDoan.dangDoPing: return 'Đang đo Ping...';
-      case _GiaiDoan.dangTaiXuong: return 'Đang đo tốc độ Tải xuống...';
-      case _GiaiDoan.dangTaiLen: return 'Đang đo tốc độ Tải lên...';
-      default: return '';
+  /// Tải file 20MB theo từng đoạn 512KB, tính tốc độ TỨC THỜI sau mỗi đoạn để
+  /// kim đồng hồ chạy mượt theo đúng tốc độ thật đang đo (không chỉ đứng yên
+  /// rồi nhảy 1 phát lúc xong).
+  Future<double> _doTocDoTaiXuong() async {
+    const tongSoByte = 20 * 1000 * 1000;
+    final request = http.Request('GET', Uri.parse('https://speed.cloudflare.com/__down?bytes=$tongSoByte'));
+    final streamedResponse = await http.Client().send(request).timeout(const Duration(seconds: 30));
+
+    int soByteDaNhan = 0;
+    final batDau = DateTime.now();
+    DateTime lanCapNhatCuoi = batDau;
+    int byteLucCapNhatCuoi = 0;
+
+    await for (final phanDoan in streamedResponse.stream) {
+      soByteDaNhan += phanDoan.length;
+      final baygio = DateTime.now();
+      // Cập nhật kim mỗi ~200ms cho mượt, không cập nhật liên tục quá dày gây giật
+      if (baygio.difference(lanCapNhatCuoi).inMilliseconds > 200) {
+        final byteVuaTaiTrongKhoang = soByteDaNhan - byteLucCapNhatCuoi;
+        final giayVuaTrongKhoang = baygio.difference(lanCapNhatCuoi).inMilliseconds / 1000;
+        if (giayVuaTrongKhoang > 0 && mounted) {
+          final tocDoTucThoi = (byteVuaTaiTrongKhoang * 8) / giayVuaTrongKhoang / 1000000;
+          _capNhatKim(tocDoTucThoi);
+        }
+        lanCapNhatCuoi = baygio;
+        byteLucCapNhatCuoi = soByteDaNhan;
+      }
     }
+
+    final tongThoiGianGiay = DateTime.now().difference(batDau).inMilliseconds / 1000;
+    return tongThoiGianGiay > 0 ? (soByteDaNhan * 8) / tongThoiGianGiay / 1000000 : 0;
+  }
+
+  String _danhGiaChatLuong(double? taiXuong, int? ping) {
+    if (taiXuong == null || ping == null) return '';
+    if (taiXuong >= 50 && ping < 50) return '🟢 Xuất sắc - đủ cho họp video, xem 4K, tải file lớn mượt mà.';
+    if (taiXuong >= 20 && ping < 100) return '🟢 Tốt - đủ cho hầu hết công việc hằng ngày.';
+    if (taiXuong >= 5) return '🟡 Trung bình - có thể giật khi họp video hoặc tải file lớn.';
+    return '🔴 Yếu - nên kiểm tra lại đường truyền, có thể ảnh hưởng công việc.';
   }
 
   @override
   Widget build(BuildContext context) {
     final dangDo = _giaiDoan == _GiaiDoan.dangDoPing || _giaiDoan == _GiaiDoan.dangTaiXuong || _giaiDoan == _GiaiDoan.dangTaiLen;
+    final xongHoanTat = _giaiDoan == _GiaiDoan.xongHoanTat;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Speedtest - Đo tốc độ mạng')),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              if (_giaiDoan == _GiaiDoan.chuaBatDau) ...[
-                Icon(Icons.speed, size: 90, color: Colors.grey.shade400),
-                const SizedBox(height: 20),
+              const SizedBox(height: 10),
+              // ---- ĐỒNG HỒ ĐO TỐC ĐỘ DẠNG CUNG TRÒN ----
+              SizedBox(
+                width: 260,
+                height: 200,
+                child: CustomPaint(
+                  painter: _DongHoTocDoPainter(giaTriMbps: _giaTriKimHienThi, giaTriToiDa: _mbpsToiDaTrenDongHo),
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 60),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            dangDo ? _giaTriKimHienThi.toStringAsFixed(0) : (xongHoanTat ? (_tocDoTaiXuongMbps ?? 0).toStringAsFixed(1) : '0'),
+                            style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold),
+                          ),
+                          Text('Mbps', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                          if (dangDo) Text(_nhanGiaiDoan(), style: const TextStyle(fontSize: 11.5, color: AppTheme.viettelRed, fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              if (_giaiDoan == _GiaiDoan.chuaBatDau)
                 Text('Bấm nút bên dưới để bắt đầu đo tốc độ mạng hiện tại.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade600)),
-              ],
-              if (dangDo) ...[
-                const CircularProgressIndicator(color: AppTheme.viettelRed),
-                const SizedBox(height: 20),
-                Text(_nhanGiaiDoan(), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-              ],
-              if (_giaiDoan == _GiaiDoan.xongHoanTat || _giaiDoan == _GiaiDoan.loi) ...[
-                if (_pingMs != null) _theKetQua('Ping', '$_pingMs', 'ms', Icons.network_ping, Colors.orange),
+
+              if (xongHoanTat || _giaiDoan == _GiaiDoan.loi) ...[
+                Row(
+                  children: [
+                    if (_pingMs != null) Expanded(child: _theKetQuaNho('Ping', '$_pingMs', 'ms', Icons.network_ping, Colors.orange)),
+                    if (_pingMs != null && _tocDoTaiLenMbps != null) const SizedBox(width: 10),
+                    if (_tocDoTaiLenMbps != null) Expanded(child: _theKetQuaNho('Tải lên', _tocDoTaiLenMbps!.toStringAsFixed(1), 'Mbps', Icons.upload, Colors.green)),
+                  ],
+                ),
                 if (_tocDoTaiXuongMbps != null) ...[
                   const SizedBox(height: 14),
-                  _theKetQua('Tải xuống', _tocDoTaiXuongMbps!.toStringAsFixed(1), 'Mbps', Icons.download, Colors.blue),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(color: Colors.blue.withValues(alpha: .08), borderRadius: BorderRadius.circular(12)),
+                    child: Text(_danhGiaChatLuong(_tocDoTaiXuongMbps, _pingMs), style: const TextStyle(fontSize: 13)),
+                  ),
                 ],
-                if (_tocDoTaiLenMbps != null) ...[
-                  const SizedBox(height: 14),
-                  _theKetQua('Tải lên', _tocDoTaiLenMbps!.toStringAsFixed(1), 'Mbps', Icons.upload, Colors.green),
-                ],
-                if (_thongBaoLoi != null) Text(_thongBaoLoi!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red)),
+                const SizedBox(height: 16),
+                _theGiaiThichThongSo(),
+                if (_thongBaoLoi != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_thongBaoLoi!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red))),
               ],
-              const SizedBox(height: 36),
+
+              const SizedBox(height: 28),
               SizedBox(
                 width: double.infinity,
                 height: 50,
@@ -142,21 +231,113 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
     );
   }
 
-  Widget _theKetQua(String nhan, String giaTri, String donVi, IconData icon, Color mau) {
+  String _nhanGiaiDoan() {
+    switch (_giaiDoan) {
+      case _GiaiDoan.dangDoPing: return 'Đang đo Ping...';
+      case _GiaiDoan.dangTaiXuong: return 'Tải xuống';
+      case _GiaiDoan.dangTaiLen: return 'Tải lên';
+      default: return '';
+    }
+  }
+
+  Widget _theKetQuaNho(String nhan, String giaTri, String donVi, IconData icon, Color mau) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(color: mau.withValues(alpha: .08), borderRadius: BorderRadius.circular(12)),
-      child: Row(
+      child: Column(
         children: [
-          Icon(icon, color: mau, size: 26),
-          const SizedBox(width: 14),
-          Text(nhan, style: const TextStyle(fontSize: 15)),
-          const Spacer(),
-          Text(giaTri, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: mau)),
-          const SizedBox(width: 4),
-          Text(donVi, style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+          Icon(icon, color: mau, size: 22),
+          const SizedBox(height: 6),
+          Text('$giaTri $donVi', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: mau)),
+          Text(nhan, style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600)),
         ],
       ),
     );
   }
+
+  Widget _theGiaiThichThongSo() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade200), borderRadius: BorderRadius.circular(12)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          Text('Ý nghĩa các thông số', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+          SizedBox(height: 8),
+          _DongGiaiThich('Ping', 'Độ trễ phản hồi - CÀNG THẤP càng tốt. Dưới 50ms: rất mượt cho họp video/game online. Trên 150ms: dễ giật, lag.'),
+          SizedBox(height: 6),
+          _DongGiaiThich('Tải xuống', 'Tốc độ nhận dữ liệu - ảnh hưởng tốc độ xem video, tải file, duyệt web.'),
+          SizedBox(height: 6),
+          _DongGiaiThich('Tải lên', 'Tốc độ gửi dữ liệu - ảnh hưởng chất lượng họp video, gửi file, live stream.'),
+        ],
+      ),
+    );
+  }
+}
+
+class _DongGiaiThich extends StatelessWidget {
+  final String nhan;
+  final String moTa;
+  const _DongGiaiThich(this.nhan, this.moTa);
+
+  @override
+  Widget build(BuildContext context) {
+    return RichText(
+      text: TextSpan(
+        style: TextStyle(fontSize: 12.5, color: Colors.grey.shade700, height: 1.4),
+        children: [
+          TextSpan(text: '$nhan: ', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+          TextSpan(text: moTa),
+        ],
+      ),
+    );
+  }
+}
+
+/// Vẽ đồng hồ đo tốc độ dạng cung tròn (nửa vòng tròn) kiểu speedometer -
+/// vạch chia màu xanh (chậm) tới đỏ (nhanh), kim chỉ đúng vị trí giá trị hiện tại.
+class _DongHoTocDoPainter extends CustomPainter {
+  final double giaTriMbps;
+  final double giaTriToiDa;
+  _DongHoTocDoPainter({required this.giaTriMbps, required this.giaTriToiDa});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final tamCung = Offset(size.width / 2, size.height - 20);
+    final banKinh = size.width / 2 - 20;
+
+    // Cung nền (xám nhạt) - từ 180° tới 360° (nửa vòng tròn phía trên)
+    final sonNen = Paint()
+      ..color = Colors.grey.shade200
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 16
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(Rect.fromCircle(center: tamCung, radius: banKinh), pi, pi, false, sonNen);
+
+    // Cung màu theo giá trị hiện tại - gradient xanh lá -> vàng -> đỏ
+    final tiLe = (giaTriMbps / giaTriToiDa).clamp(0.0, 1.0);
+    final sonGiaTri = Paint()
+      ..shader = const SweepGradient(
+        colors: [Colors.red, Colors.orange, Colors.yellow, Colors.lightGreen, Colors.green],
+        stops: [0, 0.25, 0.5, 0.75, 1],
+      ).createShader(Rect.fromCircle(center: tamCung, radius: banKinh))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 16
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(Rect.fromCircle(center: tamCung, radius: banKinh), pi, pi * tiLe, false, sonGiaTri);
+
+    // Kim chỉ giá trị
+    final gocKim = pi + (pi * tiLe);
+    final diemDauKim = Offset(tamCung.dx + (banKinh - 26) * cos(gocKim), tamCung.dy + (banKinh - 26) * sin(gocKim));
+    final sonKim = Paint()
+      ..color = Colors.black87
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(tamCung, diemDauKim, sonKim);
+    canvas.drawCircle(tamCung, 6, Paint()..color = Colors.black87);
+  }
+
+  @override
+  bool shouldRepaint(covariant _DongHoTocDoPainter oldDelegate) => oldDelegate.giaTriMbps != giaTriMbps;
 }

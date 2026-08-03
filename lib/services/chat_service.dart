@@ -420,4 +420,14 @@ class ChatService {
       return [];
     }
   }
+
+  /// Báo cho server biết mình ĐANG HOẠT ĐỘNG - gọi định kỳ trong lúc mở màn
+  /// Chat để các thành viên khác thấy mình đang online. Lỗi thì bỏ qua lặng
+  /// lẽ (tính năng phụ, không ảnh hưởng luồng chính).
+  static Future<void> ping() async {
+    try {
+      await http.post(Uri.parse(AppConfig.apiChatPing), headers: await _authHeader()).timeout(const Duration(seconds: 10));
+    } catch (e) {
+    }
+  }
 }

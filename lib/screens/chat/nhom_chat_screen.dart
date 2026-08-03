@@ -265,14 +265,15 @@ class _NhomChatScreenState extends State<NhomChatScreen> {
       },
       child: Scaffold(
         appBar: AppBar(title: const Text('Thông tin nhóm')),
-        body: _dangTai
-            ? const Center(child: CircularProgressIndicator())
-            : ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  Center(
-                    child: Column(
-                      children: [
+        body: SafeArea(
+          child: _dangTai
+              ? const Center(child: CircularProgressIndicator())
+              : ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    Center(
+                      child: Column(
+                        children: [
                         Stack(
                           children: [
                             CircleAvatar(
@@ -322,9 +323,27 @@ class _NhomChatScreenState extends State<NhomChatScreen> {
                   ),
                   const Divider(),
                   ..._thanhVien.map((tv) => ListTile(
-                        leading: const CircleAvatar(child: Icon(Icons.person)),
+                        leading: Stack(
+                          children: [
+                            const CircleAvatar(child: Icon(Icons.person)),
+                            if (tv.dangOnline)
+                              Positioned(
+                                right: 0,
+                                bottom: 0,
+                                child: Container(
+                                  width: 13,
+                                  height: 13,
+                                  decoration: BoxDecoration(color: Colors.green, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)),
+                                ),
+                              ),
+                          ],
+                        ),
                         title: Text(tv.name + (tv.customerId == _idCuaToi ? ' (Bạn)' : '')),
-                        subtitle: Text('${tv.tenVaiTro} · Vào nhóm ${DateFormat('dd/MM/yyyy').format(tv.joinedAt)}'),
+                        subtitle: Text(
+                          tv.dangOnline
+                              ? '${tv.tenVaiTro} · 🟢 Đang hoạt động'
+                              : '${tv.tenVaiTro} · Vào nhóm ${DateFormat('dd/MM/yyyy').format(tv.joinedAt)}',
+                        ),
                         trailing: tv.laTruongNhom
                             ? const Icon(Icons.workspace_premium, color: Colors.amber)
                             : tv.laPhoNhom
@@ -350,6 +369,7 @@ class _NhomChatScreenState extends State<NhomChatScreen> {
                   ],
                 ],
               ),
+        ),
       ),
     );
   }

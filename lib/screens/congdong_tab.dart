@@ -7,7 +7,6 @@ import 'ghi_chu_screen.dart';
 import 'lich_screen.dart';
 import 'qr_scan_screen.dart';
 import 'cham_tu_danh_sach_screen.dart';
-import 'ticket_vui_screen.dart';
 import 'dong_ho_bam_gio_screen.dart';
 import 'den_pin_screen.dart';
 import 'la_ban_screen.dart';
@@ -81,11 +80,6 @@ class _CongDongTabState extends State<CongDongTab> {
     ];
     final congDong = [
       const GridModuleItem(icon: Icons.forum, label: 'Diễn đàn thảo luận', url: AppConfig.urlDienDan),
-      GridModuleItem(
-        icon: Icons.celebration,
-        label: '100 câu hỏi vui',
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TicketVuiScreen())),
-      ),
       const GridModuleItem(icon: Icons.search, label: 'Tìm kiếm', url: AppConfig.urlTimKiem),
       const GridModuleItem(icon: Icons.casino, label: 'Quay số trúng thưởng', url: AppConfig.urlQuaySo),
       const GridModuleItem(icon: Icons.card_giftcard, label: 'Bốc thăm trúng thưởng', url: AppConfig.urlBocTham),

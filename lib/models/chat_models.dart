@@ -203,8 +203,9 @@ class ChatGroupMember {
   final String email;
   final String vaiTro; // 'truong_nhom' | 'pho_nhom' | 'thanh_vien'
   final DateTime joinedAt;
+  final bool dangOnline;
 
-  ChatGroupMember({required this.customerId, required this.name, required this.email, required this.vaiTro, required this.joinedAt});
+  ChatGroupMember({required this.customerId, required this.name, required this.email, required this.vaiTro, required this.joinedAt, this.dangOnline = false});
 
   bool get laTruongNhom => vaiTro == 'truong_nhom';
   bool get laPhoNhom => vaiTro == 'pho_nhom';
@@ -226,6 +227,7 @@ class ChatGroupMember {
         email: j['email'] ?? '',
         vaiTro: j['vai_tro'] ?? 'thanh_vien',
         joinedAt: DateTime.tryParse(j['joined_at'] ?? '') ?? DateTime.now(),
+        dangOnline: j['dang_online'] == true || j['dang_online'] == 1 || j['dang_online'] == '1',
       );
 }
 

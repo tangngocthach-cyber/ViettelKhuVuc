@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'dart:io';
 import '../models/chat_models.dart';
+import '../models/sticker.dart';
 import '../theme.dart';
 
 class MessageBubble extends StatelessWidget {
@@ -165,6 +166,35 @@ class MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ---- Tin nhắn STICKER - hiện dạng thẻ emoji lớn, KHÔNG có bong bóng nền
+    // như tin nhắn chữ thông thường (giống cách sticker hiển thị trong Zalo).
+    final sticker = message.loai == 'text' && !message.daThuHoi ? Sticker.giaiMa(message.noiDung) : null;
+    if (sticker != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        child: Column(
+          crossAxisAlignment: laCuaMinh ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          children: [
+            if (hienThiTen && !laCuaMinh)
+              Padding(
+                padding: const EdgeInsets.only(left: 12, bottom: 2),
+                child: Text(message.senderName, style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w600)),
+              ),
+            GestureDetector(
+              onLongPress: () => _hienMenuHanhDong(context),
+              child: Column(
+                crossAxisAlignment: laCuaMinh ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                children: [
+                  Text(sticker.emoji, style: const TextStyle(fontSize: 72)),
+                  Text(sticker.chu, style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
       child: Column(

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../config.dart';
@@ -20,12 +21,22 @@ class _ChatListScreenState extends State<ChatListScreen> {
   List<ChatConversation> _dsHoiThoai = [];
   bool _dangTai = true;
   List<dynamic> _dsTinTuc = [];
+  Timer? _timerPing;
 
   @override
   void initState() {
     super.initState();
     _taiDuLieu();
     _taiTinTuc();
+    // Báo "đang hoạt động" ngay lúc mở, rồi lặp lại mỗi 30s trong lúc còn ở màn Chat
+    ChatService.ping();
+    _timerPing = Timer.periodic(const Duration(seconds: 30), (_) => ChatService.ping());
+  }
+
+  @override
+  void dispose() {
+    _timerPing?.cancel();
+    super.dispose();
   }
 
   /// Tin tức mới nhất - hiện cố định đầu màn Chat để mọi người luôn thấy

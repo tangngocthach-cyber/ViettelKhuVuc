@@ -43,14 +43,16 @@ class _LichScreenState extends State<LichScreen> {
         title: const Text('Lịch Âm - Dương'),
         actions: [IconButton(icon: const Icon(Icons.today), tooltip: 'Về hôm nay', onPressed: _veHomNay)],
       ),
-      body: Column(
-        children: [
-          _thanhChonThang(),
-          _hangThuTrongTuan(),
-          const Divider(height: 1),
-          Expanded(child: _luoiNgay(soNgayTrongThang, thuNgayMot)),
-          _chuThichHomNay(),
-        ],
+      body: SafeArea(
+        child: Column(
+          children: [
+            _thanhChonThang(),
+            _hangThuTrongTuan(),
+            const Divider(height: 1),
+            Expanded(child: _luoiNgay(soNgayTrongThang, thuNgayMot)),
+            _chuThichHomNay(),
+          ],
+        ),
       ),
     );
   }

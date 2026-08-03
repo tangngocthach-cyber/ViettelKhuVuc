@@ -20,6 +20,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'nhom_chat_screen.dart';
 import 'chat_media_screen.dart';
 import 'chon_nen_chat_screen.dart';
+import 'chon_sticker_sheet.dart';
 import '../../models/chat_background.dart';
 
 class ChatDetailScreen extends StatefulWidget {
@@ -53,6 +54,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   Timer? _timerGhiAm;
   String? _duongDanGhiAm;
   ChatBackground _nenChat = ChatBackground.macDinh;
+  bool _nguoiKiaDangOnline = false; // chỉ có ý nghĩa với chat 1-1
 
   @override
   void initState() {
@@ -60,6 +62,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     WidgetsBinding.instance.addObserver(this);
     _khoiTao();
     _taiNenChat();
+  }
+
+  Future<void> _taiTrangThaiOnlineNguoiKia() async {
+    final ds = await ChatService.layThanhVienNhom(widget.conversation.id);
+    if (!mounted) return;
+    // Chat 1-1 chỉ có đúng 2 thành viên - lấy đúng NGƯỜI KIA (khác ID của
+    // mình, _userIdHienTai đã có sẵn từ _khoiTao()) để biết họ có online không.
+    final nguoiKia = ds.where((tv) => '${tv.customerId}' != _userIdHienTai);
+    if (mounted && nguoiKia.isNotEmpty) setState(() => _nguoiKiaDangOnline = nguoiKia.first.dangOnline);
   }
 
   Future<void> _taiNenChat() async {
@@ -86,6 +97,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       final user = await AuthService.getCurrentUser();
       _userIdHienTai = user['id'];
       _laQuanTriChat = await AuthService.isChatAdmin();
+      if (widget.conversation.loai != 'nhom') _taiTrangThaiOnlineNguoiKia();
       final ds = await ChatService.getMessages(widget.conversation.id);
       if (!mounted) return;
       setState(() {
@@ -335,6 +347,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       _hienEmoji = false;
     });
     _focusNode.requestFocus();
+  }
+
+  /// Mở bảng chọn sticker - chọn xong GỬI NGAY qua đúng luồng _guiTinNhan có
+  /// sẵn (sticker thực chất là 1 tin nhắn văn bản mã hóa đặc biệt, message_
+  /// bubble.dart tự nhận diện và hiển thị thành thẻ lớn).
+  Future<void> _moGuiSticker() async {
+    setState(() => _hienEmoji = false);
+    FocusScope.of(context).unfocus();
+    final sticker = await moChonSticker(context);
+    if (sticker != null) _guiTinNhan(noiDung: sticker.maHoaGui);
   }
 
   Future<void> _guiTinNhan({String? noiDung, String? filePath}) async {
@@ -777,7 +799,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                   children: [
                     Text(widget.conversation.ten, style: const TextStyle(fontSize: 16), overflow: TextOverflow.ellipsis),
                     if (_dangGoNguoiKhac.isNotEmpty)
-                      Text('${_dangGoNguoiKhac.join(", ")} đang nhập...', style: const TextStyle(fontSize: 11.5, color: Colors.white70)),
+                      Text('${_dangGoNguoiKhac.join(", ")} đang nhập...', style: const TextStyle(fontSize: 11.5, color: Colors.white70))
+                    else if (widget.conversation.loai != 'nhom' && _nguoiKiaDangOnline)
+                      const Text('🟢 Đang hoạt động', style: TextStyle(fontSize: 11.5, color: Colors.white70)),
                   ],
                 ),
               ),
@@ -876,6 +900,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                           setState(() => _hienEmoji = !_hienEmoji);
                           if (_hienEmoji) { FocusScope.of(context).unfocus(); } else { _focusNode.requestFocus(); }
                         },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.emoji_emotions, color: AppTheme.viettelRed),
+                        tooltip: 'Sticker',
+                        onPressed: _moGuiSticker,
                       ),
                       Expanded(
                         child: TextField(
