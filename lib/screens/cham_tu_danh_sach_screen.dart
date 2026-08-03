@@ -425,7 +425,7 @@ class _ChamTuDanhSachScreenState extends State<ChamTuDanhSachScreen> {
           final ketQua = await Navigator.push(context, MaterialPageRoute(builder: (_) => WebViewScreen(url: url, title: 'Chấm tủ trên bản đồ')));
           if (ketQua == true) _taiDuLieu();
         },
-        child: const Icon(Icons.add_location_alt, color: Colors.white),
+        child: const Icon(Icons.add_a_photo, color: Colors.white),
       ),
     );
   }
