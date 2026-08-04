@@ -58,12 +58,29 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> with SingleTickerProv
       _giaTriKimHienThi = 0;
     });
 
+    // Dùng 1 KẾT NỐI DUY NHẤT giữ nguyên xuyên suốt toàn bộ quá trình đo -
+    // TÁI SỬ DỤNG (keep-alive) cho các lần gọi sau, đúng cách các công cụ đo
+    // tốc độ THẬT SỰ hoạt động (Speedtest.net, Ookla...).
+    //
+    // LỖI THẬT ĐÃ GẶP TRƯỚC ĐÂY: dùng http.head() cấp cao - mỗi lần gọi TỰ
+    // TẠO 1 KẾT NỐI MỚI RỒI ĐÓNG NGAY, nghĩa là MỌI LẦN đo Ping đều phải
+    // THIẾT LẬP LẠI TỪ ĐẦU (tra cứu DNS + bắt tay TCP + bắt tay TLS - riêng
+    // bắt tay TLS qua mạng di động thường mất 150-300ms) - đây LÀ CHI PHÍ
+    // KẾT NỐI, HOÀN TOÀN KHÔNG PHẢI ĐỘ TRỄ MẠNG THẬT, khiến Ping ĐO ĐƯỢC LUÔN
+    // RẤT CAO một cách giả tạo (không liên quan gì tới chọn sai máy chủ).
+    final client = http.Client();
     try {
-      // ---- 1. ĐO PING ----
+      // ---- BƯỚC KHỞI ĐỘNG - "làm ấm" kết nối trước, KHÔNG tính vào kết quả.
+      // Sau bước này, các request tiếp theo qua CÙNG client sẽ TÁI SỬ DỤNG
+      // kết nối đã có sẵn (không mất công bắt tay lại), đo được ĐÚNG độ trễ
+      // round-trip thật sự.
+      await client.head(Uri.parse('https://speed.cloudflare.com/__down?bytes=0')).timeout(const Duration(seconds: 8));
+
+      // ---- 1. ĐO PING - đo 5 lần qua kết nối ĐÃ ẤM, lấy trung vị cho ổn định ----
       final dsPing = <int>[];
-      for (var i = 0; i < 3; i++) {
+      for (var i = 0; i < 5; i++) {
         final batDau = DateTime.now();
-        await http.head(Uri.parse('https://speed.cloudflare.com/__down?bytes=0')).timeout(const Duration(seconds: 8));
+        await client.head(Uri.parse('https://speed.cloudflare.com/__down?bytes=0')).timeout(const Duration(seconds: 8));
         dsPing.add(DateTime.now().difference(batDau).inMilliseconds);
       }
       dsPing.sort();
@@ -74,7 +91,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> with SingleTickerProv
       // độ) để kim đồng hồ chạy MƯỢT theo tốc độ THẬT đang đo, không chỉ nhảy
       // 1 phát lúc xong. ----
       setState(() => _giaiDoan = _GiaiDoan.dangTaiXuong);
-      final tocDoTaiXuong = await _doTocDoTaiXuong();
+      final tocDoTaiXuong = await _doTocDoTaiXuong(client);
       if (!mounted) return;
       setState(() => _tocDoTaiXuongMbps = tocDoTaiXuong);
 
@@ -87,7 +104,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> with SingleTickerProv
       const soByteGui = 5 * 1000 * 1000;
       final duLieuGui = Uint8List.fromList(List.generate(soByteGui, (_) => Random().nextInt(256)));
       final batDauGui = DateTime.now();
-      await http.post(Uri.parse('https://speed.cloudflare.com/__up'), body: duLieuGui).timeout(const Duration(seconds: 30));
+      await client.post(Uri.parse('https://speed.cloudflare.com/__up'), body: duLieuGui).timeout(const Duration(seconds: 30));
       final thoiGianGuiGiay = DateTime.now().difference(batDauGui).inMilliseconds / 1000;
       if (!mounted) return;
       if (thoiGianGuiGiay > 0) {
@@ -103,16 +120,19 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> with SingleTickerProv
         _giaiDoan = _GiaiDoan.loi;
         _thongBaoLoi = 'Không đo được tốc độ mạng - kiểm tra lại kết nối Internet và thử lại.';
       });
+    } finally {
+      client.close();
     }
   }
 
   /// Tải file 20MB theo từng đoạn 512KB, tính tốc độ TỨC THỜI sau mỗi đoạn để
   /// kim đồng hồ chạy mượt theo đúng tốc độ thật đang đo (không chỉ đứng yên
-  /// rồi nhảy 1 phát lúc xong).
-  Future<double> _doTocDoTaiXuong() async {
+  /// rồi nhảy 1 phát lúc xong). Dùng CHUNG client với bước đo Ping - kết nối
+  /// đã ấm sẵn, không mất công bắt tay lại từ đầu.
+  Future<double> _doTocDoTaiXuong(http.Client client) async {
     const tongSoByte = 20 * 1000 * 1000;
     final request = http.Request('GET', Uri.parse('https://speed.cloudflare.com/__down?bytes=$tongSoByte'));
-    final streamedResponse = await http.Client().send(request).timeout(const Duration(seconds: 30));
+    final streamedResponse = await client.send(request).timeout(const Duration(seconds: 30));
 
     int soByteDaNhan = 0;
     final batDau = DateTime.now();
@@ -153,32 +173,62 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> with SingleTickerProv
     final xongHoanTat = _giaiDoan == _GiaiDoan.xongHoanTat;
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF7F8FA),
       appBar: AppBar(title: const Text('Speedtest - Đo tốc độ mạng')),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
           child: Column(
             children: [
-              const SizedBox(height: 10),
+              const SizedBox(height: 6),
+              // ---- Thông tin máy chủ đo - MINH BẠCH cho người dùng biết đang
+              // đo qua máy chủ nào, không phải "hộp đen" khó hiểu.
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(20)),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.dns_outlined, size: 15, color: Colors.grey.shade600),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Máy chủ: Cloudflare (tự động chọn điểm gần nhất)',
+                      style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
               // ---- ĐỒNG HỒ ĐO TỐC ĐỘ DẠNG CUNG TRÒN ----
-              SizedBox(
-                width: 260,
-                height: 200,
-                child: CustomPaint(
-                  painter: _DongHoTocDoPainter(giaTriMbps: _giaTriKimHienThi, giaTriToiDa: _mbpsToiDaTrenDongHo),
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 60),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            dangDo ? _giaTriKimHienThi.toStringAsFixed(0) : (xongHoanTat ? (_tocDoTaiXuongMbps ?? 0).toStringAsFixed(1) : '0'),
-                            style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold),
-                          ),
-                          Text('Mbps', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                          if (dangDo) Text(_nhanGiaiDoan(), style: const TextStyle(fontSize: 11.5, color: AppTheme.viettelRed, fontWeight: FontWeight.w600)),
-                        ],
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 18),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .06), blurRadius: 16, offset: const Offset(0, 4))],
+                ),
+                child: SizedBox(
+                  width: 260,
+                  height: 200,
+                  child: CustomPaint(
+                    painter: _DongHoTocDoPainter(giaTriMbps: _giaTriKimHienThi, giaTriToiDa: _mbpsToiDaTrenDongHo),
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 60),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              dangDo ? _giaTriKimHienThi.toStringAsFixed(0) : (xongHoanTat ? (_tocDoTaiXuongMbps ?? 0).toStringAsFixed(1) : '0'),
+                              style: const TextStyle(fontSize: 40, fontWeight: FontWeight.w800),
+                            ),
+                            Text('Mbps', style: TextStyle(fontSize: 12, color: Colors.grey.shade600, letterSpacing: 0.5)),
+                            if (dangDo) ...[
+                              const SizedBox(height: 4),
+                              Text(_nhanGiaiDoan(), style: const TextStyle(fontSize: 11.5, color: AppTheme.viettelRed, fontWeight: FontWeight.w600)),
+                            ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -214,13 +264,19 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> with SingleTickerProv
               const SizedBox(height: 28),
               SizedBox(
                 width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
+                height: 52,
+                child: ElevatedButton.icon(
                   onPressed: dangDo ? null : _batDauDoToc,
-                  style: ElevatedButton.styleFrom(backgroundColor: AppTheme.viettelRed),
-                  child: Text(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.viettelRed,
+                    elevation: 3,
+                    shadowColor: AppTheme.viettelRed.withValues(alpha: .4),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  icon: Icon(_giaiDoan == _GiaiDoan.chuaBatDau ? Icons.play_arrow : Icons.refresh, color: Colors.white),
+                  label: Text(
                     _giaiDoan == _GiaiDoan.chuaBatDau ? 'Bắt đầu đo' : 'Đo lại',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15.5),
                   ),
                 ),
               ),
@@ -242,14 +298,24 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> with SingleTickerProv
 
   Widget _theKetQuaNho(String nhan, String giaTri, String donVi, IconData icon, Color mau) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(color: mau.withValues(alpha: .08), borderRadius: BorderRadius.circular(12)),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: mau.withValues(alpha: .2)),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .04), blurRadius: 10, offset: const Offset(0, 3))],
+      ),
       child: Column(
         children: [
-          Icon(icon, color: mau, size: 22),
-          const SizedBox(height: 6),
-          Text('$giaTri $donVi', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: mau)),
-          Text(nhan, style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600)),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: mau.withValues(alpha: .1), shape: BoxShape.circle),
+            child: Icon(icon, color: mau, size: 20),
+          ),
+          const SizedBox(height: 8),
+          Text('$giaTri $donVi', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: mau)),
+          const SizedBox(height: 2),
+          Text(nhan, style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
         ],
       ),
     );
