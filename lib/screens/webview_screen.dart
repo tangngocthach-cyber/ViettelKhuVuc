@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -36,6 +37,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
   bool _loiMang = false;
   bool _dangTaiFile = false; // đang tải file tài liệu về máy - hiện overlay loading riêng
   bool _trangDaTaiXongLanNao = false; // reset mỗi khi bắt đầu tải trang mới
+  Timer? _watchdogTimer; // "bắt mạch" trang định kỳ - phát hiện trang bị treo trắng để tự tải lại
+  int _watchdogLoiLienTiep = 0;
 
   @override
   void initState() {
@@ -43,15 +46,21 @@ class _WebViewScreenState extends State<WebViewScreen> {
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(NavigationDelegate(
-        onPageStarted: (_) => setState(() {
-          _dangTai = true;
-          _loiMang = false;
-          _trangDaTaiXongLanNao = false;
-        }),
-        onPageFinished: (_) => setState(() {
-          _dangTai = false;
-          _trangDaTaiXongLanNao = true;
-        }),
+        onPageStarted: (_) {
+          _dungWatchdog(); // tạm ngưng "bắt mạch" trong lúc đang chuyển trang, tránh báo nhầm
+          setState(() {
+            _dangTai = true;
+            _loiMang = false;
+            _trangDaTaiXongLanNao = false;
+          });
+        },
+        onPageFinished: (_) {
+          setState(() {
+            _dangTai = false;
+            _trangDaTaiXongLanNao = true;
+          });
+          _batDauWatchdog();
+        },
         onWebResourceError: (error) {
           // CHỈ báo lỗi toàn trang nếu trang CHÍNH chưa từng tải xong lần nào.
           // Nếu trang đã tải xong rồi (VD: bản đồ đã hiện ra), lỗi này chỉ là
@@ -276,6 +285,58 @@ class _WebViewScreenState extends State<WebViewScreen> {
     final phanCuoi = uri.pathSegments.isNotEmpty ? uri.pathSegments.last : 'tai-lieu';
     final coDuoiFile = RegExp(r'\.[a-zA-Z0-9]{2,5}$').hasMatch(phanCuoi);
     return coDuoiFile ? phanCuoi : '$phanCuoi.pdf';
+  }
+
+  // ==========================================================================
+  // "BẮT MẠCH" TRANG - PHÁT HIỆN TRANG BỊ TREO TRẮNG ĐỂ TỰ TẢI LẠI
+  // ==========================================================================
+  // LỖI THẬT ĐÃ GẶP: bản đồ Vệ tinh (ảnh chụp Esri) tải RẤT NẶNG so với bản
+  // đồ thường - trên điện thoại RAM thấp/trung bình, việc này có thể khiến
+  // TIẾN TRÌNH HIỂN THỊ (render process) của WebView trên Android bị hệ điều
+  // hành TỰ NGẮT vì hết bộ nhớ. Khi đó toàn trang biến thành MÀN TRẮNG ĐỨNG
+  // YÊN - không phải lỗi mạng (onWebResourceError KHÔNG bắt được trường hợp
+  // này, vì đây là tiến trình con của hệ điều hành bị ngắt, không phải 1 yêu
+  // cầu mạng bị lỗi). Gói webview_flutter hiện TẠI THỜI ĐIỂM NÀY CHƯA hỗ trợ
+  // sự kiện chính thức "tiến trình đã chết" trên Android (chưa có API
+  // onRenderProcessGone như bên Android WebView gốc), nên phải tự dò bằng
+  // cách chạy 1 đoạn JavaScript siêu nhẹ định kỳ và chờ phản hồi - nếu trang
+  // còn sống, JS luôn trả lời trong tích tắc; nếu tiến trình đã chết, lệnh
+  // này sẽ treo vô thời hạn (bắt bằng .timeout).
+  void _batDauWatchdog() {
+    _dungWatchdog();
+    _watchdogLoiLienTiep = 0;
+    _watchdogTimer = Timer.periodic(const Duration(seconds: 6), (_) => _kiemTraTrangConSong());
+  }
+
+  void _dungWatchdog() {
+    _watchdogTimer?.cancel();
+    _watchdogTimer = null;
+  }
+
+  Future<void> _kiemTraTrangConSong() async {
+    if (!mounted || _dangTai || _loiMang || _dangTaiFile) return;
+    try {
+      await _controller.runJavaScriptReturningResult('1+1').timeout(const Duration(seconds: 5));
+      _watchdogLoiLienTiep = 0;
+    } catch (e) {
+      _watchdogLoiLienTiep++;
+      // Chờ đủ 2 lần liên tiếp không phản hồi (khoảng 12 giây) mới kết luận
+      // treo thật - tránh tải lại nhầm chỉ vì 1 lần chậm thoáng qua.
+      if (_watchdogLoiLienTiep >= 2 && mounted) {
+        _watchdogLoiLienTiep = 0;
+        _dungWatchdog();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Trang bị treo, đang tự tải lại...')),
+        );
+        _taiTrangCoDangNhap();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _dungWatchdog();
+    super.dispose();
   }
 
   Future<void> _taiTrangCoDangNhap() async {
