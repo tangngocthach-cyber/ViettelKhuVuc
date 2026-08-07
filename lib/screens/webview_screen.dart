@@ -39,12 +39,6 @@ class _WebViewScreenState extends State<WebViewScreen> {
   bool _trangDaTaiXongLanNao = false; // reset mỗi khi bắt đầu tải trang mới
   Timer? _watchdogTimer; // "bắt mạch" trang định kỳ - phát hiện trang bị treo trắng để tự tải lại
   int _watchdogLoiLienTiep = 0;
-  int _soLanTuPhucHoi = 0; // đổi mỗi lần watchdog phát hiện treo - ép Flutter TÁI TẠO HẲN
-  // vùng hiển thị WebView (không chỉ tải lại trang) khi bị watchdog phát hiện treo. clearCache()
-  // chỉ xóa cache HTTP, KHÔNG dọn được trạng thái hiển thị (render surface) của chính WebView -
-  // nếu tiến trình hiển thị đã ở trạng thái dở dang lúc treo, tải lại trên CÙNG 1 bề mặt hiển thị
-  // cũ có thể giữ lại hình ảnh/trạng thái lỗi (đúng như ảnh thực tế đã gặp: khung nhỏ hiện nội
-  // dung cũ đè lên bản đồ mới). Đổi key ép Flutter hủy hẳn và dựng lại từ đầu bề mặt hiển thị.
 
   @override
   void initState() {
@@ -336,10 +330,14 @@ class _WebViewScreenState extends State<WebViewScreen> {
       if (_watchdogLoiLienTiep >= 2 && mounted) {
         _watchdogLoiLienTiep = 0;
         _dungWatchdog();
-        // Đổi key TRƯỚC khi tải lại - ép Flutter hủy hẳn bề mặt hiển thị
-        // WebView cũ (có thể đang dở dang/hỏng do lần treo) và dựng bề mặt
-        // MỚI HOÀN TOÀN, tránh giữ lại hình ảnh/trạng thái lỗi từ lần trước.
-        setState(() => _soLanTuPhucHoi++);
+        // GHI CHÚ: từng thử ép Flutter hủy/dựng lại hẳn bề mặt hiển thị
+        // WebView (đổi key) mỗi lần phát hiện treo, với kỳ vọng dọn sạch
+        // trạng thái dở dang. ĐÃ GỠ BỎ LẠI: sau khi thêm, tình trạng lỗi
+        // hiển thị lan sang CẢ MÀN HÌNH KHỞI ĐỘNG THUẦN FLUTTER (không
+        // liên quan WebView) - dấu hiệu việc hủy/dựng lại lặp lại nhiều
+        // lần đang làm RÒ RỈ tài nguyên đồ họa thay vì dọn sạch nó. Quay
+        // lại cách đơn giản, an toàn hơn: chỉ tải lại nội dung trên CÙNG
+        // 1 bề mặt hiển thị, không hủy/dựng lại.
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Trang bị treo, đang tự tải lại...')),
         );
@@ -425,7 +423,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
       body: SafeArea(
         child: Stack(
           children: [
-            if (!_loiMang) WebViewWidget(key: ValueKey(_soLanTuPhucHoi), controller: _controller),
+            if (!_loiMang) WebViewWidget(controller: _controller),
             if (_dangTai && !_loiMang) const Center(child: CircularProgressIndicator(color: AppTheme.viettelRed)),
             if (_dangTaiFile)
               Container(
