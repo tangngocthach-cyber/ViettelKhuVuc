@@ -68,13 +68,18 @@ class _WebViewScreenState extends State<WebViewScreen> {
           _batDauWatchdog();
         },
         onWebResourceError: (error) {
-          // CHỈ báo lỗi toàn trang nếu trang CHÍNH chưa từng tải xong lần nào.
-          // Nếu trang đã tải xong rồi (VD: bản đồ đã hiện ra), lỗi này chỉ là
-          // 1 TÀI NGUYÊN PHỤ bị lỗi tạm (như 1 ô ảnh bản đồ/tile khi zoom) -
-          // KHÔNG được che mất nội dung đã tải thành công (lỗi thật đã gặp:
-          // bản đồ dùng hàng trăm ảnh tile nhỏ, chỉ 1 cái lỗi mạng thoáng qua
-          // cũng đủ khiến toàn bộ bản đồ bị che bởi màn "mất mạng" sai lệch).
-          if (!_trangDaTaiXongLanNao) {
+          // SỬA LỖI THẬT ĐÃ GẶP: trước đây chỉ kiểm tra "trang đã từng tải
+          // xong lần nào chưa" - nhưng ngay sau khi tự tải lại (watchdog),
+          // trong khoảng thời gian ĐANG tải lại (trước khi tải xong lần
+          // MỚI này), NẾU có bất kỳ 1 tài nguyên phụ nào lỗi (1 file script,
+          // 1 lệnh gọi API bên trong trang, 1 ô ảnh bản đồ...) thì cờ "đã
+          // tải xong" vẫn đang là false -> bị hiểu NHẦM thành "toàn trang
+          // mất mạng", che mất nội dung trang CHÍNH dù nó có thể vẫn đang
+          // tải bình thường. Dùng thêm isForMainFrame - CHỈ coi là lỗi toàn
+          // trang khi lỗi xảy ra đúng cho bản thân trang chính, không phải
+          // 1 tài nguyên phụ bên trong.
+          final loiToanTrang = error.isForMainFrame ?? true;
+          if (loiToanTrang && !_trangDaTaiXongLanNao) {
             setState(() {
               _dangTai = false;
               _loiMang = true;
