@@ -24,6 +24,7 @@ class BillCuocKhachHang {
   final int congCuocDv;
   final int stt;
   final bool daThu;
+  final int soLanDaInBill;
 
   BillCuocKhachHang({
     required this.id,
@@ -49,6 +50,7 @@ class BillCuocKhachHang {
     required this.congCuocDv,
     required this.stt,
     required this.daThu,
+    required this.soLanDaInBill,
   });
 
   factory BillCuocKhachHang.fromJson(Map<String, dynamic> j) {
@@ -78,6 +80,7 @@ class BillCuocKhachHang {
       congCuocDv: soNguyen(j['cong_cuoc_dv']),
       stt: soNguyen(j['stt']),
       daThu: soNguyen(j['da_thu']) == 1,
+      soLanDaInBill: soNguyen(j['so_lan_da_in_bill']),
     );
   }
 }
