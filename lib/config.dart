@@ -80,6 +80,9 @@ class AppConfig {
   static const String urlLichSuHocTap = '$baseUrl/lich-su-hoc-tap.php';
   static const String urlChungChiCuaToi = '$baseUrl/chung-chi-cua-toi.php';
   static const String urlKhoDuLieuExcel = '$baseUrl/kho-du-lieu-excel.php';
+  /// Bill cước & Thông báo nợ - in Bill cước A5/Thông báo nợ A4 theo từng
+  /// khách hàng (module riêng, tách biệt với "Kết quả Thu cước" ở trên).
+  static const String urlBillCuoc = '$baseUrl/bill-cuoc.php';
   /// Bản đồ vị trí + hiệu suất các hộp chia cáp quang GPON (Leaflet.js, dữ
   /// liệu nhập từ file KML, cập nhật qua admin/ban-do-hop-cap.php).
   static const String urlBanDoHopCap = '$baseUrl/ban-do-hop-cap.php';
