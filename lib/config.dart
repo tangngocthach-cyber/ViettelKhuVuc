@@ -85,6 +85,7 @@ class AppConfig {
   static const String urlBillCuoc = '$baseUrl/bill-cuoc.php';
   static const String apiBillCuocDanhSachKy = '$baseUrl/api/bill-cuoc/danh-sach-ky.php';
   static const String apiBillCuocDanhSachKhachHang = '$baseUrl/api/bill-cuoc/danh-sach-khach-hang.php';
+  static const String apiBillCuocGhiLogInNhiet = '$baseUrl/api/bill-cuoc/ghi-log-in-nhiet.php';
   /// Bản đồ vị trí + hiệu suất các hộp chia cáp quang GPON (Leaflet.js, dữ
   /// liệu nhập từ file KML, cập nhật qua admin/ban-do-hop-cap.php).
   static const String urlBanDoHopCap = '$baseUrl/ban-do-hop-cap.php';
