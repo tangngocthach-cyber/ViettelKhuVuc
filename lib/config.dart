@@ -83,6 +83,8 @@ class AppConfig {
   /// Bill cước & Thông báo nợ - in Bill cước A5/Thông báo nợ A4 theo từng
   /// khách hàng (module riêng, tách biệt với "Kết quả Thu cước" ở trên).
   static const String urlBillCuoc = '$baseUrl/bill-cuoc.php';
+  static const String apiBillCuocDanhSachKy = '$baseUrl/api/bill-cuoc/danh-sach-ky.php';
+  static const String apiBillCuocDanhSachKhachHang = '$baseUrl/api/bill-cuoc/danh-sach-khach-hang.php';
   /// Bản đồ vị trí + hiệu suất các hộp chia cáp quang GPON (Leaflet.js, dữ
   /// liệu nhập từ file KML, cập nhật qua admin/ban-do-hop-cap.php).
   static const String urlBanDoHopCap = '$baseUrl/ban-do-hop-cap.php';

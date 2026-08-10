@@ -7,6 +7,7 @@ import 'ghi_chu_screen.dart';
 import 'lich_screen.dart';
 import 'qr_scan_screen.dart';
 import 'cham_tu_danh_sach_screen.dart';
+import 'bill_cuoc_native_screen.dart';
 import 'dong_ho_bam_gio_screen.dart';
 import 'den_pin_screen.dart';
 import 'la_ban_screen.dart';
@@ -60,7 +61,11 @@ class _CongDongTabState extends State<CongDongTab> {
       const GridModuleItem(icon: Icons.assignment_turned_in, label: 'Nhập kết quả giao việc', url: AppConfig.urlNhapKetQua),
       const GridModuleItem(icon: Icons.fact_check, label: 'Giao việc - Xem tổng hợp', url: AppConfig.urlGiaoViecTongHop),
       const GridModuleItem(icon: Icons.receipt_long, label: 'Kết quả Thu cước', url: AppConfig.urlThuCuocDashboard),
-      const GridModuleItem(icon: Icons.receipt, label: 'Bill cước & Thông báo nợ', url: AppConfig.urlBillCuoc),
+      GridModuleItem(
+        icon: Icons.receipt,
+        label: 'Bill cước & Thông báo nợ',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BillCuocNativeScreen())),
+      ),
       const GridModuleItem(icon: Icons.link, label: 'Tiện ích nội bộ', url: AppConfig.urlTienIchNoiBo),
       const GridModuleItem(icon: Icons.table_chart, label: 'Kho Dữ liệu bán hàng', url: AppConfig.urlKhoDuLieuExcel),
       const GridModuleItem(icon: Icons.smart_toy, label: 'Trợ lý KPI (AI)', url: AppConfig.urlTroLyKPI),

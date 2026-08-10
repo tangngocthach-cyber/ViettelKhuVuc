@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Truy cập mạng để gọi API -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -9,6 +9,14 @@
     <!-- Định vị GPS để chia sẻ vị trí trong Chat -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- In hóa đơn nhiệt qua Bluetooth (Bill cước & Thông báo nợ) - quyền
+         BLUETOOTH_CONNECT/SCAN cho Android 12+ (API 31+), BLUETOOTH/BLUETOOTH_ADMIN
+         cho các bản Android cũ hơn - cần khai báo đủ cả 2 bộ để chạy đúng trên
+         mọi phiên bản Android đang dùng thực tế trong đội ngũ CNKD. -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" tools:targetApi="s" />
     <!-- Ghi âm tin nhắn thoại trong Chat -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Thông báo hẹn giờ (Nhắc hẹn trong Chat) -->
