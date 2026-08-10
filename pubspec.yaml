@@ -1,7 +1,8 @@
 name: vinhhung_app
 description: Ứng dụng di động Viettel Khu Vực Vĩnh Hưng
 publish_to: 'none'
-version: 1.1.0+10
+version: 1.0.2+2
+
 environment:
   sdk: '>=3.0.0 <4.0.0'
 
@@ -59,6 +60,11 @@ dependencies:
 
   # Xuất file Excel (.xlsx) thật cho Sổ ghi chú
   excel: ^4.0.6
+
+  # In hóa đơn nhiệt 58mm qua Bluetooth CỔ ĐIỂN (Classic Bluetooth/SPP) -
+  # hầu hết máy in nhiệt giá rẻ dùng chuẩn này (khác Bluetooth Low Energy
+  # dùng trên web) - dùng cho tính năng "Bill cước & Thông báo nợ" trong app.
+  print_bluetooth_thermal: ^1.1.1
 
   # Thông báo hẹn giờ cục bộ cho tính năng "Nhắc hẹn" trong Chat - hoạt động
   # được cả khi không có Internet tại đúng thời điểm hẹn (đặt lịch trước ngay
