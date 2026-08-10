@@ -20,17 +20,18 @@ class BillCuocService {
     return [];
   }
 
-  /// Trả về (danh sách khách hàng, danh sách CNKD trong kỳ đó).
-  static Future<({List<BillCuocKhachHang> khachHang, List<BillCuocTvv> tvv})> timKhachHang({
+  /// Trả về (danh sách khách hàng, danh sách CNKD, trang hiện tại, tổng số trang).
+  static Future<({List<BillCuocKhachHang> khachHang, List<BillCuocTvv> tvv, int trang, int tongSoTrang})> timKhachHang({
     required int kyId,
     String? tvv,
     String? tuKhoa,
     bool? daThu,
+    int trang = 1,
   }) async {
     final token = await AuthService.getToken();
-    if (token == null) return (khachHang: <BillCuocKhachHang>[], tvv: <BillCuocTvv>[]);
+    if (token == null) return (khachHang: <BillCuocKhachHang>[], tvv: <BillCuocTvv>[], trang: 1, tongSoTrang: 1);
     try {
-      final thamSo = <String, String>{'ky_id': '$kyId'};
+      final thamSo = <String, String>{'ky_id': '$kyId', 'trang': '$trang'};
       if (tvv != null && tvv.isNotEmpty) thamSo['tvv'] = tvv;
       if (tuKhoa != null && tuKhoa.isNotEmpty) thamSo['q'] = tuKhoa;
       if (daThu != null) thamSo['da_thu'] = daThu ? '1' : '0';
@@ -41,10 +42,28 @@ class BillCuocService {
       if (res.statusCode == 200 && data['success'] == true) {
         final khachHang = (data['data'] as List).map((e) => BillCuocKhachHang.fromJson(e)).toList();
         final dsTvv = (data['ds_tvv'] as List).map((e) => BillCuocTvv.fromJson(e)).toList();
-        return (khachHang: khachHang, tvv: dsTvv);
+        return (
+          khachHang: khachHang, tvv: dsTvv,
+          trang: (data['trang'] as num?)?.toInt() ?? 1,
+          tongSoTrang: (data['tong_so_trang'] as num?)?.toInt() ?? 1,
+        );
       }
     } catch (_) {}
-    return (khachHang: <BillCuocKhachHang>[], tvv: <BillCuocTvv>[]);
+    return (khachHang: <BillCuocKhachHang>[], tvv: <BillCuocTvv>[], trang: 1, tongSoTrang: 1);
+  }
+
+  /// Ghi lại 1 lần in nhiệt thành công - để hiện "Đã in nhiệt x N" đồng bộ
+  /// với bản web, tránh CNKD in trùng nhầm.
+  static Future<void> ghiLogInNhiet(int khId) async {
+    final token = await AuthService.getToken();
+    if (token == null) return;
+    try {
+      await http.post(
+        Uri.parse(AppConfig.apiBillCuocGhiLogInNhiet),
+        headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'kh_id=$khId',
+      ).timeout(const Duration(seconds: 10));
+    } catch (_) {}
   }
 
   /// Mở trang IN (Thông báo cước / Thông báo nợ) trên TRÌNH DUYỆT NGOÀI của
