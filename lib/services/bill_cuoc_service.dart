@@ -20,8 +20,11 @@ class BillCuocService {
     return [];
   }
 
-  /// Trả về (danh sách khách hàng, danh sách CNKD, trang hiện tại, tổng số trang).
-  static Future<({List<BillCuocKhachHang> khachHang, List<BillCuocTvv> tvv, int trang, int tongSoTrang})> timKhachHang({
+  /// Trả về (danh sách khách hàng, danh sách CNKD, trang hiện tại, tổng số
+  /// trang, thông báo lỗi nếu có). TRƯỚC ĐÂY lỗi API bị "nuốt" âm thầm,
+  /// hiện ra như "không tìm thấy khách hàng" - GÂY HIỂU NHẦM (lỗi thật đã
+  /// gặp) - giờ trả về đúng thông báo lỗi để hiện rõ cho người dùng.
+  static Future<({List<BillCuocKhachHang> khachHang, List<BillCuocTvv> tvv, int trang, int tongSoTrang, String? loi})> timKhachHang({
     required int kyId,
     String? tvv,
     String? tuKhoa,
@@ -29,7 +32,7 @@ class BillCuocService {
     int trang = 1,
   }) async {
     final token = await AuthService.getToken();
-    if (token == null) return (khachHang: <BillCuocKhachHang>[], tvv: <BillCuocTvv>[], trang: 1, tongSoTrang: 1);
+    if (token == null) return (khachHang: <BillCuocKhachHang>[], tvv: <BillCuocTvv>[], trang: 1, tongSoTrang: 1, loi: 'Chưa đăng nhập.');
     try {
       final thamSo = <String, String>{'ky_id': '$kyId', 'trang': '$trang'};
       if (tvv != null && tvv.isNotEmpty) thamSo['tvv'] = tvv;
@@ -38,18 +41,34 @@ class BillCuocService {
 
       final uri = Uri.parse(AppConfig.apiBillCuocDanhSachKhachHang).replace(queryParameters: thamSo);
       final res = await http.get(uri, headers: {'Authorization': 'Bearer $token'}).timeout(const Duration(seconds: 15));
+      if (res.statusCode != 200) {
+        // Server có thể trả JSON lỗi rõ ràng (VD "Bạn chưa được cấp quyền...")
+        // - ưu tiên đọc đúng thông báo đó; nếu không phải JSON (VD lỗi PHP
+        // 500 thật) thì mới hiện thông báo chung chung kèm mã lỗi.
+        try {
+          final data = jsonDecode(res.body);
+          if (data['message'] != null) {
+            return (khachHang: <BillCuocKhachHang>[], tvv: <BillCuocTvv>[], trang: 1, tongSoTrang: 1, loi: data['message'].toString());
+          }
+        } catch (_) {}
+        return (khachHang: <BillCuocKhachHang>[], tvv: <BillCuocTvv>[], trang: 1, tongSoTrang: 1,
+            loi: 'Máy chủ báo lỗi (mã ${res.statusCode}) - có thể module chưa cập nhật đủ trên server, báo lại cho người quản trị.');
+      }
       final data = jsonDecode(res.body);
-      if (res.statusCode == 200 && data['success'] == true) {
+      if (data['success'] == true) {
         final khachHang = (data['data'] as List).map((e) => BillCuocKhachHang.fromJson(e)).toList();
         final dsTvv = (data['ds_tvv'] as List).map((e) => BillCuocTvv.fromJson(e)).toList();
         return (
           khachHang: khachHang, tvv: dsTvv,
           trang: (data['trang'] as num?)?.toInt() ?? 1,
           tongSoTrang: (data['tong_so_trang'] as num?)?.toInt() ?? 1,
+          loi: null,
         );
       }
-    } catch (_) {}
-    return (khachHang: <BillCuocKhachHang>[], tvv: <BillCuocTvv>[], trang: 1, tongSoTrang: 1);
+      return (khachHang: <BillCuocKhachHang>[], tvv: <BillCuocTvv>[], trang: 1, tongSoTrang: 1, loi: data['message']?.toString());
+    } catch (e) {
+      return (khachHang: <BillCuocKhachHang>[], tvv: <BillCuocTvv>[], trang: 1, tongSoTrang: 1, loi: 'Lỗi kết nối: $e');
+    }
   }
 
   /// Ghi lại 1 lần in nhiệt thành công - để hiện "Đã in nhiệt x N" đồng bộ
