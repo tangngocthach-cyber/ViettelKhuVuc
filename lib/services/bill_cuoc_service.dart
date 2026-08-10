@@ -57,10 +57,13 @@ class BillCuocService {
     required String hanhDong, // 'in_bill' hoặc 'in_thongbao'
     required int kyId,
     required List<int> khIds,
+    String? xuat, // 'pdf' hoặc 'jpg' - TỰ ĐỘNG kích hoạt đúng chức năng đó
+    // ngay khi trang mở ra, không bắt CNKD phải tự tìm nút trên trang web.
   }) async {
     final ticket = await AuthService.getWebTicket();
     if (ticket == null) return null;
-    final duongDanDich = '/bill-cuoc.php?action=$hanhDong&ky_id=$kyId&kh_ids=${khIds.join(",")}';
+    var duongDanDich = '/bill-cuoc.php?action=$hanhDong&ky_id=$kyId&kh_ids=${khIds.join(",")}';
+    if (xuat != null) duongDanDich += '&xuat=$xuat';
     return '${AppConfig.urlSessionLogin}?ticket=$ticket&redirect=${Uri.encodeComponent(duongDanDich)}';
   }
 }
