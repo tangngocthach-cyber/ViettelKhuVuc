@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/bill_cuoc_khach_hang.dart';
 import '../services/bill_cuoc_service.dart';
@@ -22,22 +24,38 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
   final Set<int> _idDaChon = {};
   bool _dangTai = false;
   bool _dangMoTrinhDuyet = false;
+  Timer? _hienGioTimKiem; // trì hoãn tìm kiếm - gõ là tự tìm, không cần bấm Enter
 
   // ---- Trạng thái máy in nhiệt Bluetooth (Classic Bluetooth/SPP) ----
   List<BluetoothInfo> _dsMayInDaGhepDoi = [];
   BluetoothInfo? _mayInDangKetNoi;
   bool _dangKetNoiMayIn = false;
 
+  static const _khoaMacMayInDaLuu = 'bill_cuoc_mac_may_in_da_luu';
+  static const _khoaTenMayInDaLuu = 'bill_cuoc_ten_may_in_da_luu';
+
   @override
   void initState() {
     super.initState();
     _taiDanhSachKy();
+    _tuDongKetNoiLaiMayInDaLuu();
   }
 
   @override
   void dispose() {
     _oTimKiem.dispose();
+    _hienGioTimKiem?.cancel();
     super.dispose();
+  }
+
+  /// Tự động kết nối lại máy in đã dùng lần gần nhất (nếu có lưu) - tiện lợi
+  /// hơn cho CNKD, không phải ghép nối lại mỗi lần mở app.
+  Future<void> _tuDongKetNoiLaiMayInDaLuu() async {
+    final prefs = await SharedPreferences.getInstance();
+    final macDaLuu = prefs.getString(_khoaMacMayInDaLuu);
+    final tenDaLuu = prefs.getString(_khoaTenMayInDaLuu);
+    if (macDaLuu == null || tenDaLuu == null) return;
+    await _ketNoiMayIn(BluetoothInfo(name: tenDaLuu, macAdress: macDaLuu), luuLaiMacDinh: false);
   }
 
   Future<void> _taiDanhSachKy() async {
@@ -127,7 +145,7 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
     );
   }
 
-  Future<void> _ketNoiMayIn(BluetoothInfo may) async {
+  Future<void> _ketNoiMayIn(BluetoothInfo may, {bool luuLaiMacDinh = true}) async {
     setState(() => _dangKetNoiMayIn = true);
     try {
       final ok = await PrintBluetoothThermal.connect(macPrinterAddress: may.macAdress);
@@ -135,80 +153,93 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
         _mayInDangKetNoi = ok ? may : null;
         _dangKetNoiMayIn = false;
       });
-      if (mounted) {
+      if (ok && luuLaiMacDinh) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_khoaMacMayInDaLuu, may.macAdress);
+        await prefs.setString(_khoaTenMayInDaLuu, may.name);
+      }
+      if (mounted && luuLaiMacDinh) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? '✅ Đã kết nối: ${may.name}' : '❌ Kết nối thất bại, thử lại.')));
       }
     } catch (e) {
       setState(() => _dangKetNoiMayIn = false);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('❌ Lỗi kết nối: $e')));
+      // Khi TỰ ĐỘNG kết nối lại lúc mở app mà thất bại (VD máy in đang tắt) -
+      // không hiện lỗi làm phiền, chỉ im lặng - CNKD tự bấm "Kết nối" lại khi
+      // cần. Chỉ hiện lỗi khi TỰ TAY bấm chọn máy in.
+      if (mounted && luuLaiMacDinh) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('❌ Lỗi kết nối: $e')));
     }
-  }
-
-  /// Bỏ dấu tiếng Việt - hầu hết máy in nhiệt giá rẻ không có font tiếng Việt
-  /// có dấu, giữ dấu sẽ in ra ký tự lỗi/ô vuông (giữ nhất quán với bản Web).
-  String _boDauTiengViet(String s) {
-    const co = 'àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ'
-        'ÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐ';
-    const khong = 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd'
-        'AAAAAAAAAAAAAAAAAEEEEEEEEEEEIIIIIOOOOOOOOOOOOOOOOOUUUUUUUUUUUYYYYYD';
-    final buf = StringBuffer();
-    for (final ch in s.split('')) {
-      final idx = co.indexOf(ch);
-      buf.write(idx >= 0 ? khong[idx] : ch);
-    }
-    return buf.toString();
   }
 
   String _dinhDangTien(int v) => v.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => '.');
 
-  List<_DongInNhiet> _soanNoiDungHoaDon(BillCuocKhachHang kh) {
+  /// Thân phiếu chính + phần đuôi xé lưu (theo đúng yêu cầu) - CNKD tự giữ
+  /// phần đuôi để ghi chú/gạch nợ khách đã thu, tách bằng đường kẻ đứt.
+  ({List<_DongInNhiet> than, List<_DongInNhiet> duoi}) _soanNoiDungHoaDon(BillCuocKhachHang kh) {
     final tongNo = kh.tongCuoc + kh.noTruoc;
-    return [
-      _DongInNhiet('VIETTEL KHU VUC VINH HUNG', dam: true, to: true),
-      _DongInNhiet('HOA DON CUOC VIETTEL'),
+    final than = [
+      _DongInNhiet('VIETTEL VĨNH HƯNG', dam: true, to: true),
+      _DongInNhiet('Hóa đơn cước Viettel'),
       _DongInNhiet('------------------------------'),
-      _DongInNhiet('Khach hang: ${kh.tenKhachHang}'),
-      _DongInNhiet('Dia chi: ${kh.diaChiTbc}'),
-      _DongInNhiet('So thue bao: ${kh.soTb}'),
+      _DongInNhiet('Khách hàng: ${kh.tenKhachHang}'),
+      _DongInNhiet('Địa chỉ: ${kh.diaChiTbc}'),
+      _DongInNhiet('Số thuê bao: ${kh.soTb}'),
       _DongInNhiet('------------------------------'),
-      _DongInNhiet('No truoc: ${_dinhDangTien(kh.noTruoc)} d'),
-      _DongInNhiet('Cuoc ky nay: ${_dinhDangTien(kh.tongCuoc)} d'),
+      _DongInNhiet('Nợ trước: ${_dinhDangTien(kh.noTruoc)} đ'),
+      _DongInNhiet('Cước kỳ này: ${_dinhDangTien(kh.tongCuoc)} đ'),
       _DongInNhiet('------------------------------'),
-      _DongInNhiet('TONG THANH TOAN: ${_dinhDangTien(tongNo)} d', dam: true, to: true),
+      _DongInNhiet('TỔNG THANH TOÁN: ${_dinhDangTien(tongNo)} đ', dam: true, to: true),
       _DongInNhiet('------------------------------'),
-      _DongInNhiet('NV dia ban: ${kh.tenTvv}'),
-      _DongInNhiet('SDT lien he: ${kh.soDienThoaiTvv}', dam: true),
+      _DongInNhiet('NV địa bàn: ${kh.tenTvv}'),
+      _DongInNhiet('SĐT liên hệ: ${kh.soDienThoaiTvv}', dam: true),
       _DongInNhiet('Hotline: 18008119'),
-      _DongInNhiet('Cam on Quy khach!'),
+      _DongInNhiet('Cảm ơn Quý khách!'),
     ];
+    final duoi = [
+      _DongInNhiet('- - - - - - CẮT TẠI ĐÂY - - - - - -'),
+      _DongInNhiet('PHIẾU LƯU (CNKD giữ)', dam: true),
+      _DongInNhiet(kh.tenKhachHang),
+      _DongInNhiet('SĐT: ${kh.soTb}  Tiền: ${_dinhDangTien(tongNo)}đ'),
+      _DongInNhiet('Ngày thu: ................  Đã thu: [ ]'),
+    ];
+    return (than: than, duoi: duoi);
   }
 
-  List<int> _taoLenhEscPos(List<_DongInNhiet> dong) {
+  /// Giữ nguyên dấu tiếng Việt khi in (theo đúng yêu cầu) - mã hóa UTF-8
+  /// chuẩn bằng utf8.encode() đầy đủ, KHÔNG lọc bớt byte như trước đây (cách
+  /// cũ .where((b) => b < 128) CẮT MẤT ký tự có dấu - đúng lỗi thật đã gặp).
+  /// Máy in cần hỗ trợ UTF-8/Unicode - nếu máy in cụ thể vẫn lỗi/ô vuông,
+  /// báo lại đúng TÊN/DÒNG MÁY IN để chỉnh đúng bảng mã riêng của máy đó.
+  List<int> _taoLenhEscPos(({List<_DongInNhiet> than, List<_DongInNhiet> duoi}) noiDung) {
     final bo = <int>[];
     bo.addAll([0x1B, 0x40]); // Reset máy in
     bo.addAll([0x1B, 0x61, 0x01]); // Căn giữa
-    for (final d in dong) {
-      if (d.dam) bo.addAll([0x1B, 0x45, 0x01]);
-      if (d.to) bo.addAll([0x1D, 0x21, 0x11]);
-      final text = _boDauTiengViet(d.text) + '\n';
-      bo.addAll(utf8.encode(text).where((b) => b < 128)); // an toàn: chỉ giữ byte ASCII
-      if (d.to) bo.addAll([0x1D, 0x21, 0x00]);
-      if (d.dam) bo.addAll([0x1B, 0x45, 0x00]);
+    void inCacDong(List<_DongInNhiet> dsDong) {
+      for (final d in dsDong) {
+        if (d.dam) bo.addAll([0x1B, 0x45, 0x01]);
+        if (d.to) bo.addAll([0x1D, 0x21, 0x11]);
+        bo.addAll(utf8.encode('${d.text}\n'));
+        if (d.to) bo.addAll([0x1D, 0x21, 0x00]);
+        if (d.dam) bo.addAll([0x1B, 0x45, 0x00]);
+      }
     }
+    inCacDong(noiDung.than);
+    bo.addAll([0x0A, 0x0A]);
+    inCacDong(noiDung.duoi);
     bo.addAll([0x0A, 0x0A, 0x0A]);
     bo.addAll([0x1D, 0x56, 0x00]);
     return bo;
   }
 
   void _xemTruocHoaDon(BillCuocKhachHang kh) {
-    final dong = _soanNoiDungHoaDon(kh);
+    final noiDung = _soanNoiDungHoaDon(kh);
+    final toanBo = [...noiDung.than, _DongInNhiet(''), ...noiDung.duoi];
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Xem trước nội dung in'),
         content: SingleChildScrollView(
           child: Text(
-            dong.map((d) => _boDauTiengViet(d.text)).join('\n'),
+            toanBo.map((d) => d.text).join('\n'),
             style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
           ),
         ),
@@ -296,6 +327,12 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
               prefixIcon: const Icon(Icons.search),
               suffixIcon: IconButton(icon: const Icon(Icons.clear), onPressed: () { _oTimKiem.clear(); _timKhachHang(); }),
             ),
+            onChanged: (_) {
+              // Trì hoãn 500ms sau khi gõ xong mới thật sự tìm - tránh gọi API
+              // liên tục theo từng ký tự gõ (giật/lag), vẫn cảm giác "tự tìm".
+              _hienGioTimKiem?.cancel();
+              _hienGioTimKiem = Timer(const Duration(milliseconds: 500), _timKhachHang);
+            },
             onSubmitted: (_) => _timKhachHang(),
           ),
         ],
@@ -328,9 +365,21 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
 
   Widget _danhSachKhachHang() {
     if (_dsKhachHang.isEmpty && !_dangTai) {
-      return const Center(child: Text('Không tìm thấy khách hàng nào.'));
+      return RefreshIndicator(
+        onRefresh: _timKhachHang,
+        child: ListView(
+          children: const [
+            SizedBox(height: 120),
+            Icon(Icons.search_off, size: 48, color: Colors.grey),
+            SizedBox(height: 8),
+            Center(child: Text('Không tìm thấy khách hàng nào.', style: TextStyle(color: Colors.grey))),
+          ],
+        ),
+      );
     }
-    return ListView.builder(
+    return RefreshIndicator(
+      onRefresh: _timKhachHang,
+      child: ListView.builder(
       itemCount: _dsKhachHang.length,
       itemBuilder: (_, i) {
         final kh = _dsKhachHang[i];
@@ -338,7 +387,15 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
         return CheckboxListTile(
           value: daChon,
           onChanged: (v) => setState(() { v == true ? _idDaChon.add(kh.id) : _idDaChon.remove(kh.id); }),
-          title: Text(kh.tenKhachHang, style: const TextStyle(fontWeight: FontWeight.w600)),
+          title: Row(children: [
+            Expanded(child: Text(kh.tenKhachHang, style: const TextStyle(fontWeight: FontWeight.w600))),
+            if (kh.soLanDaInBill > 0)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(4)),
+                child: Text('Đã in x${kh.soLanDaInBill}', style: TextStyle(fontSize: 11, color: Colors.green.shade800, fontWeight: FontWeight.bold)),
+              ),
+          ]),
           subtitle: Text('${kh.soTb} · ${kh.tenTvv}\n${_dinhDangTien(kh.tongCuoc)}đ'
               '${kh.noTruoc > 0 ? ' · Nợ trước: ${_dinhDangTien(kh.noTruoc)}đ' : ''}'),
           isThreeLine: true,
@@ -351,6 +408,7 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
           ),
         );
       },
+      ),
     );
   }
 
