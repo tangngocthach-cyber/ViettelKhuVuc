@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../config.dart';
 import '../models/bill_cuoc_khach_hang.dart';
+import '../services/auth_service.dart';
 import '../services/bill_cuoc_service.dart';
 
 class BillCuocNativeScreen extends StatefulWidget {
@@ -84,13 +86,13 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
     });
   }
 
-  Future<void> _moTrangInNgoai(String hanhDong) async {
+  Future<void> _moTrangInNgoai(String hanhDong, {String? xuat}) async {
     if (_idDaChon.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vui lòng chọn ít nhất 1 khách hàng.')));
       return;
     }
     setState(() => _dangMoTrinhDuyet = true);
-    final link = await BillCuocService.taoLinkInNgoai(hanhDong: hanhDong, kyId: _kyIdDangChon!, khIds: _idDaChon.toList());
+    final link = await BillCuocService.taoLinkInNgoai(hanhDong: hanhDong, kyId: _kyIdDangChon!, khIds: _idDaChon.toList(), xuat: xuat);
     setState(() => _dangMoTrinhDuyet = false);
     if (link == null) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Không tạo được liên kết in, vui lòng thử lại.')));
@@ -105,6 +107,33 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Không mở được trình duyệt.')));
     }
+  }
+
+  /// Hiện lựa chọn XUẤT PDF hay ẢNH JPG rõ ràng - theo đúng phản ánh "chưa
+  /// thấy" (2 nút này trước đây ẩn bên trong trang web, phải tự tìm) - giờ
+  /// chọn ngay trong app, trang web mở ra sẽ TỰ ĐỘNG chạy đúng chức năng.
+  void _chonKieuXuat(String hanhDong, String tenLoai) {
+    showModalBottomSheet(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Wrap(children: [
+          Padding(padding: const EdgeInsets.all(14), child: Text('Xuất $tenLoai', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
+          ListTile(
+            leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
+            title: const Text('Xuất / In file PDF'),
+            subtitle: const Text('Mở Chrome, tự bật hộp thoại in - chọn "Lưu thành PDF"'),
+            onTap: () { Navigator.pop(context); _moTrangInNgoai(hanhDong, xuat: 'pdf'); },
+          ),
+          ListTile(
+            leading: const Icon(Icons.image, color: Colors.blue),
+            title: const Text('Xuất file ảnh JPG'),
+            subtitle: const Text('Mở Chrome, tự tải về ảnh JPG từng trang'),
+            onTap: () { Navigator.pop(context); _moTrangInNgoai(hanhDong, xuat: 'jpg'); },
+          ),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
   }
 
   // ============================================================================
@@ -416,26 +445,57 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(8),
-        child: Row(children: [
-          Expanded(
-            child: OutlinedButton.icon(
-              icon: const Icon(Icons.print, size: 18),
-              label: const Text('Thông báo cước'),
-              onPressed: _dangMoTrinhDuyet ? null : () => _moTrangInNgoai('in_bill'),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Row(children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.print, size: 18),
+                label: const Text('Thông báo cước'),
+                onPressed: _dangMoTrinhDuyet ? null : () => _chonKieuXuat('in_bill', 'Thông báo cước'),
+              ),
             ),
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: const Color(0xFFB71C1C)),
-              icon: const Icon(Icons.warning_amber, size: 18),
-              label: const Text('Thông báo nợ'),
-              onPressed: _dangMoTrinhDuyet ? null : () => _moTrangInNgoai('in_thongbao'),
+            const SizedBox(width: 6),
+            Expanded(
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(backgroundColor: const Color(0xFFB71C1C)),
+                icon: const Icon(Icons.warning_amber, size: 18),
+                label: const Text('Thông báo nợ'),
+                onPressed: _dangMoTrinhDuyet ? null : () => _chonKieuXuat('in_thongbao', 'Thông báo nợ'),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 6),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(foregroundColor: Colors.green.shade800),
+              icon: const Icon(Icons.file_download, size: 18),
+              label: const Text('Xuất Excel danh sách đang lọc'),
+              onPressed: _kyIdDangChon == null ? null : _xuatExcel,
             ),
           ),
         ]),
       ),
     );
+  }
+
+  /// Xuất Excel TOÀN BỘ danh sách đang lọc (đúng kỳ + CNKD đang chọn trên
+  /// app) - mở bằng trình duyệt ngoài để tải file .xls về máy.
+  Future<void> _xuatExcel() async {
+    final ticket = await AuthService.getWebTicket();
+    if (ticket == null) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Không tạo được liên kết xuất file, thử lại.')));
+      return;
+    }
+    var duongDan = '/bill-cuoc.php?xuat_toan_bo_excel=1&ky_id=$_kyIdDangChon';
+    if (_tvvDangChon != null) duongDan += '&tvv=$_tvvDangChon';
+    final link = '${AppConfig.urlSessionLogin}?ticket=$ticket&redirect=${Uri.encodeComponent(duongDan)}';
+    final uri = Uri.parse(link);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Không mở được trình duyệt.')));
+    }
   }
 }
 
