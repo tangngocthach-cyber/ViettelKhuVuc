@@ -22,6 +22,9 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
   List<BillCuocKhachHang> _dsKhachHang = [];
   int? _kyIdDangChon;
   String? _tvvDangChon;
+  bool? _daThuDangChon; // null = tất cả, true = đã thu, false = chưa thu
+  int _trangHienTai = 1;
+  int _tongSoTrang = 1;
   final _oTimKiem = TextEditingController();
   final Set<int> _idDaChon = {};
   bool _dangTai = false;
@@ -71,17 +74,21 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
     if (_kyIdDangChon != null) _timKhachHang();
   }
 
-  Future<void> _timKhachHang() async {
+  Future<void> _timKhachHang({int trang = 1}) async {
     if (_kyIdDangChon == null) return;
     setState(() => _dangTai = true);
     final ketQua = await BillCuocService.timKhachHang(
       kyId: _kyIdDangChon!,
       tvv: _tvvDangChon,
       tuKhoa: _oTimKiem.text.trim(),
+      daThu: _daThuDangChon,
+      trang: trang,
     );
     setState(() {
       _dsKhachHang = ketQua.khachHang;
       _dsTvv = ketQua.tvv;
+      _trangHienTai = ketQua.trang;
+      _tongSoTrang = ketQua.tongSoTrang;
       _dangTai = false;
     });
   }
@@ -291,6 +298,7 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
     final lenh = _taoLenhEscPos(_soanNoiDungHoaDon(kh));
     try {
       final ok = await PrintBluetoothThermal.writeBytes(lenh);
+      if (ok) await BillCuocService.ghiLogInNhiet(kh.id); // đồng bộ "đã in" với bản web
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? '✅ Đã gửi lệnh in.' : '❌ Gửi lệnh in thất bại.')));
       }
@@ -313,6 +321,7 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
           _khungMayIn(),
           if (_dangTai) const LinearProgressIndicator(),
           Expanded(child: _danhSachKhachHang()),
+          if (_tongSoTrang > 1) _thanhPhanTrang(),
           _thanhHanhDong(),
         ],
       ),
@@ -343,6 +352,21 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
                   ..._dsTvv.map((t) => DropdownMenuItem(value: t.maTvv, child: Text(t.tenTvv.isEmpty ? t.maTvv : t.tenTvv))),
                 ],
                 onChanged: (v) { setState(() => _tvvDangChon = v); _timKhachHang(); },
+              ),
+            ),
+          ]),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(
+              child: DropdownButtonFormField<bool?>(
+                value: _daThuDangChon,
+                decoration: const InputDecoration(labelText: 'Trạng thái thu', isDense: true, border: OutlineInputBorder()),
+                items: const [
+                  DropdownMenuItem(value: null, child: Text('-- Tất cả --')),
+                  DropdownMenuItem(value: false, child: Text('Chưa thu')),
+                  DropdownMenuItem(value: true, child: Text('Đã thu')),
+                ],
+                onChanged: (v) { setState(() => _daThuDangChon = v); _timKhachHang(); },
               ),
             ),
           ]),
@@ -420,9 +444,17 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
             Expanded(child: Text(kh.tenKhachHang, style: const TextStyle(fontWeight: FontWeight.w600))),
             if (kh.soLanDaInBill > 0)
               Container(
+                margin: const EdgeInsets.only(left: 4),
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(4)),
-                child: Text('Đã in x${kh.soLanDaInBill}', style: TextStyle(fontSize: 11, color: Colors.green.shade800, fontWeight: FontWeight.bold)),
+                child: Text('Bill x${kh.soLanDaInBill}', style: TextStyle(fontSize: 11, color: Colors.green.shade800, fontWeight: FontWeight.bold)),
+              ),
+            if (kh.soLanDaInNhiet > 0)
+              Container(
+                margin: const EdgeInsets.only(left: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(color: Colors.blue.shade100, borderRadius: BorderRadius.circular(4)),
+                child: Text('Nhiệt x${kh.soLanDaInNhiet}', style: TextStyle(fontSize: 11, color: Colors.blue.shade800, fontWeight: FontWeight.bold)),
               ),
           ]),
           subtitle: Text('${kh.soTb} · ${kh.tenTvv}\n${_dinhDangTien(kh.tongCuoc)}đ'
@@ -438,6 +470,24 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
         );
       },
       ),
+    );
+  }
+
+  Widget _thanhPhanTrang() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      color: Colors.grey.shade100,
+      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        IconButton(
+          icon: const Icon(Icons.chevron_left),
+          onPressed: _trangHienTai > 1 ? () => _timKhachHang(trang: _trangHienTai - 1) : null,
+        ),
+        Text('Trang $_trangHienTai / $_tongSoTrang', style: const TextStyle(fontWeight: FontWeight.w600)),
+        IconButton(
+          icon: const Icon(Icons.chevron_right),
+          onPressed: _trangHienTai < _tongSoTrang ? () => _timKhachHang(trang: _trangHienTai + 1) : null,
+        ),
+      ]),
     );
   }
 
