@@ -91,6 +91,13 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
       _tongSoTrang = ketQua.tongSoTrang;
       _dangTai = false;
     });
+    // Hiện rõ lỗi thật nếu có - TRƯỚC ĐÂY lỗi bị "nuốt" âm thầm, hiện ra
+    // như "không tìm thấy khách hàng" gây hiểu nhầm (lỗi thật đã gặp).
+    if (ketQua.loi != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('⚠️ ${ketQua.loi}'), backgroundColor: Colors.red.shade700, duration: const Duration(seconds: 6)),
+      );
+    }
   }
 
   Future<void> _moTrangInNgoai(String hanhDong, {String? xuat}) async {
