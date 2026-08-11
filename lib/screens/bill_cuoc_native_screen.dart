@@ -247,11 +247,24 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
     return (than: than, duoi: duoi);
   }
 
-  /// Giữ nguyên dấu tiếng Việt khi in (theo đúng yêu cầu) - mã hóa UTF-8
-  /// chuẩn bằng utf8.encode() đầy đủ, KHÔNG lọc bớt byte như trước đây (cách
-  /// cũ .where((b) => b < 128) CẮT MẤT ký tự có dấu - đúng lỗi thật đã gặp).
-  /// Máy in cần hỗ trợ UTF-8/Unicode - nếu máy in cụ thể vẫn lỗi/ô vuông,
-  /// báo lại đúng TÊN/DÒNG MÁY IN để chỉnh đúng bảng mã riêng của máy đó.
+  /// ĐÃ CÓ BẰNG CHỨNG THẬT (ảnh hóa đơn in ra từ web bị lỗi phông) - máy in
+  /// này KHÔNG hỗ trợ UTF-8, in ra ký tự loạn hoàn toàn không đọc được.
+  /// Quay lại BỎ DẤU TIẾNG VIỆT trước khi in - đồng bộ đúng với bản web đã
+  /// sửa (trước đó bản app và web bị LỆCH NHAU - app vẫn giữ UTF-8 trong khi
+  /// web đã đổi - đây là lỗi thật khiến app "vẫn lỗi font" dù web đã sửa).
+  String _boDauTiengVietChoMayIn(String s) {
+    const co = 'àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ'
+        'ÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐ';
+    const khong = 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd'
+        'AAAAAAAAAAAAAAAAAEEEEEEEEEEEIIIIIOOOOOOOOOOOOOOOOOUUUUUUUUUUUYYYYYD';
+    final buf = StringBuffer();
+    for (final ch in s.split('')) {
+      final idx = co.indexOf(ch);
+      buf.write(idx >= 0 ? khong[idx] : ch);
+    }
+    return buf.toString();
+  }
+
   List<int> _taoLenhEscPos(({List<_DongInNhiet> than, List<_DongInNhiet> duoi}) noiDung) {
     final bo = <int>[];
     bo.addAll([0x1B, 0x40]); // Reset máy in
@@ -260,7 +273,7 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
       for (final d in dsDong) {
         if (d.dam) bo.addAll([0x1B, 0x45, 0x01]);
         if (d.to) bo.addAll([0x1D, 0x21, 0x11]);
-        bo.addAll(utf8.encode('${d.text}\n'));
+        bo.addAll(utf8.encode('${_boDauTiengVietChoMayIn(d.text)}\n'));
         if (d.to) bo.addAll([0x1D, 0x21, 0x00]);
         if (d.dam) bo.addAll([0x1B, 0x45, 0x00]);
       }
