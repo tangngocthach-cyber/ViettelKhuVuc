@@ -475,22 +475,51 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
     return _ngatRoiKetNoiLai(_mayInDangKetNoi!.macAdress);
   }
 
-  /// Gửi dữ liệu in CHIA THÀNH TỪNG GÓI NHỎ (thay vì gửi nguyên khối 1 lần)
-  /// - ảnh bitmap hóa đơn có thể nặng vài chục KB, gửi 1 lần dễ làm TRÀN BỘ
-  /// ĐỆM NHẬN của máy in nhiệt giá rẻ (RAM firmware rất nhỏ), khiến máy in
-  /// "đơ" và ĐƠ LUÔN CẢ KẾT NỐI BLUETOOTH (không chỉ lệnh in đó thất bại) -
-  /// ĐÃ GẶP ĐÚNG TRIỆU CHỨNG NÀY: kết nối được, gửi lệnh in 1 khách bị lỗi,
-  /// sau đó không kết nối lại được nữa cho tới khi khởi động lại máy in.
-  /// Chia gói nhỏ + nghỉ giữa các gói giúp máy in kịp xử lý, giống cách bản
-  /// web đã áp dụng cho in nhiệt qua Web Bluetooth.
-  Future<bool> _guiByteChiaGoi(List<int> duLieu, {int kichThuocGoi = 512, int treGiuaGoiMs = 20}) async {
+  /// Gửi dữ liệu chia thành từng gói nhỏ - TRẢ VỀ SỐ BYTE ĐÃ GỬI THÀNH CÔNG
+  /// (không chỉ true/false) - con số này QUAN TRỌNG để phát hiện và khắc
+  /// phục đúng nguyên nhân gốc của lỗi in nhiệt (xem giải thích chi tiết ở
+  /// `_inHoaDonNhietTra`).
+  Future<int> _guiByteChiaGoiDemSo(List<int> duLieu, {int kichThuocGoi = 512, int treGiuaGoiMs = 20}) async {
+    int daGui = 0;
     for (int i = 0; i < duLieu.length; i += kichThuocGoi) {
       final ketThuc = (i + kichThuocGoi < duLieu.length) ? i + kichThuocGoi : duLieu.length;
       final ok = await PrintBluetoothThermal.writeBytes(duLieu.sublist(i, ketThuc));
-      if (!ok) return false;
+      if (!ok) return daGui;
+      daGui = ketThuc;
       if (ketThuc < duLieu.length) await Future.delayed(Duration(milliseconds: treGiuaGoiMs));
     }
-    return true;
+    return daGui;
+  }
+
+  Future<bool> _guiByteChiaGoi(List<int> duLieu, {int kichThuocGoi = 512, int treGiuaGoiMs = 20}) async {
+    final daGui = await _guiByteChiaGoiDemSo(duLieu, kichThuocGoi: kichThuocGoi, treGiuaGoiMs: treGiuaGoiMs);
+    return daGui == duLieu.length;
+  }
+
+  /// BÙ ĐỦ SỐ BYTE CÒN THIẾU khi 1 lần gửi ảnh bị dở dang (đứt giữa chừng).
+  ///
+  /// NGUYÊN NHÂN GỐC CỦA LỖI IN NHIỆT (đã tìm ra qua đối chiếu bằng chứng
+  /// thật - tấm ảnh "In thử" bị in ra NHIỄU LOẠN dù chỉ gửi vài dòng chữ,
+  /// không có ảnh gì cả): khi 1 lệnh in ảnh (`GS v 0`) đã KHAI BÁO trước sẽ
+  /// gửi N byte điểm ảnh, nhưng vì lý do gì đó (rớt sóng thoáng qua, máy in
+  /// bận...) chỉ gửi được M < N byte rồi dừng - MÁY IN VẪN ĐANG "ĐẾM", chờ
+  /// đủ N byte đó mới coi là xong ảnh. Nó KHÔNG biết lần gửi đã bị hủy giữa
+  /// chừng - lần in TIẾP THEO (dù là hóa đơn khác hay chỉ vài dòng chữ "In
+  /// thử") sẽ bị máy in HIỂU NHẦM là phần ảnh còn thiếu (N - M byte) của
+  /// lần trước, in ra nhiễu loạn - và vì đây là trạng thái ĐẾM BYTE bên
+  /// trong firmware máy in (không phải lỗi kết nối Bluetooth), NGẮT/KẾT NỐI
+  /// LẠI BLUETOOTH KHÔNG GIÚP ĐƯỢC GÌ (đúng như đã gặp thực tế) - chỉ tắt
+  /// nguồn máy in mới chắc chắn xóa được.
+  ///
+  /// CÁCH KHẮC PHỤC BẰNG PHẦN MỀM: ngay khi phát hiện gửi dở dang, tính
+  /// đúng số byte còn thiếu (N - M) và gửi thêm CHỪNG ĐÓ byte đệm rỗng
+  /// (0x00) - máy in sẽ đếm đủ N byte, tự coi ảnh dở dang đó là "xong" (dù
+  /// nội dung là rác), quay lại trạng thái sẵn sàng nhận LỆNH BÌNH THƯỜNG
+  /// - nhờ vậy lần in tiếp theo không còn bị hiểu nhầm nữa, KHÔNG CẦN CNKD
+  /// phải tắt/bật lại máy in giữa chừng.
+  Future<void> _buDuByteConThieu(int soByteConThieu) async {
+    if (soByteConThieu <= 0) return;
+    await _guiByteChiaGoiDemSo(List<int>.filled(soByteConThieu, 0x00));
   }
 
   Future<void> _inHoaDonNhiet(BillCuocKhachHang kh) async {
@@ -502,7 +531,7 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok
           ? '✅ Đã gửi lệnh in.'
-          : '❌ Gửi lệnh in thất bại sau khi đã thử kết nối lại. Thử TẮT rồi BẬT LẠI máy in, hoặc kiểm tra còn giấy/còn pin không.')));
+          : '❌ Gửi lệnh in thất bại. Đã tự dọn lại bộ đệm máy in - thử bấm in lại lần nữa; nếu vẫn lỗi, kiểm tra còn giấy/còn pin không.')));
     }
   }
 
@@ -516,20 +545,32 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
       final lenh = await _taoAnhBitmapHoaDon(_soanNoiDungHoaDon(kh));
       if (!await _damBaoConKetNoi()) return false;
 
-      var ok = await _guiByteChiaGoi(lenh);
-      if (!ok) {
-        // Gửi lần đầu thất bại - hay gặp khi máy in bị tràn bộ đệm/rớt kết
-        // nối ngay giữa lúc gửi. Ngắt hẳn rồi kết nối lại 1 lần rồi thử gửi
-        // lại, thay vì báo lỗi ngay - đỡ CNKD phải tự bấm lại thủ công cho
-        // lỗi thoáng qua.
-        final ketNoiLai = await _ngatRoiKetNoiLai(_mayInDangKetNoi!.macAdress);
-        if (ketNoiLai) {
-          await Future.delayed(const Duration(milliseconds: 300));
-          ok = await _guiByteChiaGoi(lenh);
-        }
+      var daGui = await _guiByteChiaGoiDemSo(lenh);
+      if (daGui == lenh.length) {
+        await BillCuocService.ghiLogInNhiet(kh.id); // đồng bộ "đã in" với bản web
+        return true;
       }
-      if (ok) await BillCuocService.ghiLogInNhiet(kh.id); // đồng bộ "đã in" với bản web
-      return ok;
+
+      // Gửi dở dang - BÙ ĐỦ số byte còn thiếu ngay lập tức để tránh làm
+      // lệch bộ đếm bên trong máy in cho lần in SAU (xem giải thích chi
+      // tiết ở `_buDuByteConThieu`) - đây là bước QUAN TRỌNG NHẤT, làm
+      // trước cả khi quyết định có thử gửi lại hay không.
+      await _buDuByteConThieu(lenh.length - daGui);
+
+      // Sau khi đã dọn sạch, thử kết nối lại rồi gửi lại TOÀN BỘ hóa đơn 1
+      // lần nữa (lần gửi lại này bắt đầu từ đầu, không tiếp tục từ giữa).
+      final ketNoiLai = await _ngatRoiKetNoiLai(_mayInDangKetNoi!.macAdress);
+      if (ketNoiLai) {
+        await Future.delayed(const Duration(milliseconds: 300));
+        daGui = await _guiByteChiaGoiDemSo(lenh);
+        if (daGui == lenh.length) {
+          await BillCuocService.ghiLogInNhiet(kh.id);
+          return true;
+        }
+        // Vẫn dở dang lần 2 - bù nốt để không để lại rác cho lần sau.
+        await _buDuByteConThieu(lenh.length - daGui);
+      }
+      return false;
     } catch (_) {
       return false;
     }
@@ -662,63 +703,9 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
     );
   }
 
-  /// DÒ GIỚI HẠN - in thử ẢNH BITMAP với kích thước TĂNG DẦN (nhẹ nhất tới
-  /// nặng gần bằng hóa đơn thật), dừng lại ngay khi gặp lỗi đầu tiên. THAY
-  /// VÌ TIẾP TỤC ĐOÁN thêm cách "gửi khéo hơn" (đã thử chia gói, chia đoạn,
-  /// nghỉ giữa đoạn - đều không dứt điểm), hàm này ĐO THẬT trên chính máy
-  /// in của CNKD để biết CHÍNH XÁC ngưỡng byte mà máy còn in được, làm căn
-  /// cứ để quyết định hướng sửa tiếp (né ngưỡng đó thay vì đoán mò).
-  Future<void> _doGioiHan() async {
-    if (_mayInDangKetNoi == null) return;
-    const wByte = 48; // khớp đúng bề rộng 58mm/203dpi đang dùng cho hóa đơn thật
-    final cacKichThuocRow = [80, 250, 500, 1000, 1600, 2400]; // ≈ 4KB..115KB dữ liệu ảnh
-    final ketQua = <String>[];
-    var dungLai = false;
-
-    for (final soDong in cacKichThuocRow) {
-      if (dungLai) break;
-      // Vẽ 1 khối kẻ sọc đơn giản (không cần chữ) - chỉ để tạo đủ dung
-      // lượng dữ liệu thật giống ảnh hóa đơn, không quan trọng nội dung.
-      final duLieu = Uint8List(wByte * soDong);
-      for (int i = 0; i < duLieu.length; i++) {
-        duLieu[i] = (i ~/ wByte).isEven ? 0xFF : 0x00;
-      }
-      final bo = <int>[];
-      bo.addAll([0x1B, 0x40, 0x1B, 0x61, 0x01]);
-      bo.addAll([0x1D, 0x76, 0x30, 0x00, wByte & 0xFF, 0x00, soDong & 0xFF, (soDong >> 8) & 0xFF]);
-      bo.addAll(duLieu);
-      bo.addAll([0x0A, 0x0A]);
-
-      if (!await _damBaoConKetNoi()) {
-        ketQua.add('${(bo.length / 1024).toStringAsFixed(1)}KB: ❌ mất kết nối, không kết nối lại được');
-        dungLai = true;
-        break;
-      }
-      final ok = await _guiByteChiaGoi(bo);
-      ketQua.add('${(bo.length / 1024).toStringAsFixed(1)}KB: ${ok ? "✅ OK" : "❌ THẤT BẠI"}');
-      if (!ok) { dungLai = true; break; }
-      await Future.delayed(const Duration(milliseconds: 500));
-    }
-
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Kết quả dò giới hạn'),
-        content: SingleChildScrollView(child: Text(ketQua.join('\n'))),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Đóng'))],
-      ),
-    );
-  }
-
-  /// IN THỬ - gửi vài dòng CHỮ THÔ qua ESC/POS thuần (không dấu, không bỏ
-  /// dấu qua bảng ánh xạ, không phải ảnh bitmap) - cực nhẹ (~50 byte, KHÔNG
-  /// PHẢI vài chục KB như hóa đơn đầy đủ). Dùng để CÔ LẬP NGUYÊN NHÂN: nếu
-  /// in thử này CŨNG lỗi y hệt hóa đơn thật -> vấn đề nằm ở bản thân kết
-  /// nối/lệnh gửi nói chung (không liên quan gì tới việc dữ liệu ảnh nặng
-  /// hay dấu tiếng Việt) - cần xem lại từ gốc (máy in/chip Bluetooth/chuẩn
-  /// lệnh in mà máy này hỗ trợ). Nếu in thử THÀNH CÔNG mà hóa đơn thật vẫn
-  /// lỗi -> đúng là do kích thước/nội dung ảnh bitmap, cần giảm tiếp.
+  /// IN THỬ - gửi vài dòng CHỮ THÔ qua ESC/POS thuần - cực nhẹ (~50 byte).
+  /// Dùng để kiểm tra nhanh máy in còn phản hồi bình thường không, và cũng
+  /// TỰ BÙ ĐỦ byte nếu chẳng may gửi dở dang (xem `_buDuByteConThieu`).
   Future<void> _inThu() async {
     if (_mayInDangKetNoi == null) return;
     try {
@@ -726,21 +713,40 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
       bo.addAll([0x1B, 0x40]); // Reset máy in
       bo.addAll(utf8.encode('IN THU - TEST PRINT\n'));
       bo.addAll(utf8.encode('${DateTime.now()}\n\n\n'));
-      bo.addAll([0x1D, 0x56, 0x00]); // Cắt giấy (nếu máy hỗ trợ)
 
       if (!await _damBaoConKetNoi()) {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('❌ In thử: mất kết nối, không kết nối lại được.')));
         return;
       }
-      final ok = await _guiByteChiaGoi(bo);
+      final daGui = await _guiByteChiaGoiDemSo(bo);
+      final ok = daGui == bo.length;
+      if (!ok) await _buDuByteConThieu(bo.length - daGui);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok
-            ? '✅ In thử THÀNH CÔNG (gửi được ${bo.length} byte chữ). Nếu hóa đơn thật vẫn lỗi -> do ảnh bitmap quá nặng, báo lại để giảm tiếp.'
-            : '❌ In thử CŨNG THẤT BẠI dù dữ liệu rất nhẹ (chỉ ${bo.length} byte) -> lỗi không phải do dữ liệu nặng, cần xem lại từ máy in/chip Bluetooth.')));
+            ? '✅ In thử thành công.'
+            : '❌ In thử thất bại - đã tự dọn bộ đệm, thử bấm lại lần nữa.')));
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('❌ Lỗi khi in thử: $e')));
     }
+  }
+
+  /// RESET MÁY IN THỦ CÔNG - gửi 1 lượng byte đệm khá lớn (đủ vượt qua bất
+  /// kỳ ảnh dở dang nào còn "kẹt" trong bộ đếm của máy in từ trước, kể cả
+  /// từ TRƯỚC KHI cài bản có cơ chế tự bù byte này) + lệnh reset chuẩn -
+  /// dùng khi CNKD nghi ngờ máy in đang "lú" (in thử ra chữ/ảnh lộn xộn)
+  /// mà không muốn tắt nguồn máy in.
+  Future<void> _resetMayIn() async {
+    if (_mayInDangKetNoi == null) return;
+    if (!await _damBaoConKetNoi()) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('❌ Mất kết nối, không kết nối lại được.')));
+      return;
+    }
+    // 70KB đệm rỗng - vượt qua cả hóa đơn nặng nhất mà app từng gửi (~30KB),
+    // đảm bảo xóa sạch mọi ảnh dở dang còn sót trong bộ đếm của máy in.
+    await _guiByteChiaGoiDemSo(List<int>.filled(70000, 0x00));
+    await _guiByteChiaGoi(Uint8List.fromList([0x1B, 0x40]));
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('✅ Đã gửi lệnh dọn bộ đệm máy in. Thử in lại xem đã hết lỗi chưa.')));
   }
 
   Widget _khungMayIn() {
@@ -761,7 +767,7 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
         if (_mayInDangKetNoi != null)
           TextButton(onPressed: _inThu, child: const Text('In thử')),
         if (_mayInDangKetNoi != null)
-          TextButton(onPressed: _doGioiHan, child: const Text('Dò giới hạn')),
+          TextButton(onPressed: _resetMayIn, child: const Text('Reset máy in')),
         TextButton(
           onPressed: _dangKetNoiMayIn ? null : _chonMayIn,
           child: Text(_dangKetNoiMayIn ? 'Đang kết nối...' : (_mayInDangKetNoi != null ? 'Đổi máy in' : 'Kết nối')),
