@@ -316,7 +316,7 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
   /// sau đó chuyển ảnh thành lệnh in dạng điểm ảnh - máy in chỉ "in y hệt
   /// như ảnh", không cần hiểu chữ gì cả. NHỜ VẬY GIỜ GIỮ ĐƯỢC ĐẦY ĐỦ DẤU
   /// TIẾNG VIỆT (không cần bỏ dấu như cách in bằng chữ trước đây nữa).
-  Future<_LenhInBitmap> _taoAnhBitmapHoaDon(({List<_DongInNhiet> than, List<_DongInNhiet> duoi}) noiDung) async {
+  Future<Uint8List> _taoAnhBitmapHoaDon(({List<_DongInNhiet> than, List<_DongInNhiet> duoi}) noiDung) async {
     const double rong = 384; // 58mm ở 203dpi - khớp đúng bản web
 
     // Giải mã logo thật từ base64
@@ -382,23 +382,22 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
       }
     }
 
-    // GỘP LẠI THÀNH 1 LỆNH IN ẢNH DUY NHẤT (không tách nhiều đoạn nữa) - ĐÃ
-    // CÓ BẰNG CHỨNG THẬT từ "Dò giới hạn": gửi 1 lệnh in ảnh DUY NHẤT nặng
-    // tới 112.5KB (gấp ~4 lần hóa đơn thật) vẫn in ra bình thường, NHƯNG bản
-    // sửa trước đó (tách hóa đơn thành 14 lệnh in ảnh riêng biệt liên tiếp,
-    // mỗi lệnh 48 dòng) lại thất bại dù NHẸ HƠN NHIỀU - chứng tỏ máy in này
-    // không chịu được việc nhận NHIỀU LỆNH IN ẢNH LIÊN TIẾP trong 1 lượt in,
-    // chứ KHÔNG PHẢI do dung lượng dữ liệu như suy đoán trước đó (đã sai).
-    // Vẫn giữ chia gói nhỏ ở TẦNG TRUYỀN (512 byte/gói) để việc gửi qua
-    // Bluetooth ổn định, nhưng gộp thành ĐÚNG 1 lệnh `GS v 0` duy nhất.
-    final doan = <int>[];
-    doan.addAll([0x1D, 0x76, 0x30, 0x00, wByte & 0xFF, (wByte >> 8) & 0xFF, caoInt & 0xFF, (caoInt >> 8) & 0xFF]);
-    doan.addAll(duLieu);
-    return _LenhInBitmap(
-      dauLenh: Uint8List.fromList([0x1B, 0x40, 0x1B, 0x61, 0x01]),
-      cacDoanAnh: [Uint8List.fromList(doan)],
-      cuoiLenh: Uint8List.fromList([0x0A, 0x0A, 0x0A, 0x1D, 0x56, 0x00]),
-    );
+    // GỘP THÀNH ĐÚNG 1 MẢNG BYTE DUY NHẤT, GỬI QUA ĐÚNG 1 LỆNH DUY NHẤT -
+    // khớp CHÍNH XÁC cấu trúc mà "Dò giới hạn" đã CHỨNG MINH THẬT hoạt động
+    // (1 mảng byte, 1 lệnh, tới 112.5KB vẫn in tốt). Trước đó dù đã gộp lại
+    // "1 lệnh in ảnh" nhưng vẫn tách thành 3 LƯỢT GỌI riêng (đầu lệnh / ảnh
+    // / cuối lệnh) - khác cấu trúc với bản đã chứng minh - nay gộp thật sự
+    // thành 1 mảng để gửi nguyên khối qua đúng 1 lượt gọi.
+    // BỎ LỆNH CẮT GIẤY (GS V) - máy in trong ảnh thực tế là loại "Mobile
+    // Printer" xé tay, KHÔNG có dao cắt tự động - gửi lệnh cắt cho máy
+    // không có dao cắt có thể khiến máy bị treo lệnh. Thay bằng feed thêm
+    // giấy trống để CNKD xé tay.
+    final bo = <int>[];
+    bo.addAll([0x1B, 0x40, 0x1B, 0x61, 0x01]);
+    bo.addAll([0x1D, 0x76, 0x30, 0x00, wByte & 0xFF, (wByte >> 8) & 0xFF, caoInt & 0xFF, (caoInt >> 8) & 0xFF]);
+    bo.addAll(duLieu);
+    bo.addAll([0x0A, 0x0A, 0x0A, 0x0A, 0x0A]); // feed giấy trống để xé tay, không cắt tự động
+    return Uint8List.fromList(bo);
   }
 
   List<int> _taoLenhEscPos(({List<_DongInNhiet> than, List<_DongInNhiet> duoi}) noiDung) {
@@ -494,20 +493,6 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
     return true;
   }
 
-  /// Gửi lệnh in ảnh bitmap - luôn ĐÚNG 1 lệnh in ảnh duy nhất (đã có bằng
-  /// chứng thật: 1 lệnh duy nhất tới 112.5KB vẫn in tốt, còn tách nhiều
-  /// lệnh liên tiếp mới là thứ máy in này KHÔNG chịu được). `cacDoanAnh`
-  /// giữ dạng danh sách để linh hoạt sau này nếu cần, nhưng KHÔNG nghỉ giữa
-  /// các phần tử - chỉ dựa vào chia gói nhỏ ở tầng truyền (512 byte/gói)
-  /// bên trong `_guiByteChiaGoi` để việc gửi qua Bluetooth ổn định.
-  Future<bool> _guiLenhInBitmap(_LenhInBitmap lenh) async {
-    if (!await _guiByteChiaGoi(lenh.dauLenh)) return false;
-    for (final doan in lenh.cacDoanAnh) {
-      if (!await _guiByteChiaGoi(doan)) return false;
-    }
-    return _guiByteChiaGoi(lenh.cuoiLenh);
-  }
-
   Future<void> _inHoaDonNhiet(BillCuocKhachHang kh) async {
     if (_mayInDangKetNoi == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vui lòng kết nối máy in trước.')));
@@ -531,7 +516,7 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
       final lenh = await _taoAnhBitmapHoaDon(_soanNoiDungHoaDon(kh));
       if (!await _damBaoConKetNoi()) return false;
 
-      var ok = await _guiLenhInBitmap(lenh);
+      var ok = await _guiByteChiaGoi(lenh);
       if (!ok) {
         // Gửi lần đầu thất bại - hay gặp khi máy in bị tràn bộ đệm/rớt kết
         // nối ngay giữa lúc gửi. Ngắt hẳn rồi kết nối lại 1 lần rồi thử gửi
@@ -540,7 +525,7 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
         final ketNoiLai = await _ngatRoiKetNoiLai(_mayInDangKetNoi!.macAdress);
         if (ketNoiLai) {
           await Future.delayed(const Duration(milliseconds: 300));
-          ok = await _guiLenhInBitmap(lenh);
+          ok = await _guiByteChiaGoi(lenh);
         }
       }
       if (ok) await BillCuocService.ghiLogInNhiet(kh.id); // đồng bộ "đã in" với bản web
@@ -941,14 +926,5 @@ class _DongInNhiet {
   final bool dam;
   final bool to;
   _DongInNhiet(this.text, {this.dam = false, this.to = false});
-}
-
-/// Lệnh in ảnh bitmap ĐÃ CHIA SẴN THÀNH TỪNG ĐOẠN NHỎ - xem giải thích chi
-/// tiết tại nơi khởi tạo (`_taoAnhBitmapHoaDon`).
-class _LenhInBitmap {
-  final Uint8List dauLenh;
-  final List<Uint8List> cacDoanAnh;
-  final Uint8List cuoiLenh;
-  _LenhInBitmap({required this.dauLenh, required this.cacDoanAnh, required this.cuoiLenh});
 }
 
