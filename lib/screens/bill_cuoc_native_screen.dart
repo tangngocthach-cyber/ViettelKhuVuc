@@ -313,7 +313,7 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
   /// sau đó chuyển ảnh thành lệnh in dạng điểm ảnh - máy in chỉ "in y hệt
   /// như ảnh", không cần hiểu chữ gì cả. NHỜ VẬY GIỜ GIỮ ĐƯỢC ĐẦY ĐỦ DẤU
   /// TIẾNG VIỆT (không cần bỏ dấu như cách in bằng chữ trước đây nữa).
-  Future<Uint8List> _taoAnhBitmapHoaDon(({List<_DongInNhiet> than, List<_DongInNhiet> duoi}) noiDung) async {
+  Future<_LenhInBitmap> _taoAnhBitmapHoaDon(({List<_DongInNhiet> than, List<_DongInNhiet> duoi}) noiDung) async {
     const double rong = 384; // 58mm ở 203dpi - khớp đúng bản web
 
     // Giải mã logo thật từ base64
@@ -379,23 +379,33 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
       }
     }
 
-    // Chuyển thành lệnh ESC/POS dạng điểm ảnh (GS v 0) - chia nhỏ theo đoạn
-    final bo = <int>[];
-    bo.addAll([0x1B, 0x40]);
-    bo.addAll([0x1B, 0x61, 0x01]);
-    const caoMoiDoan = 220;
+    // Chuyển thành DANH SÁCH TỪNG ĐOẠN ẢNH riêng (thay vì gộp thành 1 khối
+    // byte khổng lồ ~30KB) - LÝ DO: máy in nhiệt giá rẻ vừa NHẬN dữ liệu vừa
+    // PHẢI IN NGAY (đầu in cơ học chạy chậm hơn tốc độ truyền Bluetooth rất
+    // nhiều) - nếu dồn cả khối lớn gửi liên tục không nghỉ, dữ liệu tới
+    // nhanh hơn tốc độ đầu in xử lý được, làm TRÀN BỘ ĐỆM RAM cực nhỏ của
+    // máy in => máy "đơ", not chỉ lệnh in đó lỗi mà rớt luôn kết nối. Ở đây
+    // chia nhỏ MỖI ĐOẠN CHỈ 48 DÒNG (~2.3KB/đoạn, nhỏ hơn 10 lần bản cũ) và
+    // NGHỈ ĐỦ LÂU sau mỗi đoạn (ước lượng theo thời gian đầu in vật lý cần
+    // để in xong đoạn đó) trước khi gửi đoạn tiếp theo.
+    final dsDoan = <Uint8List>[];
+    const caoMoiDoan = 48;
     for (int yBd = 0; yBd < caoInt; yBd += caoMoiDoan) {
       final caoDoan = (caoInt - yBd < caoMoiDoan) ? caoInt - yBd : caoMoiDoan;
-      bo.addAll([0x1D, 0x76, 0x30, 0x00, wByte & 0xFF, (wByte >> 8) & 0xFF, caoDoan & 0xFF, (caoDoan >> 8) & 0xFF]);
+      final doan = <int>[];
+      doan.addAll([0x1D, 0x76, 0x30, 0x00, wByte & 0xFF, (wByte >> 8) & 0xFF, caoDoan & 0xFF, (caoDoan >> 8) & 0xFF]);
       for (int yy = yBd; yy < yBd + caoDoan; yy++) {
         for (int xb = 0; xb < wByte; xb++) {
-          bo.add(duLieu[yy * wByte + xb]);
+          doan.add(duLieu[yy * wByte + xb]);
         }
       }
+      dsDoan.add(Uint8List.fromList(doan));
     }
-    bo.addAll([0x0A, 0x0A, 0x0A]);
-    bo.addAll([0x1D, 0x56, 0x00]);
-    return Uint8List.fromList(bo);
+    return _LenhInBitmap(
+      dauLenh: Uint8List.fromList([0x1B, 0x40, 0x1B, 0x61, 0x01]),
+      cacDoanAnh: dsDoan,
+      cuoiLenh: Uint8List.fromList([0x0A, 0x0A, 0x0A, 0x1D, 0x56, 0x00]),
+    );
   }
 
   List<int> _taoLenhEscPos(({List<_DongInNhiet> than, List<_DongInNhiet> duoi}) noiDung) {
@@ -491,6 +501,23 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
     return true;
   }
 
+  /// Gửi lệnh in ảnh bitmap ĐÃ CHIA SẴN THÀNH TỪNG ĐOẠN NHỎ (48 dòng/đoạn) -
+  /// gửi TỪNG ĐOẠN MỘT (mỗi đoạn tự chia gói nhỏ 512 byte bên trong), rồi
+  /// NGHỈ THEO ĐÚNG SỐ DÒNG của đoạn đó (ước lượng thời gian đầu in vật lý
+  /// cần để in xong đoạn) trước khi gửi đoạn tiếp theo - thay vì gửi liên
+  /// tục không nghỉ như trước (nguyên nhân khiến máy in bị tràn bộ đệm khi
+  /// in hóa đơn đầy đủ dù "In thử" với dữ liệu nhẹ vẫn thành công).
+  Future<bool> _guiLenhInBitmap(_LenhInBitmap lenh) async {
+    if (!await _guiByteChiaGoi(lenh.dauLenh)) return false;
+    for (final doan in lenh.cacDoanAnh) {
+      if (!await _guiByteChiaGoi(doan)) return false;
+      // ~48 dòng/đoạn, đầu in cần khoảng vài chục ms/dòng để in xong -
+      // nghỉ đủ lâu cho máy in kịp xử lý trước khi nhận đoạn kế tiếp.
+      await Future.delayed(const Duration(milliseconds: 220));
+    }
+    return _guiByteChiaGoi(lenh.cuoiLenh);
+  }
+
   Future<void> _inHoaDonNhiet(BillCuocKhachHang kh) async {
     if (_mayInDangKetNoi == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vui lòng kết nối máy in trước.')));
@@ -507,16 +534,16 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
         return;
       }
 
-      var ok = await _guiByteChiaGoi(lenh);
+      var ok = await _guiLenhInBitmap(lenh);
       if (!ok) {
         // Gửi lần đầu thất bại - hay gặp khi máy in bị tràn bộ đệm/rớt kết
         // nối ngay giữa lúc gửi. Ngắt hẳn rồi kết nối lại 1 lần rồi thử gửi
-        // lại (chia gói), thay vì báo lỗi ngay - đỡ CNKD phải tự bấm lại
-        // thủ công cho lỗi thoáng qua.
+        // lại, thay vì báo lỗi ngay - đỡ CNKD phải tự bấm lại thủ công cho
+        // lỗi thoáng qua.
         final ketNoiLai = await _ngatRoiKetNoiLai(_mayInDangKetNoi!.macAdress);
         if (ketNoiLai) {
           await Future.delayed(const Duration(milliseconds: 300));
-          ok = await _guiByteChiaGoi(lenh);
+          ok = await _guiLenhInBitmap(lenh);
         }
       }
 
@@ -814,3 +841,13 @@ class _DongInNhiet {
   final bool to;
   _DongInNhiet(this.text, {this.dam = false, this.to = false});
 }
+
+/// Lệnh in ảnh bitmap ĐÃ CHIA SẴN THÀNH TỪNG ĐOẠN NHỎ - xem giải thích chi
+/// tiết tại nơi khởi tạo (`_taoAnhBitmapHoaDon`).
+class _LenhInBitmap {
+  final Uint8List dauLenh;
+  final List<Uint8List> cacDoanAnh;
+  final Uint8List cuoiLenh;
+  _LenhInBitmap({required this.dauLenh, required this.cacDoanAnh, required this.cuoiLenh});
+}
+
