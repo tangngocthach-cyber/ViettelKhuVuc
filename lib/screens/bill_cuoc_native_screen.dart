@@ -413,6 +413,22 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
     );
   }
 
+  /// Đảm bảo kết nối Bluetooth ĐANG THẬT SỰ CÒN SỐNG trước khi gửi lệnh in.
+  /// LÝ DO CẦN HÀM NÀY: biến `_mayInDangKetNoi` trong app chỉ ghi nhớ LẦN
+  /// KẾT NỐI THÀNH CÔNG GẦN NHẤT, không tự cập nhật khi máy in rớt kết nối
+  /// ngầm (hết pin, ra khỏi tầm, tự tắt...) - app vẫn tưởng "đang kết nối"
+  /// trong khi thực tế socket đã chết, dẫn tới `writeBytes` âm thầm trả về
+  /// false. Gọi `PrintBluetoothThermal.connectionStatus` để hỏi THẲNG hệ
+  /// điều hành xem có còn sống không, nếu không thì tự kết nối lại bằng
+  /// đúng địa chỉ MAC đã lưu trước khi thử gửi.
+  Future<bool> _damBaoConKetNoi() async {
+    final conSong = await PrintBluetoothThermal.connectionStatus;
+    if (conSong) return true;
+    if (_mayInDangKetNoi == null) return false;
+    final ketNoiLai = await PrintBluetoothThermal.connect(macPrinterAddress: _mayInDangKetNoi!.macAdress);
+    return ketNoiLai;
+  }
+
   Future<void> _inHoaDonNhiet(BillCuocKhachHang kh) async {
     if (_mayInDangKetNoi == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vui lòng kết nối máy in trước.')));
@@ -420,10 +436,32 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
     }
     try {
       final lenh = await _taoAnhBitmapHoaDon(_soanNoiDungHoaDon(kh));
-      final ok = await PrintBluetoothThermal.writeBytes(lenh);
+
+      if (!await _damBaoConKetNoi()) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(
+              '❌ Mất kết nối với máy in "${_mayInDangKetNoi!.name}". Kiểm tra máy in còn bật/còn trong tầm rồi bấm "Đổi máy in" để kết nối lại.')));
+        }
+        return;
+      }
+
+      var ok = await PrintBluetoothThermal.writeBytes(lenh);
+      if (!ok) {
+        // Gửi lần đầu thất bại dù báo "còn kết nối" - hay gặp khi socket vừa
+        // rớt đúng lúc gửi. Tự kết nối lại 1 lần rồi thử gửi lại, thay vì
+        // báo lỗi ngay - đỡ CNKD phải tự bấm lại thủ công cho lỗi thoáng qua.
+        final ketNoiLai = await PrintBluetoothThermal.connect(macPrinterAddress: _mayInDangKetNoi!.macAdress);
+        if (ketNoiLai) {
+          await Future.delayed(const Duration(milliseconds: 300));
+          ok = await PrintBluetoothThermal.writeBytes(lenh);
+        }
+      }
+
       if (ok) await BillCuocService.ghiLogInNhiet(kh.id); // đồng bộ "đã in" với bản web
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? '✅ Đã gửi lệnh in.' : '❌ Gửi lệnh in thất bại.')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok
+            ? '✅ Đã gửi lệnh in.'
+            : '❌ Gửi lệnh in thất bại sau khi đã thử kết nối lại. Kiểm tra máy in còn giấy/còn pin không.')));
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('❌ Lỗi khi in: $e')));
