@@ -224,7 +224,10 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
   Future<void> _ketNoiMayIn(BluetoothInfo may, {bool luuLaiMacDinh = true}) async {
     setState(() => _dangKetNoiMayIn = true);
     try {
-      final ok = await PrintBluetoothThermal.connect(macPrinterAddress: may.macAdress);
+      // Ngắt kết nối cũ trước (nếu có) - phòng trường hợp socket cũ đang bị
+      // treo (VD sau 1 lần gửi lệnh in lỗi) khiến connect() mới không bao
+      // giờ thành công cho tới khi ngắt hẳn.
+      final ok = await _ngatRoiKetNoiLai(may.macAdress);
       setState(() {
         _mayInDangKetNoi = ok ? may : null;
         _dangKetNoiMayIn = false;
@@ -444,6 +447,17 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
     );
   }
 
+  /// Ngắt kết nối cũ (nếu có) TRƯỚC KHI kết nối lại - nếu gọi `connect()`
+  /// thẳng khi socket cũ vẫn còn treo (do vừa gửi 1 gói tin lớn làm máy in
+  /// "đơ"), plugin dễ giữ lại tham chiếu socket chết, khiến MỌI lần kết nối
+  /// sau đó (kể cả bấm tay nút "Kết nối") đều thất bại cho tới khi thoát
+  /// hẳn app - ĐÃ GẶP ĐÚNG TRIỆU CHỨNG NÀY trên máy thật.
+  Future<bool> _ngatRoiKetNoiLai(String mac) async {
+    try { await PrintBluetoothThermal.disconnect; } catch (_) {}
+    await Future.delayed(const Duration(milliseconds: 200));
+    return PrintBluetoothThermal.connect(macPrinterAddress: mac);
+  }
+
   /// Đảm bảo kết nối Bluetooth ĐANG THẬT SỰ CÒN SỐNG trước khi gửi lệnh in.
   /// LÝ DO CẦN HÀM NÀY: biến `_mayInDangKetNoi` trong app chỉ ghi nhớ LẦN
   /// KẾT NỐI THÀNH CÔNG GẦN NHẤT, không tự cập nhật khi máy in rớt kết nối
@@ -456,8 +470,25 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
     final conSong = await PrintBluetoothThermal.connectionStatus;
     if (conSong) return true;
     if (_mayInDangKetNoi == null) return false;
-    final ketNoiLai = await PrintBluetoothThermal.connect(macPrinterAddress: _mayInDangKetNoi!.macAdress);
-    return ketNoiLai;
+    return _ngatRoiKetNoiLai(_mayInDangKetNoi!.macAdress);
+  }
+
+  /// Gửi dữ liệu in CHIA THÀNH TỪNG GÓI NHỎ (thay vì gửi nguyên khối 1 lần)
+  /// - ảnh bitmap hóa đơn có thể nặng vài chục KB, gửi 1 lần dễ làm TRÀN BỘ
+  /// ĐỆM NHẬN của máy in nhiệt giá rẻ (RAM firmware rất nhỏ), khiến máy in
+  /// "đơ" và ĐƠ LUÔN CẢ KẾT NỐI BLUETOOTH (không chỉ lệnh in đó thất bại) -
+  /// ĐÃ GẶP ĐÚNG TRIỆU CHỨNG NÀY: kết nối được, gửi lệnh in 1 khách bị lỗi,
+  /// sau đó không kết nối lại được nữa cho tới khi khởi động lại máy in.
+  /// Chia gói nhỏ + nghỉ giữa các gói giúp máy in kịp xử lý, giống cách bản
+  /// web đã áp dụng cho in nhiệt qua Web Bluetooth.
+  Future<bool> _guiByteChiaGoi(List<int> duLieu, {int kichThuocGoi = 512, int treGiuaGoiMs = 20}) async {
+    for (int i = 0; i < duLieu.length; i += kichThuocGoi) {
+      final ketThuc = (i + kichThuocGoi < duLieu.length) ? i + kichThuocGoi : duLieu.length;
+      final ok = await PrintBluetoothThermal.writeBytes(duLieu.sublist(i, ketThuc));
+      if (!ok) return false;
+      if (ketThuc < duLieu.length) await Future.delayed(Duration(milliseconds: treGiuaGoiMs));
+    }
+    return true;
   }
 
   Future<void> _inHoaDonNhiet(BillCuocKhachHang kh) async {
@@ -476,15 +507,16 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
         return;
       }
 
-      var ok = await PrintBluetoothThermal.writeBytes(lenh);
+      var ok = await _guiByteChiaGoi(lenh);
       if (!ok) {
-        // Gửi lần đầu thất bại dù báo "còn kết nối" - hay gặp khi socket vừa
-        // rớt đúng lúc gửi. Tự kết nối lại 1 lần rồi thử gửi lại, thay vì
-        // báo lỗi ngay - đỡ CNKD phải tự bấm lại thủ công cho lỗi thoáng qua.
-        final ketNoiLai = await PrintBluetoothThermal.connect(macPrinterAddress: _mayInDangKetNoi!.macAdress);
+        // Gửi lần đầu thất bại - hay gặp khi máy in bị tràn bộ đệm/rớt kết
+        // nối ngay giữa lúc gửi. Ngắt hẳn rồi kết nối lại 1 lần rồi thử gửi
+        // lại (chia gói), thay vì báo lỗi ngay - đỡ CNKD phải tự bấm lại
+        // thủ công cho lỗi thoáng qua.
+        final ketNoiLai = await _ngatRoiKetNoiLai(_mayInDangKetNoi!.macAdress);
         if (ketNoiLai) {
           await Future.delayed(const Duration(milliseconds: 300));
-          ok = await PrintBluetoothThermal.writeBytes(lenh);
+          ok = await _guiByteChiaGoi(lenh);
         }
       }
 
@@ -492,7 +524,7 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok
             ? '✅ Đã gửi lệnh in.'
-            : '❌ Gửi lệnh in thất bại sau khi đã thử kết nối lại. Kiểm tra máy in còn giấy/còn pin không.')));
+            : '❌ Gửi lệnh in thất bại sau khi đã thử kết nối lại. Thử TẮT rồi BẬT LẠI máy in, hoặc kiểm tra còn giấy/còn pin không.')));
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('❌ Lỗi khi in: $e')));
