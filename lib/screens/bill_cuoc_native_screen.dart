@@ -38,6 +38,9 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
   List<BluetoothInfo> _dsMayInDaGhepDoi = [];
   BluetoothInfo? _mayInDangKetNoi;
   bool _dangKetNoiMayIn = false;
+  bool _dangInHangLoat = false;
+  int _khachDangInHangLoat = 0;
+  int _tongKhachInHangLoat = 0;
 
   static const _khoaMacMayInDaLuu = 'bill_cuoc_mac_may_in_da_luu';
   static const _khoaTenMayInDaLuu = 'bill_cuoc_ten_may_in_da_luu';
@@ -379,31 +382,21 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
       }
     }
 
-    // Chuyển thành DANH SÁCH TỪNG ĐOẠN ẢNH riêng (thay vì gộp thành 1 khối
-    // byte khổng lồ ~30KB) - LÝ DO: máy in nhiệt giá rẻ vừa NHẬN dữ liệu vừa
-    // PHẢI IN NGAY (đầu in cơ học chạy chậm hơn tốc độ truyền Bluetooth rất
-    // nhiều) - nếu dồn cả khối lớn gửi liên tục không nghỉ, dữ liệu tới
-    // nhanh hơn tốc độ đầu in xử lý được, làm TRÀN BỘ ĐỆM RAM cực nhỏ của
-    // máy in => máy "đơ", not chỉ lệnh in đó lỗi mà rớt luôn kết nối. Ở đây
-    // chia nhỏ MỖI ĐOẠN CHỈ 48 DÒNG (~2.3KB/đoạn, nhỏ hơn 10 lần bản cũ) và
-    // NGHỈ ĐỦ LÂU sau mỗi đoạn (ước lượng theo thời gian đầu in vật lý cần
-    // để in xong đoạn đó) trước khi gửi đoạn tiếp theo.
-    final dsDoan = <Uint8List>[];
-    const caoMoiDoan = 48;
-    for (int yBd = 0; yBd < caoInt; yBd += caoMoiDoan) {
-      final caoDoan = (caoInt - yBd < caoMoiDoan) ? caoInt - yBd : caoMoiDoan;
-      final doan = <int>[];
-      doan.addAll([0x1D, 0x76, 0x30, 0x00, wByte & 0xFF, (wByte >> 8) & 0xFF, caoDoan & 0xFF, (caoDoan >> 8) & 0xFF]);
-      for (int yy = yBd; yy < yBd + caoDoan; yy++) {
-        for (int xb = 0; xb < wByte; xb++) {
-          doan.add(duLieu[yy * wByte + xb]);
-        }
-      }
-      dsDoan.add(Uint8List.fromList(doan));
-    }
+    // GỘP LẠI THÀNH 1 LỆNH IN ẢNH DUY NHẤT (không tách nhiều đoạn nữa) - ĐÃ
+    // CÓ BẰNG CHỨNG THẬT từ "Dò giới hạn": gửi 1 lệnh in ảnh DUY NHẤT nặng
+    // tới 112.5KB (gấp ~4 lần hóa đơn thật) vẫn in ra bình thường, NHƯNG bản
+    // sửa trước đó (tách hóa đơn thành 14 lệnh in ảnh riêng biệt liên tiếp,
+    // mỗi lệnh 48 dòng) lại thất bại dù NHẸ HƠN NHIỀU - chứng tỏ máy in này
+    // không chịu được việc nhận NHIỀU LỆNH IN ẢNH LIÊN TIẾP trong 1 lượt in,
+    // chứ KHÔNG PHẢI do dung lượng dữ liệu như suy đoán trước đó (đã sai).
+    // Vẫn giữ chia gói nhỏ ở TẦNG TRUYỀN (512 byte/gói) để việc gửi qua
+    // Bluetooth ổn định, nhưng gộp thành ĐÚNG 1 lệnh `GS v 0` duy nhất.
+    final doan = <int>[];
+    doan.addAll([0x1D, 0x76, 0x30, 0x00, wByte & 0xFF, (wByte >> 8) & 0xFF, caoInt & 0xFF, (caoInt >> 8) & 0xFF]);
+    doan.addAll(duLieu);
     return _LenhInBitmap(
       dauLenh: Uint8List.fromList([0x1B, 0x40, 0x1B, 0x61, 0x01]),
-      cacDoanAnh: dsDoan,
+      cacDoanAnh: [Uint8List.fromList(doan)],
       cuoiLenh: Uint8List.fromList([0x0A, 0x0A, 0x0A, 0x1D, 0x56, 0x00]),
     );
   }
@@ -501,19 +494,16 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
     return true;
   }
 
-  /// Gửi lệnh in ảnh bitmap ĐÃ CHIA SẴN THÀNH TỪNG ĐOẠN NHỎ (48 dòng/đoạn) -
-  /// gửi TỪNG ĐOẠN MỘT (mỗi đoạn tự chia gói nhỏ 512 byte bên trong), rồi
-  /// NGHỈ THEO ĐÚNG SỐ DÒNG của đoạn đó (ước lượng thời gian đầu in vật lý
-  /// cần để in xong đoạn) trước khi gửi đoạn tiếp theo - thay vì gửi liên
-  /// tục không nghỉ như trước (nguyên nhân khiến máy in bị tràn bộ đệm khi
-  /// in hóa đơn đầy đủ dù "In thử" với dữ liệu nhẹ vẫn thành công).
+  /// Gửi lệnh in ảnh bitmap - luôn ĐÚNG 1 lệnh in ảnh duy nhất (đã có bằng
+  /// chứng thật: 1 lệnh duy nhất tới 112.5KB vẫn in tốt, còn tách nhiều
+  /// lệnh liên tiếp mới là thứ máy in này KHÔNG chịu được). `cacDoanAnh`
+  /// giữ dạng danh sách để linh hoạt sau này nếu cần, nhưng KHÔNG nghỉ giữa
+  /// các phần tử - chỉ dựa vào chia gói nhỏ ở tầng truyền (512 byte/gói)
+  /// bên trong `_guiByteChiaGoi` để việc gửi qua Bluetooth ổn định.
   Future<bool> _guiLenhInBitmap(_LenhInBitmap lenh) async {
     if (!await _guiByteChiaGoi(lenh.dauLenh)) return false;
     for (final doan in lenh.cacDoanAnh) {
       if (!await _guiByteChiaGoi(doan)) return false;
-      // ~48 dòng/đoạn, đầu in cần khoảng vài chục ms/dòng để in xong -
-      // nghỉ đủ lâu cho máy in kịp xử lý trước khi nhận đoạn kế tiếp.
-      await Future.delayed(const Duration(milliseconds: 220));
     }
     return _guiByteChiaGoi(lenh.cuoiLenh);
   }
@@ -523,16 +513,23 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vui lòng kết nối máy in trước.')));
       return;
     }
+    final ok = await _inHoaDonNhietTra(kh);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok
+          ? '✅ Đã gửi lệnh in.'
+          : '❌ Gửi lệnh in thất bại sau khi đã thử kết nối lại. Thử TẮT rồi BẬT LẠI máy in, hoặc kiểm tra còn giấy/còn pin không.')));
+    }
+  }
+
+  /// Giống `_inHoaDonNhiet` nhưng TRẢ VỀ kết quả thành công/thất bại thay vì
+  /// tự hiện thông báo - dùng chung cho cả in 1 khách lẫn in hàng loạt (in
+  /// hàng loạt tự tổng hợp kết quả của từng khách để hiện 1 thông báo tổng
+  /// kết ở cuối, không hiện từng cái riêng lẻ gây rối).
+  Future<bool> _inHoaDonNhietTra(BillCuocKhachHang kh) async {
+    if (_mayInDangKetNoi == null) return false;
     try {
       final lenh = await _taoAnhBitmapHoaDon(_soanNoiDungHoaDon(kh));
-
-      if (!await _damBaoConKetNoi()) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(
-              '❌ Mất kết nối với máy in "${_mayInDangKetNoi!.name}". Kiểm tra máy in còn bật/còn trong tầm rồi bấm "Đổi máy in" để kết nối lại.')));
-        }
-        return;
-      }
+      if (!await _damBaoConKetNoi()) return false;
 
       var ok = await _guiLenhInBitmap(lenh);
       if (!ok) {
@@ -546,16 +543,52 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
           ok = await _guiLenhInBitmap(lenh);
         }
       }
-
       if (ok) await BillCuocService.ghiLogInNhiet(kh.id); // đồng bộ "đã in" với bản web
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok
-            ? '✅ Đã gửi lệnh in.'
-            : '❌ Gửi lệnh in thất bại sau khi đã thử kết nối lại. Thử TẮT rồi BẬT LẠI máy in, hoặc kiểm tra còn giấy/còn pin không.')));
-      }
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('❌ Lỗi khi in: $e')));
+      return ok;
+    } catch (_) {
+      return false;
     }
+  }
+
+  /// IN NHIỆT HÀNG LOẠT các khách đã tick chọn (dùng chung ô chọn với chức
+  /// năng in Bill/Thông báo nợ qua trình duyệt ngoài) - in TUẦN TỰ TỪNG
+  /// NGƯỜI MỘT (không in song song - máy in chỉ xử lý được 1 lệnh tại 1
+  /// thời điểm), có nghỉ giữa mỗi khách để máy in kịp cắt giấy/ổn định
+  /// trước khi nhận hóa đơn tiếp theo. Hiện tiến độ trực tiếp trên nút bấm.
+  Future<void> _inNhietHangLoat() async {
+    if (_mayInDangKetNoi == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vui lòng kết nối máy in trước.')));
+      return;
+    }
+    final dsKhachDaChon = _dsKhachHang.where((kh) => _idDaChon.contains(kh.id)).toList();
+    if (dsKhachDaChon.isEmpty) return;
+
+    setState(() { _dangInHangLoat = true; _khachDangInHangLoat = 0; _tongKhachInHangLoat = dsKhachDaChon.length; });
+    var soThanhCong = 0;
+    final dsLoi = <String>[];
+    for (final kh in dsKhachDaChon) {
+      if (!mounted) return;
+      setState(() => _khachDangInHangLoat++);
+      final ok = await _inHoaDonNhietTra(kh);
+      if (ok) {
+        soThanhCong++;
+      } else {
+        dsLoi.add(kh.tenKhachHang);
+      }
+      // Nghỉ giữa mỗi khách - để máy in kịp cắt giấy/ổn định trước khi nhận
+      // hóa đơn tiếp theo, tránh dồn liên tục gây lỗi như khi in 1 khách
+      // với dữ liệu lớn không nghỉ.
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
+
+    if (!mounted) return;
+    setState(() { _dangInHangLoat = false; _idDaChon.clear(); });
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(dsLoi.isEmpty
+          ? '✅ Đã in xong $soThanhCong/${dsKhachDaChon.length} khách.'
+          : '⚠️ In được $soThanhCong/${dsKhachDaChon.length} khách. Lỗi: ${dsLoi.join(", ")}'),
+      duration: const Duration(seconds: 5),
+    ));
   }
 
   @override
@@ -833,6 +866,23 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
       child: Padding(
         padding: const EdgeInsets.all(8),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (_idDaChon.isNotEmpty && _mayInDangKetNoi != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(backgroundColor: Colors.blue.shade700),
+                  icon: _dangInHangLoat
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.print, size: 18),
+                  label: Text(_dangInHangLoat
+                      ? 'Đang in $_khachDangInHangLoat/$_tongKhachInHangLoat...'
+                      : 'In nhiệt ${_idDaChon.length} khách đã chọn'),
+                  onPressed: _dangInHangLoat ? null : _inNhietHangLoat,
+                ),
+              ),
+            ),
           Row(children: [
             Expanded(
               child: OutlinedButton.icon(
