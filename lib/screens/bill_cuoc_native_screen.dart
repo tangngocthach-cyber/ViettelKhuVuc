@@ -644,6 +644,55 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
     );
   }
 
+  /// DÒ GIỚI HẠN - in thử ẢNH BITMAP với kích thước TĂNG DẦN (nhẹ nhất tới
+  /// nặng gần bằng hóa đơn thật), dừng lại ngay khi gặp lỗi đầu tiên. THAY
+  /// VÌ TIẾP TỤC ĐOÁN thêm cách "gửi khéo hơn" (đã thử chia gói, chia đoạn,
+  /// nghỉ giữa đoạn - đều không dứt điểm), hàm này ĐO THẬT trên chính máy
+  /// in của CNKD để biết CHÍNH XÁC ngưỡng byte mà máy còn in được, làm căn
+  /// cứ để quyết định hướng sửa tiếp (né ngưỡng đó thay vì đoán mò).
+  Future<void> _doGioiHan() async {
+    if (_mayInDangKetNoi == null) return;
+    const wByte = 48; // khớp đúng bề rộng 58mm/203dpi đang dùng cho hóa đơn thật
+    final cacKichThuocRow = [80, 250, 500, 1000, 1600, 2400]; // ≈ 4KB..115KB dữ liệu ảnh
+    final ketQua = <String>[];
+    var dungLai = false;
+
+    for (final soDong in cacKichThuocRow) {
+      if (dungLai) break;
+      // Vẽ 1 khối kẻ sọc đơn giản (không cần chữ) - chỉ để tạo đủ dung
+      // lượng dữ liệu thật giống ảnh hóa đơn, không quan trọng nội dung.
+      final duLieu = Uint8List(wByte * soDong);
+      for (int i = 0; i < duLieu.length; i++) {
+        duLieu[i] = (i ~/ wByte).isEven ? 0xFF : 0x00;
+      }
+      final bo = <int>[];
+      bo.addAll([0x1B, 0x40, 0x1B, 0x61, 0x01]);
+      bo.addAll([0x1D, 0x76, 0x30, 0x00, wByte & 0xFF, 0x00, soDong & 0xFF, (soDong >> 8) & 0xFF]);
+      bo.addAll(duLieu);
+      bo.addAll([0x0A, 0x0A]);
+
+      if (!await _damBaoConKetNoi()) {
+        ketQua.add('${(bo.length / 1024).toStringAsFixed(1)}KB: ❌ mất kết nối, không kết nối lại được');
+        dungLai = true;
+        break;
+      }
+      final ok = await _guiByteChiaGoi(bo);
+      ketQua.add('${(bo.length / 1024).toStringAsFixed(1)}KB: ${ok ? "✅ OK" : "❌ THẤT BẠI"}');
+      if (!ok) { dungLai = true; break; }
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
+
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Kết quả dò giới hạn'),
+        content: SingleChildScrollView(child: Text(ketQua.join('\n'))),
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Đóng'))],
+      ),
+    );
+  }
+
   /// IN THỬ - gửi vài dòng CHỮ THÔ qua ESC/POS thuần (không dấu, không bỏ
   /// dấu qua bảng ánh xạ, không phải ảnh bitmap) - cực nhẹ (~50 byte, KHÔNG
   /// PHẢI vài chục KB như hóa đơn đầy đủ). Dùng để CÔ LẬP NGUYÊN NHÂN: nếu
@@ -693,6 +742,8 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
         ),
         if (_mayInDangKetNoi != null)
           TextButton(onPressed: _inThu, child: const Text('In thử')),
+        if (_mayInDangKetNoi != null)
+          TextButton(onPressed: _doGioiHan, child: const Text('Dò giới hạn')),
         TextButton(
           onPressed: _dangKetNoiMayIn ? null : _chonMayIn,
           child: Text(_dangKetNoiMayIn ? 'Đang kết nối...' : (_mayInDangKetNoi != null ? 'Đổi máy in' : 'Kết nối')),
