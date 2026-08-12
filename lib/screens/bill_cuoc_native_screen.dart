@@ -617,6 +617,38 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
     );
   }
 
+  /// IN THỬ - gửi vài dòng CHỮ THÔ qua ESC/POS thuần (không dấu, không bỏ
+  /// dấu qua bảng ánh xạ, không phải ảnh bitmap) - cực nhẹ (~50 byte, KHÔNG
+  /// PHẢI vài chục KB như hóa đơn đầy đủ). Dùng để CÔ LẬP NGUYÊN NHÂN: nếu
+  /// in thử này CŨNG lỗi y hệt hóa đơn thật -> vấn đề nằm ở bản thân kết
+  /// nối/lệnh gửi nói chung (không liên quan gì tới việc dữ liệu ảnh nặng
+  /// hay dấu tiếng Việt) - cần xem lại từ gốc (máy in/chip Bluetooth/chuẩn
+  /// lệnh in mà máy này hỗ trợ). Nếu in thử THÀNH CÔNG mà hóa đơn thật vẫn
+  /// lỗi -> đúng là do kích thước/nội dung ảnh bitmap, cần giảm tiếp.
+  Future<void> _inThu() async {
+    if (_mayInDangKetNoi == null) return;
+    try {
+      final bo = <int>[];
+      bo.addAll([0x1B, 0x40]); // Reset máy in
+      bo.addAll(utf8.encode('IN THU - TEST PRINT\n'));
+      bo.addAll(utf8.encode('${DateTime.now()}\n\n\n'));
+      bo.addAll([0x1D, 0x56, 0x00]); // Cắt giấy (nếu máy hỗ trợ)
+
+      if (!await _damBaoConKetNoi()) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('❌ In thử: mất kết nối, không kết nối lại được.')));
+        return;
+      }
+      final ok = await _guiByteChiaGoi(bo);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok
+            ? '✅ In thử THÀNH CÔNG (gửi được ${bo.length} byte chữ). Nếu hóa đơn thật vẫn lỗi -> do ảnh bitmap quá nặng, báo lại để giảm tiếp.'
+            : '❌ In thử CŨNG THẤT BẠI dù dữ liệu rất nhẹ (chỉ ${bo.length} byte) -> lỗi không phải do dữ liệu nặng, cần xem lại từ máy in/chip Bluetooth.')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('❌ Lỗi khi in thử: $e')));
+    }
+  }
+
   Widget _khungMayIn() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 10),
@@ -632,6 +664,8 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
             overflow: TextOverflow.ellipsis,
           ),
         ),
+        if (_mayInDangKetNoi != null)
+          TextButton(onPressed: _inThu, child: const Text('In thử')),
         TextButton(
           onPressed: _dangKetNoiMayIn ? null : _chonMayIn,
           child: Text(_dangKetNoiMayIn ? 'Đang kết nối...' : (_mayInDangKetNoi != null ? 'Đổi máy in' : 'Kết nối')),
@@ -639,6 +673,7 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
       ]),
     );
   }
+
 
   Widget _danhSachKhachHang() {
     if (_dsKhachHang.isEmpty && !_dangTai) {
