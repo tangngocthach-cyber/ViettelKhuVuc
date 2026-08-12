@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -62,6 +63,12 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
     final macDaLuu = prefs.getString(_khoaMacMayInDaLuu);
     final tenDaLuu = prefs.getString(_khoaTenMayInDaLuu);
     if (macDaLuu == null || tenDaLuu == null) return;
+    // Chỉ hỏi quyền đã được cấp hay chưa (KHÔNG chủ động hiện hộp thoại xin
+    // quyền ngay lúc mở app - dễ gây khó chịu) - nếu chưa có quyền thì bỏ
+    // qua tự kết nối, CNKD tự bấm "Kết nối" (lúc đó mới xin quyền) khi cần.
+    final coQuyenKetNoi = await Permission.bluetoothConnect.status;
+    final coQuyenQuet = await Permission.bluetoothScan.status;
+    if (!coQuyenKetNoi.isGranted || !coQuyenQuet.isGranted) return;
     await _ketNoiMayIn(BluetoothInfo(name: tenDaLuu, macAdress: macDaLuu), luuLaiMacDinh: false);
   }
 
@@ -157,7 +164,31 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
   // mở trình duyệt ngoài như 2 chức năng trên (đây là phần "native thật sự"
   // theo đúng yêu cầu - kết nối Bluetooth thật, không qua WebView).
   // ============================================================================
+  /// Xin quyền Bluetooth LÚC CHẠY (runtime permission) - từ Android 12 (API
+  /// 31) trở lên, dù đã khai báo BLUETOOTH_CONNECT/BLUETOOTH_SCAN trong
+  /// AndroidManifest.xml, hệ điều hành VẪN bắt xin quyền lúc chạy giống hệt
+  /// camera/vị trí. THIẾU BƯỚC NÀY khiến `connect()` bị hệ điều hành âm
+  /// thầm chặn, luôn trả về false - hiện ra như "Kết nối thất bại" dù mọi
+  /// thứ khác đều đúng, KHÔNG liên quan gì tới máy in hay code Bluetooth.
+  /// Trả về true nếu đã có đủ quyền, false nếu bị từ chối.
+  Future<bool> _xinQuyenBluetooth() async {
+    final ketQua = await [Permission.bluetoothConnect, Permission.bluetoothScan].request();
+    final duQuyen = (ketQua[Permission.bluetoothConnect]?.isGranted ?? true) &&
+        (ketQua[Permission.bluetoothScan]?.isGranted ?? true);
+    if (!duQuyen && mounted) {
+      final biTuChoiVinhVien = ketQua.values.any((s) => s.isPermanentlyDenied);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(biTuChoiVinhVien
+            ? 'Ứng dụng chưa được cấp quyền Bluetooth. Vào Cài đặt máy > Ứng dụng > Viettel Khu Vực Vĩnh Hưng > Quyền, bật quyền Bluetooth rồi thử lại.'
+            : 'Cần cấp quyền Bluetooth để kết nối máy in.'),
+        action: biTuChoiVinhVien ? SnackBarAction(label: 'Mở Cài đặt', onPressed: openAppSettings) : null,
+      ));
+    }
+    return duQuyen;
+  }
+
   Future<void> _chonMayIn() async {
+    if (!await _xinQuyenBluetooth()) return;
     final ds = await PrintBluetoothThermal.pairedBluetooths;
     setState(() => _dsMayInDaGhepDoi = ds);
     if (!mounted) return;
