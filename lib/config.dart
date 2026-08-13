@@ -89,6 +89,12 @@ class AppConfig {
   /// Bản đồ vị trí + hiệu suất các hộp chia cáp quang GPON (Leaflet.js, dữ
   /// liệu nhập từ file KML, cập nhật qua admin/ban-do-hop-cap.php).
   static const String urlBanDoHopCap = '$baseUrl/ban-do-hop-cap.php';
+  /// Bản đồ số khách hàng - xem/thu thập/sửa tọa độ khách hàng (khớp theo Số
+  /// TB, tự động mang sang kỳ cước mới mỗi tháng), liên kết hộp cáp GPON gần
+  /// nhất. Cùng công nghệ Leaflet.js miễn phí như Bản đồ Hộp cáp GPON.
+  static const String urlBanDoKhachHang = '$baseUrl/ban-do-khach-hang.php';
+  static const String apiToaDoDanhSach = '$baseUrl/api/toa-do/danh-sach.php';
+  static const String apiToaDoCapNhat = '$baseUrl/api/toa-do/cap-nhat.php';
   static const String urlThuVienTaiLieu = '$baseUrl/e-tai-lieu.php';
   static const String urlTroLyKPI = '$baseUrl/tro-ly-ai.php';
   /// Trang chủ - nơi có sẵn khung "Hỏi đáp tự động Viettel Vĩnh Hưng" (chatbox
