@@ -8,6 +8,7 @@ import 'lich_screen.dart';
 import 'qr_scan_screen.dart';
 import 'cham_tu_danh_sach_screen.dart';
 import 'bill_cuoc_native_screen.dart';
+import 'toa_do_khach_hang_screen.dart';
 import 'dong_ho_bam_gio_screen.dart';
 import 'den_pin_screen.dart';
 import 'la_ban_screen.dart';
@@ -72,6 +73,12 @@ class _CongDongTabState extends State<CongDongTab> {
     ];
     final haTangMang = [
       const GridModuleItem(icon: Icons.map, label: 'Bản đồ Hộp cáp GPON', url: AppConfig.urlBanDoHopCap),
+      const GridModuleItem(icon: Icons.location_on, label: 'Bản đồ số khách hàng', url: AppConfig.urlBanDoKhachHang),
+      GridModuleItem(
+        icon: Icons.gps_fixed,
+        label: 'Thu thập tọa độ',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ToaDoKhachHangScreen())),
+      ),
       GridModuleItem(
         icon: Icons.add_location_alt,
         label: 'Chấm tủ đề xuất',

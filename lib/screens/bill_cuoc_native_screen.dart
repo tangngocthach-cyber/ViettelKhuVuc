@@ -317,21 +317,32 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
   /// như ảnh", không cần hiểu chữ gì cả. NHỜ VẬY GIỜ GIỮ ĐƯỢC ĐẦY ĐỦ DẤU
   /// TIẾNG VIỆT (không cần bỏ dấu như cách in bằng chữ trước đây nữa).
   Future<Uint8List> _taoAnhBitmapHoaDon(({List<_DongInNhiet> than, List<_DongInNhiet> duoi}) noiDung) async {
+    final dsDong = [...noiDung.than, _DongInNhiet(''), ...noiDung.duoi];
+    return _taoAnhTuDanhSachDong(dsDong, coLogo: true);
+  }
+
+  /// Hàm DÙNG CHUNG cho cả hóa đơn thật lẫn "Test in ảnh" (chẩn đoán) - vẽ
+  /// danh sách dòng chữ (+ logo nếu có) lên canvas rồi chuyển thành lệnh in
+  /// dạng điểm ảnh. Tách riêng hàm này để CÓ THỂ TEST ĐÚNG PIPELINE VẼ ẢNH
+  /// THẬT với nội dung tối giản, phân biệt được lỗi nằm ở khâu VẼ ẢNH hay
+  /// khâu GỬI ẢNH (xem `_inThuAnh`).
+  Future<Uint8List> _taoAnhTuDanhSachDong(List<_DongInNhiet> dsDong, {required bool coLogo}) async {
     const double rong = 384; // 58mm ở 203dpi - khớp đúng bản web
 
-    // Giải mã logo thật từ base64
-    final logoBytes = base64Decode(_logoVietTelBase64);
-    final logoCodec = await ui.instantiateImageCodec(logoBytes);
-    final logoFrame = await logoCodec.getNextFrame();
-    final logoImg = logoFrame.image;
-    const double rongLogo = 240;
-    final double caoLogo = logoImg.height * (rongLogo / logoImg.width);
-
-    final dsDong = [...noiDung.than, _DongInNhiet(''), ...noiDung.duoi];
+    ui.Image? logoImg;
+    double rongLogo = 0, caoLogo = 0;
+    if (coLogo) {
+      final logoBytes = base64Decode(_logoVietTelBase64);
+      final logoCodec = await ui.instantiateImageCodec(logoBytes);
+      final logoFrame = await logoCodec.getNextFrame();
+      logoImg = logoFrame.image;
+      rongLogo = 240;
+      caoLogo = logoImg.height * (rongLogo / logoImg.width);
+    }
 
     // Đo trước layout (giống hệt cách bản web đo trước bằng canvas tạm)
     final layout = <({String text, double y, double size, FontWeight weight, bool giua})>[];
-    double y = caoLogo + 20;
+    double y = caoLogo + (coLogo ? 20 : 14);
     for (final d in dsDong) {
       final double size = d.dam && d.to ? 24 : (d.to ? 24 : 15);
       final weight = d.dam ? FontWeight.w900 : FontWeight.w400;
@@ -343,12 +354,14 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, rong, cao));
     canvas.drawRect(Rect.fromLTWH(0, 0, rong, cao), Paint()..color = Colors.white);
-    canvas.drawImageRect(
-      logoImg,
-      Rect.fromLTWH(0, 0, logoImg.width.toDouble(), logoImg.height.toDouble()),
-      Rect.fromLTWH((rong - rongLogo) / 2, 10, rongLogo, caoLogo),
-      Paint(),
-    );
+    if (logoImg != null) {
+      canvas.drawImageRect(
+        logoImg,
+        Rect.fromLTWH(0, 0, logoImg.width.toDouble(), logoImg.height.toDouble()),
+        Rect.fromLTWH((rong - rongLogo) / 2, 10, rongLogo, caoLogo),
+        Paint(),
+      );
+    }
 
     for (final d in layout) {
       if (d.text.isEmpty) continue;
@@ -371,6 +384,7 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
     final caoInt = cao.toInt();
     final wByte = (rongInt + 7) ~/ 8;
     final duLieu = Uint8List(wByte * caoInt);
+    int soDiemDen = 0; // ĐẾM SỐ ĐIỂM ĐEN THỰC TẾ - để phát hiện ảnh trắng hoàn toàn
     for (int yy = 0; yy < caoInt; yy++) {
       for (int xx = 0; xx < rongInt; xx++) {
         final idx = (yy * rongInt + xx) * 4;
@@ -378,20 +392,17 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
         final doSang = (r + g + b) / 3;
         if (a > 128 && doSang < 180) {
           duLieu[yy * wByte + (xx >> 3)] |= (1 << (7 - (xx % 8)));
+          soDiemDen++;
         }
       }
     }
+    // Cảnh báo NGAY TRONG LOG nếu ảnh vẽ ra trắng hoàn toàn (0 điểm đen) dù
+    // có dòng chữ không rỗng trong danh sách - đây chính là dấu hiệu lỗi ở
+    // khâu VẼ ẢNH (Canvas render), không phải lỗi gửi Bluetooth.
+    if (soDiemDen == 0 && dsDong.any((d) => d.text.isNotEmpty)) {
+      debugPrint('⚠️ CẢNH BÁO: ảnh vẽ ra TRẮNG HOÀN TOÀN dù có ${dsDong.length} dòng chữ - lỗi ở khâu vẽ Canvas.');
+    }
 
-    // GỘP THÀNH ĐÚNG 1 MẢNG BYTE DUY NHẤT, GỬI QUA ĐÚNG 1 LỆNH DUY NHẤT -
-    // khớp CHÍNH XÁC cấu trúc mà "Dò giới hạn" đã CHỨNG MINH THẬT hoạt động
-    // (1 mảng byte, 1 lệnh, tới 112.5KB vẫn in tốt). Trước đó dù đã gộp lại
-    // "1 lệnh in ảnh" nhưng vẫn tách thành 3 LƯỢT GỌI riêng (đầu lệnh / ảnh
-    // / cuối lệnh) - khác cấu trúc với bản đã chứng minh - nay gộp thật sự
-    // thành 1 mảng để gửi nguyên khối qua đúng 1 lượt gọi.
-    // BỎ LỆNH CẮT GIẤY (GS V) - máy in trong ảnh thực tế là loại "Mobile
-    // Printer" xé tay, KHÔNG có dao cắt tự động - gửi lệnh cắt cho máy
-    // không có dao cắt có thể khiến máy bị treo lệnh. Thay bằng feed thêm
-    // giấy trống để CNKD xé tay.
     final bo = <int>[];
     bo.addAll([0x1B, 0x40, 0x1B, 0x61, 0x01]);
     bo.addAll([0x1D, 0x76, 0x30, 0x00, wByte & 0xFF, (wByte >> 8) & 0xFF, caoInt & 0xFF, (caoInt >> 8) & 0xFF]);
@@ -731,6 +742,37 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
     }
   }
 
+  /// TEST IN ẢNH - dùng ĐÚNG pipeline vẽ ảnh (Canvas + TextPainter) giống
+  /// hệt hóa đơn thật, nhưng với nội dung TỐI GIẢN (1 dòng chữ, KHÔNG logo)
+  /// và gửi THẲNG 1 lần, KHÔNG qua cơ chế bù byte/gửi lại - để tách bạch
+  /// đúng 2 khả năng:
+  /// - Nếu ra giấy TRẮNG (không chữ) -> lỗi nằm ở khâu VẼ ẢNH (Canvas),
+  ///   không liên quan gì tới Bluetooth/bộ đệm máy in.
+  /// - Nếu ra chữ "TEST ANH 123" rõ ràng -> khâu vẽ ảnh vẫn tốt, lỗi nằm ở
+  ///   nội dung/kích thước hóa đơn thật hoặc logo, cần thu hẹp tiếp.
+  Future<void> _inThuAnh() async {
+    if (_mayInDangKetNoi == null) return;
+    try {
+      final lenh = await _taoAnhTuDanhSachDong(
+        [_DongInNhiet('TEST ANH 123', dam: true, to: true)],
+        coLogo: false,
+      );
+      if (!await _damBaoConKetNoi()) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('❌ Test in ảnh: mất kết nối.')));
+        return;
+      }
+      final daGui = await _guiByteChiaGoiDemSo(lenh);
+      final ok = daGui == lenh.length;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok
+            ? 'Đã gửi xong - kiểm tra giấy: có hiện chữ "TEST ANH 123" không?'
+            : '❌ Gửi dở dang ($daGui/${lenh.length} byte) - chưa kết luận được, thử lại.')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('❌ Lỗi khi test in ảnh: $e')));
+    }
+  }
+
   /// RESET MÁY IN THỦ CÔNG - gửi 1 lượng byte đệm khá lớn (đủ vượt qua bất
   /// kỳ ảnh dở dang nào còn "kẹt" trong bộ đếm của máy in từ trước, kể cả
   /// từ TRƯỚC KHI cài bản có cơ chế tự bù byte này) + lệnh reset chuẩn -
@@ -766,6 +808,8 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
         ),
         if (_mayInDangKetNoi != null)
           TextButton(onPressed: _inThu, child: const Text('In thử')),
+        if (_mayInDangKetNoi != null)
+          TextButton(onPressed: _inThuAnh, child: const Text('Test in ảnh')),
         if (_mayInDangKetNoi != null)
           TextButton(onPressed: _resetMayIn, child: const Text('Reset máy in')),
         TextButton(

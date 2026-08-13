@@ -353,13 +353,13 @@ class _WebViewScreenState extends State<WebViewScreen> {
   }
 
   Future<void> _taiTrangCoDangNhap() async {
-    // Trang Bản đồ Hộp cáp GPON cần quyền định vị - CHỦ ĐỘNG xin bằng hộp
-    // thoại hệ thống chuẩn TRƯỚC khi vào trang. Chỉ khai báo quyền trong
-    // AndroidManifest.xml là CHƯA ĐỦ - từ Android 6.0 trở lên bắt buộc phải
-    // xin cấp quyền lúc app đang chạy mới thật sự có quyền, nếu không WebView
-    // sẽ luôn báo "chưa cho phép truy cập vị trí" dù người dùng có bật định vị
-    // ngoài Cài đặt máy đi nữa (lỗi thật đã gặp).
-    if (widget.url.contains('ban-do-hop-cap')) {
+    // Trang Bản đồ Hộp cáp GPON và Bản đồ số khách hàng đều cần quyền định vị
+    // - CHỦ ĐỘNG xin bằng hộp thoại hệ thống chuẩn TRƯỚC khi vào trang. Chỉ
+    // khai báo quyền trong AndroidManifest.xml là CHƯA ĐỦ - từ Android 6.0
+    // trở lên bắt buộc phải xin cấp quyền lúc app đang chạy mới thật sự có
+    // quyền, nếu không WebView sẽ luôn báo "chưa cho phép truy cập vị trí" dù
+    // người dùng có bật định vị ngoài Cài đặt máy đi nữa (lỗi thật đã gặp).
+    if (widget.url.contains('ban-do-hop-cap') || widget.url.contains('ban-do-khach-hang')) {
       final ketQua = await Permission.location.request();
       // QUAN TRỌNG: nếu người dùng đã bấm "Từ chối" ở LẦN THỬ TRƯỚC (trước khi
       // có tính năng xin quyền này), Android tự chuyển sang "từ chối VĨNH
