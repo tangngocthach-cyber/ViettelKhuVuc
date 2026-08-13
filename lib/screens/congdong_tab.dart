@@ -21,10 +21,19 @@ import 'speedtest_screen.dart';
 /// app-session-login.php) - ai chưa được cấp quyền module nào thì trang đó sẽ
 /// tự báo như trên web, không cần app tự giới hạn thêm.
 ///
-/// RIÊNG danh mục "Hạ tầng mạng" (Bản đồ Hộp cáp GPON) là NGOẠI LỆ - đây là dữ
-/// liệu vị trí hạ tầng, cần ẨN HẲN danh mục (không chỉ chặn sau khi bấm vào)
-/// cho tới khi được Admin cấp quyền riêng (hop_cap_gpon_access) - nên cần
-/// StatefulWidget để tự kiểm tra quyền qua AuthService trước khi vẽ danh mục.
+/// RIÊNG danh mục "Hạ tầng mạng" (Bản đồ Hộp cáp GPON, Chấm tủ đề xuất) là
+/// NGOẠI LỆ - đây là dữ liệu vị trí hạ tầng, cần ẨN HẲN icon (không chỉ chặn
+/// sau khi bấm vào) cho tới khi được Admin cấp quyền riêng
+/// (hop_cap_gpon_access / cham_tu_access) - nên cần StatefulWidget để tự
+/// kiểm tra quyền qua AuthService trước khi vẽ icon.
+///
+/// "Bản đồ số khách hàng" và "Thu thập tọa độ" KHÔNG cần app tự kiểm tra
+/// quyền riêng - trang web/API phía sau (require_ban_do_khach_hang_access())
+/// đã tự chặn đúng người chưa được cấp quyền rồi, giống cách các mục khác
+/// trong app (Dashboard KPI, Bill cước...) đều để web/API tự lo, KHÔNG kiểm
+/// tra quyền phía app - luôn hiện icon, bấm vào mới biết có được vào hay
+/// không (đúng khuôn mẫu đa số các mục khác trong toàn app, chỉ 2 mục Hộp
+/// cáp GPON/Chấm tủ là NGOẠI LỆ ẩn hẳn theo yêu cầu riêng).
 class CongDongTab extends StatefulWidget {
   const CongDongTab({super.key});
 
@@ -71,20 +80,25 @@ class _CongDongTabState extends State<CongDongTab> {
       const GridModuleItem(icon: Icons.table_chart, label: 'Kho Dữ liệu bán hàng', url: AppConfig.urlKhoDuLieuExcel),
       const GridModuleItem(icon: Icons.smart_toy, label: 'Trợ lý KPI (AI)', url: AppConfig.urlTroLyKPI),
     ];
-    final haTangMang = [
-      const GridModuleItem(icon: Icons.map, label: 'Bản đồ Hộp cáp GPON', url: AppConfig.urlBanDoHopCap),
-      const GridModuleItem(icon: Icons.location_on, label: 'Bản đồ số khách hàng', url: AppConfig.urlBanDoKhachHang),
-      GridModuleItem(
-        icon: Icons.gps_fixed,
-        label: 'Thu thập tọa độ',
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ToaDoKhachHangScreen())),
-      ),
-      GridModuleItem(
-        icon: Icons.add_location_alt,
-        label: 'Chấm tủ đề xuất',
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChamTuDanhSachScreen())),
-      ),
-    ];
+
+    // ĐẶT TÊN RIÊNG TỪNG ITEM (không gom vào 1 mảng rồi lấy theo index nữa)
+    // - ĐÂY LÀ CHỖ ĐÃ GÂY LỖI TRƯỚC ĐÓ: code cũ lấy theo haTangMang[0]/[1]
+    // cố định vị trí, nên khi thêm mục mới vào GIỮA mảng, mọi thứ bị lệch
+    // hết vị trí. Đặt tên riêng từng cái để không bao giờ lặp lại lỗi này
+    // nữa dù có thêm/bớt mục sau này.
+    final banDoHopCap = const GridModuleItem(icon: Icons.map, label: 'Bản đồ Hộp cáp GPON', url: AppConfig.urlBanDoHopCap);
+    final banDoKhachHang = const GridModuleItem(icon: Icons.location_on, label: 'Bản đồ số khách hàng', url: AppConfig.urlBanDoKhachHang);
+    final thuThapToaDo = GridModuleItem(
+      icon: Icons.gps_fixed,
+      label: 'Thu thập tọa độ',
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ToaDoKhachHangScreen())),
+    );
+    final chamTuDeXuat = GridModuleItem(
+      icon: Icons.add_location_alt,
+      label: 'Chấm tủ đề xuất',
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChamTuDanhSachScreen())),
+    );
+
     final hocTap = [
       const GridModuleItem(icon: Icons.school, label: 'E-Learning', url: AppConfig.urlKhoaHoc),
       const GridModuleItem(icon: Icons.history, label: 'Lịch sử học tập', url: AppConfig.urlLichSuHocTap),
@@ -151,21 +165,20 @@ class _CongDongTabState extends State<CongDongTab> {
         children: [
           _tieuDeNhom('Công việc & KPI'),
           IconGridView(items: congViec, cuonRieng: false),
-          // Danh mục CHỈ hiện khi được cấp quyền riêng - ẩn hẳn (không chỉ mờ
-          // đi hay chặn sau khi bấm) nếu chưa được Admin cấp quyền.
-          // Gộp chung 1 danh mục "Hạ tầng mạng" - hiện danh mục nếu có ÍT
-          // NHẤT 1 trong 2 quyền, nhưng chỉ hiện ĐÚNG icon nào mình có quyền
-          // (VD chỉ có quyền Chấm tủ thì không thấy icon Bản đồ GPON).
-          if (_coQuyenHopCap || _coQuyenChamTu) ...[
-            _tieuDeNhom('Hạ tầng mạng'),
-            IconGridView(
-              items: [
-                if (_coQuyenHopCap) haTangMang[0],
-                if (_coQuyenChamTu) haTangMang[1],
-              ],
-              cuonRieng: false,
-            ),
-          ],
+          // "Hạ tầng mạng" giờ LUÔN hiện (không còn bọc if ẩn cả danh mục nữa)
+          // vì "Bản đồ số khách hàng" và "Thu thập tọa độ" không cần quyền
+          // riêng phía app - chỉ 2 icon Hộp cáp GPON/Chấm tủ mới ẩn/hiện theo
+          // đúng quyền được cấp.
+          _tieuDeNhom('Hạ tầng mạng'),
+          IconGridView(
+            items: [
+              if (_coQuyenHopCap) banDoHopCap,
+              banDoKhachHang,
+              thuThapToaDo,
+              if (_coQuyenChamTu) chamTuDeXuat,
+            ],
+            cuonRieng: false,
+          ),
           _tieuDeNhom('Học tập & Tài liệu'),
           IconGridView(items: hocTap, cuonRieng: false),
           _tieuDeNhom('Cộng đồng & Ưu đãi'),
