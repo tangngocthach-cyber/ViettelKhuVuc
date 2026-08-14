@@ -6,6 +6,12 @@
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <!-- Chụp ảnh gửi Chat -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Khai báo phần cứng camera là TÙY CHỌN (required="false") - đúng khuyến
+         nghị chính thức của mobile_scanner (dùng cho tính năng Quét mã QR) -
+         không bắt buộc máy phải có camera mới cài được app, và giúp CameraX
+         khởi tạo đúng theo tài liệu chính thức thay vì để mặc định suy đoán. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     <!-- Định vị GPS để chia sẻ vị trí trong Chat -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
