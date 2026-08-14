@@ -959,6 +959,12 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
           onChanged: (v) => setState(() { v == true ? _idDaChon.add(kh.id) : _idDaChon.remove(kh.id); }),
           title: Row(children: [
             Expanded(child: Text(kh.tenKhachHang, style: const TextStyle(fontWeight: FontWeight.w600))),
+            Container(
+              margin: const EdgeInsets.only(left: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(color: kh.daThu ? Colors.green.shade100 : Colors.orange.shade100, borderRadius: BorderRadius.circular(4)),
+              child: Text(kh.daThu ? 'Đã thu' : 'Chưa thu', style: TextStyle(fontSize: 11, color: kh.daThu ? Colors.green.shade800 : Colors.orange.shade900, fontWeight: FontWeight.bold)),
+            ),
             if (kh.soLanDaInBill > 0)
               Container(
                 margin: const EdgeInsets.only(left: 4),
@@ -977,12 +983,19 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
           subtitle: Text('${kh.soTb} · ${kh.tenTvv}\n${_dinhDangTien(kh.tongCuoc)}đ'
               '${kh.noTruoc > 0 ? ' · Nợ trước: ${_dinhDangTien(kh.noTruoc)}đ' : ''}'),
           isThreeLine: true,
-          secondary: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(icon: const Icon(Icons.edit_outlined), tooltip: 'Sửa SĐT/địa chỉ', onPressed: () => _suaThongTinKhachHang(kh)),
-              IconButton(icon: const Icon(Icons.visibility), tooltip: 'Xem trước hóa đơn nhiệt', onPressed: () => _xemTruocHoaDon(kh)),
-              IconButton(icon: const Icon(Icons.print), tooltip: 'In nhiệt khách này', onPressed: () => _inHoaDonNhiet(kh)),
+          secondary: PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (chon) {
+              switch (chon) {
+                case 'sua': _suaThongTinKhachHang(kh); break;
+                case 'xem': _xemTruocHoaDon(kh); break;
+                case 'in': _inHoaDonNhiet(kh); break;
+              }
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'sua', child: ListTile(leading: Icon(Icons.edit_outlined), title: Text('Sửa SĐT/địa chỉ'), contentPadding: EdgeInsets.zero, dense: true)),
+              const PopupMenuItem(value: 'xem', child: ListTile(leading: Icon(Icons.visibility), title: Text('Xem trước hóa đơn nhiệt'), contentPadding: EdgeInsets.zero, dense: true)),
+              const PopupMenuItem(value: 'in', child: ListTile(leading: Icon(Icons.print), title: Text('In nhiệt khách này'), contentPadding: EdgeInsets.zero, dense: true)),
             ],
           ),
         );

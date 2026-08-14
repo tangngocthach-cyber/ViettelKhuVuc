@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
 import '../models/ghi_chu_tu_do.dart';
 import '../services/ghi_chu_tu_do_service.dart';
 import 've_tay_screen.dart';
@@ -26,12 +28,19 @@ class _SoGhiChuScreenState extends State<SoGhiChuScreen> {
   bool _dangTai = true;
   final _oTimKiemCtrl = TextEditingController();
   String _tuKhoa = '';
+  DateTime? _lanSaoLuuCuoi;
 
   @override
   void initState() {
     super.initState();
     _taiDuLieu();
+    _taiThoiGianSaoLuu();
     _oTimKiemCtrl.addListener(() => setState(() => _tuKhoa = _oTimKiemCtrl.text.trim().toLowerCase()));
+  }
+
+  Future<void> _taiThoiGianSaoLuu() async {
+    final t = await GhiChuTuDoService.layLanSaoLuuCuoi();
+    if (mounted) setState(() => _lanSaoLuuCuoi = t);
   }
 
   @override
@@ -77,6 +86,48 @@ class _SoGhiChuScreenState extends State<SoGhiChuScreen> {
     _taiDuLieu();
   }
 
+  Future<void> _saoLuu() async {
+    try {
+      final file = await GhiChuTuDoService.xuatBackup();
+      if (!mounted) return;
+      await Share.shareXFiles([XFile(file.path)], text: 'File sao lưu Sổ ghi chú - Viettel Khu Vực Vĩnh Hưng');
+      await _taiThoiGianSaoLuu();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sao lưu thất bại: $e')));
+    }
+  }
+
+  Future<void> _khoiPhuc() async {
+    try {
+      final ketQua = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['json']);
+      if (ketQua == null || ketQua.files.single.path == null) return;
+
+      if (!mounted) return;
+      final xacNhan = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Khôi phục dữ liệu'),
+          content: const Text(
+            'Khôi phục sẽ THÊM MỚI/CẬP NHẬT ghi chú (kèm ảnh vẽ tay, ghi âm) từ '
+            'file sao lưu vào Sổ ghi chú hiện tại - KHÔNG xóa ghi chú đang có sẵn. Tiếp tục?',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Hủy')),
+            TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Khôi phục')),
+          ],
+        ),
+      );
+      if (xacNhan != true) return;
+
+      final soLuong = await GhiChuTuDoService.khoiPhucTuFile(File(ketQua.files.single.path!));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Đã khôi phục $soLuong ghi chú.')));
+      _taiDuLieu();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Khôi phục thất bại: file không đúng định dạng sao lưu.')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -84,9 +135,22 @@ class _SoGhiChuScreenState extends State<SoGhiChuScreen> {
         title: const Text('Sổ ghi chú'),
         backgroundColor: const Color(0xFFEE0033),
         foregroundColor: Colors.white,
+        actions: [
+          PopupMenuButton<String>(
+            onSelected: (gt) {
+              if (gt == 'sao_luu') _saoLuu();
+              if (gt == 'khoi_phuc') _khoiPhuc();
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'sao_luu', child: ListTile(leading: Icon(Icons.backup), title: Text('Sao lưu'), contentPadding: EdgeInsets.zero)),
+              PopupMenuItem(value: 'khoi_phuc', child: ListTile(leading: Icon(Icons.restore), title: Text('Khôi phục'), contentPadding: EdgeInsets.zero)),
+            ],
+          ),
+        ],
       ),
       body: Column(
         children: [
+          _canhBaoSaoLuu(),
           Padding(
             padding: const EdgeInsets.all(10),
             child: TextField(
@@ -141,6 +205,30 @@ class _SoGhiChuScreenState extends State<SoGhiChuScreen> {
         backgroundColor: const Color(0xFFEE0033),
         onPressed: () => _moGhiChu(),
         child: const Icon(Icons.add, color: Colors.white),
+      ),
+    );
+  }
+
+  /// Nhắc sao lưu định kỳ - dữ liệu CHỈ nằm trên máy (không đồng bộ server),
+  /// XÓA APP CÀI LẠI SẼ MẤT TRẮNG nếu không sao lưu trước. Hiện nếu CHƯA
+  /// TỪNG sao lưu, hoặc đã quá 14 ngày chưa sao lưu lại.
+  Widget _canhBaoSaoLuu() {
+    final quaHan = _lanSaoLuuCuoi == null || DateTime.now().difference(_lanSaoLuuCuoi!).inDays >= 14;
+    if (!quaHan || _danhSach.isEmpty) return const SizedBox.shrink();
+    final chu = _lanSaoLuuCuoi == null
+        ? 'Anh/chị chưa sao lưu Sổ ghi chú lần nào. Nên sao lưu để tránh mất dữ liệu khi xóa/cài lại app.'
+        : 'Đã ${DateTime.now().difference(_lanSaoLuuCuoi!).inDays} ngày chưa sao lưu Sổ ghi chú.';
+    return Container(
+      width: double.infinity,
+      color: Colors.amber.shade100,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline, size: 18, color: Colors.orange),
+          const SizedBox(width: 8),
+          Expanded(child: Text(chu, style: const TextStyle(fontSize: 12.5))),
+          TextButton(onPressed: _saoLuu, child: const Text('Sao lưu ngay')),
+        ],
       ),
     );
   }
