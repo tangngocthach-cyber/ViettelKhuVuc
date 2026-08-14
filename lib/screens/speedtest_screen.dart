@@ -26,7 +26,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> with SingleTickerProv
 
   late AnimationController _kimController;
   double _giaTriKimHienThi = 0; // Mbps đang hiện trên đồng hồ (mượt dần tới giá trị thật)
-  static const double _mbpsToiDaTrenDongHo = 200; // giá trị cao nhất kim có thể chỉ tới
+  static const double _mbpsToiDaTrenDongHo = 1000; // NÂNG TỪ 200 - giờ đo được tốc độ thật (nhiều luồng song song) có thể lên tới hàng trăm Mbps, để 200 kim sẽ bị "kẹt cứng" ở mức tối đa sai lệch
 
   @override
   void initState() {
@@ -95,23 +95,16 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> with SingleTickerProv
       if (!mounted) return;
       setState(() => _tocDoTaiXuongMbps = tocDoTaiXuong);
 
-      // ---- 3. TẢI LÊN ----
+      // ---- 3. TẢI LÊN - nhiều luồng song song, giống hệt tải xuống ----
       setState(() {
         _giaiDoan = _GiaiDoan.dangTaiLen;
         _giaTriKimHienThi = 0;
       });
       _kimController.reset();
-      const soByteGui = 5 * 1000 * 1000;
-      final duLieuGui = Uint8List.fromList(List.generate(soByteGui, (_) => Random().nextInt(256)));
-      final batDauGui = DateTime.now();
-      await client.post(Uri.parse('https://speed.cloudflare.com/__up'), body: duLieuGui).timeout(const Duration(seconds: 30));
-      final thoiGianGuiGiay = DateTime.now().difference(batDauGui).inMilliseconds / 1000;
+      final tocDoTaiLen = await _doTocDoTaiLen(client);
       if (!mounted) return;
-      if (thoiGianGuiGiay > 0) {
-        final tocDoTaiLen = (soByteGui * 8) / thoiGianGuiGiay / 1000000;
-        setState(() => _tocDoTaiLenMbps = tocDoTaiLen);
-        _capNhatKim(tocDoTaiLen);
-      }
+      setState(() => _tocDoTaiLenMbps = tocDoTaiLen);
+      _capNhatKim(tocDoTaiLen);
 
       setState(() => _giaiDoan = _GiaiDoan.xongHoanTat);
     } catch (e) {
@@ -125,38 +118,99 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> with SingleTickerProv
     }
   }
 
-  /// Tải file 20MB theo từng đoạn 512KB, tính tốc độ TỨC THỜI sau mỗi đoạn để
-  /// kim đồng hồ chạy mượt theo đúng tốc độ thật đang đo (không chỉ đứng yên
-  /// rồi nhảy 1 phát lúc xong). Dùng CHUNG client với bước đo Ping - kết nối
-  /// đã ấm sẵn, không mất công bắt tay lại từ đầu.
+  /// Tải xuống bằng NHIỀU LUỒNG SONG SONG (mặc định 4) - ĐÚNG cách các công
+  /// cụ đo tốc độ THẬT hoạt động (Speedtest.net/Ookla). LỖI THẬT ĐÃ GẶP
+  /// TRƯỚC ĐÂY: chỉ dùng 1 luồng tải đơn - 1 kết nối TCP luôn có TRẦN THÔNG
+  /// LƯỢNG RIÊNG (do cơ chế kiểm soát tắc nghẽn TCP + slow-start), KHÔNG BAO
+  /// GIỜ "kéo hết" được đường truyền tốc độ cao dù mạng thật nhanh hơn NHIỀU
+  /// - đối chiếu thực tế với app Speedtest chuyên nghiệp cùng thời điểm cho
+  /// thấy kết quả SAI LỆCH TỚI 8 LẦN (446 Mbps thật vs chỉ đo được 59.9
+  /// Mbps). Đo trong 1 KHOẢNG THỜI GIAN CỐ ĐỊNH (không đợi tải hết file) vì
+  /// file cố tình để RẤT LỚN - đây mới là cách đo ĐÚNG "thông lượng thực sự
+  /// đạt được", không bị sai lệch bởi giai đoạn tăng tốc ban đầu (slow-start)
+  /// của TCP như khi đo qua 1 file nhỏ cố định.
+  static const int _soLuongSongSong = 4;
+  static const int _thoiLuongDoGiay = 8;
+
   Future<double> _doTocDoTaiXuong(http.Client client) async {
-    const tongSoByte = 20 * 1000 * 1000;
-    final request = http.Request('GET', Uri.parse('https://speed.cloudflare.com/__down?bytes=$tongSoByte'));
-    final streamedResponse = await client.send(request).timeout(const Duration(seconds: 30));
+    const kichThuocMoiLuong = 200 * 1000 * 1000; // 200MB/luồng - đủ lớn, không lo tải hết trước khi hết giờ đo dù mạng rất nhanh
+    int tongByteDaNhan = 0;
+    bool dangDo = true;
 
-    int soByteDaNhan = 0;
-    final batDau = DateTime.now();
-    DateTime lanCapNhatCuoi = batDau;
-    int byteLucCapNhatCuoi = 0;
-
-    await for (final phanDoan in streamedResponse.stream) {
-      soByteDaNhan += phanDoan.length;
-      final baygio = DateTime.now();
-      // Cập nhật kim mỗi ~200ms cho mượt, không cập nhật liên tục quá dày gây giật
-      if (baygio.difference(lanCapNhatCuoi).inMilliseconds > 200) {
-        final byteVuaTaiTrongKhoang = soByteDaNhan - byteLucCapNhatCuoi;
-        final giayVuaTrongKhoang = baygio.difference(lanCapNhatCuoi).inMilliseconds / 1000;
-        if (giayVuaTrongKhoang > 0 && mounted) {
-          final tocDoTucThoi = (byteVuaTaiTrongKhoang * 8) / giayVuaTrongKhoang / 1000000;
-          _capNhatKim(tocDoTucThoi);
-        }
-        lanCapNhatCuoi = baygio;
-        byteLucCapNhatCuoi = soByteDaNhan;
+    final dsSub = <StreamSubscription>[];
+    for (var i = 0; i < _soLuongSongSong; i++) {
+      try {
+        final request = http.Request('GET', Uri.parse('https://speed.cloudflare.com/__down?bytes=$kichThuocMoiLuong'));
+        final res = await client.send(request).timeout(const Duration(seconds: 15));
+        dsSub.add(res.stream.listen((doan) {
+          if (dangDo) tongByteDaNhan += doan.length;
+        }));
+      } catch (_) {
+        // 1 luồng lỗi không làm hỏng cả phép đo - các luồng còn lại vẫn tiếp tục.
       }
     }
 
+    final batDau = DateTime.now();
+    DateTime lanCapNhatCuoi = batDau;
+    int byteLucCapNhatCuoi = 0;
+    final timer = Timer.periodic(const Duration(milliseconds: 200), (_) {
+      final baygio = DateTime.now();
+      final byteVuaTaiTrongKhoang = tongByteDaNhan - byteLucCapNhatCuoi;
+      final giayVuaTrongKhoang = baygio.difference(lanCapNhatCuoi).inMilliseconds / 1000;
+      if (giayVuaTrongKhoang > 0 && mounted) {
+        final tocDoTucThoi = (byteVuaTaiTrongKhoang * 8) / giayVuaTrongKhoang / 1000000;
+        _capNhatKim(tocDoTucThoi);
+      }
+      lanCapNhatCuoi = baygio;
+      byteLucCapNhatCuoi = tongByteDaNhan;
+    });
+
+    await Future.delayed(const Duration(seconds: _thoiLuongDoGiay));
+    dangDo = false;
+    timer.cancel();
+    for (final sub in dsSub) { await sub.cancel(); } // dừng hẳn tải để không lãng phí dung lượng di động của CNKD
+
     final tongThoiGianGiay = DateTime.now().difference(batDau).inMilliseconds / 1000;
-    return tongThoiGianGiay > 0 ? (soByteDaNhan * 8) / tongThoiGianGiay / 1000000 : 0;
+    return tongThoiGianGiay > 0 ? (tongByteDaNhan * 8) / tongThoiGianGiay / 1000000 : 0;
+  }
+
+  /// Tải lên bằng NHIỀU LUỒNG SONG SONG, MỖI LUỒNG GỬI LIÊN TỤC (không chỉ 1
+  /// lần) cho tới hết thời gian đo - cùng lý do như phần tải xuống.
+  Future<double> _doTocDoTaiLen(http.Client client) async {
+    const kichThuocMoiLan = 5 * 1000 * 1000; // 5MB/lần gửi
+    int tongByteDaGui = 0;
+    final batDau = DateTime.now();
+    final ketThucLuc = batDau.add(const Duration(seconds: _thoiLuongDoGiay));
+
+    DateTime lanCapNhatCuoi = batDau;
+    int byteLucCapNhatCuoi = 0;
+    final timer = Timer.periodic(const Duration(milliseconds: 200), (_) {
+      final baygio = DateTime.now();
+      final byteVuaGuiTrongKhoang = tongByteDaGui - byteLucCapNhatCuoi;
+      final giayVuaTrongKhoang = baygio.difference(lanCapNhatCuoi).inMilliseconds / 1000;
+      if (giayVuaTrongKhoang > 0 && mounted) {
+        final tocDoTucThoi = (byteVuaGuiTrongKhoang * 8) / giayVuaTrongKhoang / 1000000;
+        _capNhatKim(tocDoTucThoi);
+      }
+      lanCapNhatCuoi = baygio;
+      byteLucCapNhatCuoi = tongByteDaGui;
+    });
+
+    await Future.wait(List.generate(_soLuongSongSong, (_) async {
+      while (DateTime.now().isBefore(ketThucLuc)) {
+        try {
+          final duLieu = Uint8List.fromList(List.generate(kichThuocMoiLan, (_) => Random().nextInt(256)));
+          await client.post(Uri.parse('https://speed.cloudflare.com/__up'), body: duLieu).timeout(const Duration(seconds: 10));
+          tongByteDaGui += kichThuocMoiLan;
+        } catch (_) {
+          break; // luồng này lỗi thì dừng riêng nó, các luồng khác vẫn tiếp tục
+        }
+      }
+    }));
+
+    timer.cancel();
+    final tongThoiGianGiay = DateTime.now().difference(batDau).inMilliseconds / 1000;
+    return tongThoiGianGiay > 0 ? (tongByteDaGui * 8) / tongThoiGianGiay / 1000000 : 0;
   }
 
   String _danhGiaChatLuong(double? taiXuong, int? ping) {
