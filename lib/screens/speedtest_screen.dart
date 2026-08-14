@@ -5,9 +5,19 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../theme.dart';
 
-/// Speedtest hiện đại - đồng hồ đo tốc độ dạng cung tròn có animation mượt,
-/// đo Ping/Tải xuống/Tải lên THẬT qua endpoint công khai Cloudflare, kèm
-/// giải thích ý nghĩa từng thông số và đánh giá chất lượng mạng.
+/// Speedtest - đo Ping/Tải xuống/Tải lên qua endpoint công khai Cloudflare.
+///
+/// GHI CHÚ QUAN TRỌNG VỀ PHƯƠNG PHÁP LUẬN (đọc trước khi sửa file này):
+/// Đây KHÔNG PHẢI bản sao/giả lập Speedtest by Ookla - Ookla dùng hạ tầng máy
+/// chủ và SDK riêng, không công khai, không được phép reverse-engineer. Kết
+/// quả app này và Ookla ĐO QUA 2 TUYẾN MẠNG KHÁC NHAU (khác máy chủ, khác nhà
+/// cung cấp hạ tầng đo) nên CÓ THỂ khác nhau dù cả 2 đều đo đúng - đây là hạn
+/// chế tất yếu của việc dùng máy chủ đo công khai (Cloudflare), không phải
+/// lỗi tính toán. File này áp dụng đúng phương pháp luận đo chuẩn (tách Idle/
+/// Loaded Latency, cửa sổ ổn định bỏ qua giai đoạn tăng tốc TCP, nhiều luồng
+/// song song, kiểm định độ ổn định) để kết quả PHẢN ÁNH ĐÚNG NHẤT khả năng
+/// của đường truyền đo được qua máy chủ Cloudflare - không nhân/chia hệ số
+/// nào để "cho đẹp số".
 class SpeedtestScreen extends StatefulWidget {
   const SpeedtestScreen({super.key});
 
@@ -19,14 +29,25 @@ enum _GiaiDoan { chuaBatDau, dangDoPing, dangTaiXuong, dangTaiLen, xongHoanTat, 
 
 class _SpeedtestScreenState extends State<SpeedtestScreen> with SingleTickerProviderStateMixin {
   _GiaiDoan _giaiDoan = _GiaiDoan.chuaBatDau;
-  int? _pingMs;
+
+  // Idle Latency (đo lúc KHÔNG có tải) - tách biệt hẳn khỏi Loaded Latency.
+  int? _idleLatencyMs; // trung vị (median) - số hiển thị chính, ít bị lệch bởi 1 mẫu bất thường
+  int? _jitterMs; // độ lệch trung bình giữa các mẫu liên tiếp
+  List<int> _mauPingThoDs = [];
+
+  // Loaded Latency (đo NGAY TRONG LÚC đang tải xuống/tải lên) - phát hiện bufferbloat.
+  int? _loadedLatencyTaiXuongMs;
+  int? _loadedLatencyTaiLenMs;
+
   double? _tocDoTaiXuongMbps;
   double? _tocDoTaiLenMbps;
+  bool _ketQuaOnDinh = true; // false nếu tốc độ dao động quá lớn trong chính cửa sổ đo - khuyến nghị đo lại
+  String? _serverColo; // mã trung tâm dữ liệu Cloudflare thực tế phục vụ - lấy thật qua /cdn-cgi/trace, KHÔNG bịa
   String? _thongBaoLoi;
 
   late AnimationController _kimController;
-  double _giaTriKimHienThi = 0; // Mbps đang hiện trên đồng hồ (mượt dần tới giá trị thật)
-  static const double _mbpsToiDaTrenDongHo = 1000; // NÂNG TỪ 200 - giờ đo được tốc độ thật (nhiều luồng song song) có thể lên tới hàng trăm Mbps, để 200 kim sẽ bị "kẹt cứng" ở mức tối đa sai lệch
+  double _giaTriKimHienThi = 0;
+  static const double _mbpsToiDaTrenDongHo = 1000;
 
   @override
   void initState() {
@@ -51,60 +72,78 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> with SingleTickerProv
   Future<void> _batDauDoToc() async {
     setState(() {
       _giaiDoan = _GiaiDoan.dangDoPing;
-      _pingMs = null;
+      _idleLatencyMs = null;
+      _jitterMs = null;
+      _mauPingThoDs = [];
+      _loadedLatencyTaiXuongMs = null;
+      _loadedLatencyTaiLenMs = null;
       _tocDoTaiXuongMbps = null;
       _tocDoTaiLenMbps = null;
+      _ketQuaOnDinh = true;
+      _serverColo = null;
       _thongBaoLoi = null;
       _giaTriKimHienThi = 0;
     });
 
-    // Dùng 1 KẾT NỐI DUY NHẤT giữ nguyên xuyên suốt toàn bộ quá trình đo -
-    // TÁI SỬ DỤNG (keep-alive) cho các lần gọi sau, đúng cách các công cụ đo
-    // tốc độ THẬT SỰ hoạt động (Speedtest.net, Ookla...).
-    //
-    // LỖI THẬT ĐÃ GẶP TRƯỚC ĐÂY: dùng http.head() cấp cao - mỗi lần gọi TỰ
-    // TẠO 1 KẾT NỐI MỚI RỒI ĐÓNG NGAY, nghĩa là MỌI LẦN đo Ping đều phải
-    // THIẾT LẬP LẠI TỪ ĐẦU (tra cứu DNS + bắt tay TCP + bắt tay TLS - riêng
-    // bắt tay TLS qua mạng di động thường mất 150-300ms) - đây LÀ CHI PHÍ
-    // KẾT NỐI, HOÀN TOÀN KHÔNG PHẢI ĐỘ TRỄ MẠNG THẬT, khiến Ping ĐO ĐƯỢC LUÔN
-    // RẤT CAO một cách giả tạo (không liên quan gì tới chọn sai máy chủ).
     final client = http.Client();
     try {
-      // ---- BƯỚC KHỞI ĐỘNG - "làm ấm" kết nối trước, KHÔNG tính vào kết quả.
-      // Sau bước này, các request tiếp theo qua CÙNG client sẽ TÁI SỬ DỤNG
-      // kết nối đã có sẵn (không mất công bắt tay lại), đo được ĐÚNG độ trễ
-      // round-trip thật sự.
       await client.head(Uri.parse('https://speed.cloudflare.com/__down?bytes=0')).timeout(const Duration(seconds: 8));
 
-      // ---- 1. ĐO PING - đo 5 lần qua kết nối ĐÃ ẤM, lấy trung vị cho ổn định ----
+      // ---- Lấy THẬT tên trung tâm dữ liệu Cloudflare đang phục vụ (KHÔNG
+      // bịa) - endpoint /cdn-cgi/trace là endpoint chẩn đoán CÔNG KHAI, CHÍNH
+      // THỨC của Cloudflare, trả về text dạng "colo=SIN" v.v.
+      try {
+        final resTrace = await client.get(Uri.parse('https://speed.cloudflare.com/cdn-cgi/trace')).timeout(const Duration(seconds: 5));
+        final dongColo = resTrace.body.split('\n').firstWhere((d) => d.startsWith('colo='), orElse: () => '');
+        if (dongColo.isNotEmpty && mounted) setState(() => _serverColo = dongColo.substring(5).trim());
+      } catch (_) {
+        // Không lấy được thì thôi, không quan trọng bằng kết quả đo chính
+      }
+
+      // ---- 1. IDLE LATENCY - đo N=12 mẫu KHI CHƯA CÓ TẢI, qua kết nối đã ấm
+      // sẵn - lấy TRUNG VỊ (median) làm số chính (ít bị lệch bởi 1-2 mẫu bất
+      // thường hơn số trung bình cộng), tính thêm Jitter (độ lệch trung bình
+      // giữa các mẫu liên tiếp).
       final dsPing = <int>[];
-      for (var i = 0; i < 5; i++) {
+      for (var i = 0; i < 12; i++) {
         final batDau = DateTime.now();
         await client.head(Uri.parse('https://speed.cloudflare.com/__down?bytes=0')).timeout(const Duration(seconds: 8));
         dsPing.add(DateTime.now().difference(batDau).inMilliseconds);
       }
-      dsPing.sort();
+      final dsPingDaSap = List<int>.from(dsPing)..sort();
+      var tongLechLienTiep = 0;
+      for (var i = 1; i < dsPing.length; i++) { tongLechLienTiep += (dsPing[i] - dsPing[i - 1]).abs(); }
       if (!mounted) return;
-      setState(() => _pingMs = dsPing[dsPing.length ~/ 2]);
+      setState(() {
+        _mauPingThoDs = dsPing;
+        _idleLatencyMs = dsPingDaSap[dsPingDaSap.length ~/ 2];
+        _jitterMs = dsPing.length > 1 ? (tongLechLienTiep / (dsPing.length - 1)).round() : 0;
+      });
 
-      // ---- 2. TẢI XUỐNG - đo theo TỪNG PHẦN (không chờ tải xong mới biết tốc
-      // độ) để kim đồng hồ chạy MƯỢT theo tốc độ THẬT đang đo, không chỉ nhảy
-      // 1 phát lúc xong. ----
+      // ---- 2. TẢI XUỐNG - kèm đo Loaded Latency song song trong lúc tải ----
       setState(() => _giaiDoan = _GiaiDoan.dangTaiXuong);
-      final tocDoTaiXuong = await _doTocDoTaiXuong(client);
+      final ketQuaTaiXuong = await _doTocDoTaiXuong(client);
       if (!mounted) return;
-      setState(() => _tocDoTaiXuongMbps = tocDoTaiXuong);
+      setState(() {
+        _tocDoTaiXuongMbps = ketQuaTaiXuong.mbps;
+        _loadedLatencyTaiXuongMs = ketQuaTaiXuong.loadedLatencyMs;
+        if (!ketQuaTaiXuong.onDinh) _ketQuaOnDinh = false;
+      });
 
-      // ---- 3. TẢI LÊN - nhiều luồng song song, giống hệt tải xuống ----
+      // ---- 3. TẢI LÊN - kèm đo Loaded Latency song song trong lúc tải ----
       setState(() {
         _giaiDoan = _GiaiDoan.dangTaiLen;
         _giaTriKimHienThi = 0;
       });
       _kimController.reset();
-      final tocDoTaiLen = await _doTocDoTaiLen(client);
+      final ketQuaTaiLen = await _doTocDoTaiLen(client);
       if (!mounted) return;
-      setState(() => _tocDoTaiLenMbps = tocDoTaiLen);
-      _capNhatKim(tocDoTaiLen);
+      setState(() {
+        _tocDoTaiLenMbps = ketQuaTaiLen.mbps;
+        _loadedLatencyTaiLenMs = ketQuaTaiLen.loadedLatencyMs;
+        if (!ketQuaTaiLen.onDinh) _ketQuaOnDinh = false;
+      });
+      _capNhatKim(ketQuaTaiLen.mbps);
 
       setState(() => _giaiDoan = _GiaiDoan.xongHoanTat);
     } catch (e) {
@@ -118,42 +157,61 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> with SingleTickerProv
     }
   }
 
-  /// Tải xuống bằng NHIỀU LUỒNG SONG SONG (mặc định 4) - ĐÚNG cách các công
-  /// cụ đo tốc độ THẬT hoạt động (Speedtest.net/Ookla). LỖI THẬT ĐÃ GẶP LẦN
-  /// 1: chỉ dùng 1 luồng tải đơn - 1 kết nối TCP luôn có TRẦN THÔNG LƯỢNG
-  /// RIÊNG, KHÔNG BAO GIỜ "kéo hết" được đường truyền tốc độ cao.
-  ///
-  /// LỖI THẬT ĐÃ GẶP LẦN 2 (sau khi sửa lần 1): đổi sang 4 luồng nhưng mỗi
-  /// luồng xin 1 LẦN DUY NHẤT file "200MB" - máy chủ Cloudflare speedtest RẤT
-  /// CÓ THỂ giới hạn kích thước tối đa cho phép mỗi yêu cầu (nhiều dịch vụ
-  /// tương tự giới hạn quanh mức 100MB) - xin vượt mức cho phép khiến máy chủ
-  /// trả về lỗi/nội dung rất ngắn thay vì dữ liệu thật, kết quả đo gần như
-  /// bằng 0 dù không có ngoại lệ nào bị ném ra (im lặng sai, khó phát hiện).
-  /// Sửa DỨT ĐIỂM: mỗi luồng xin file kích thước VỪA PHẢI (25MB, chắc chắn
-  /// trong giới hạn cho phép) rồi LẶP LẠI NHIỀU LẦN liên tục cho tới hết thời
-  /// gian đo - giống hệt cách hàm đo tải lên đã làm và cho kết quả đúng.
   static const int _soLuongSongSong = 4;
   static const int _thoiLuongDoGiay = 8;
+  // Bỏ qua 25% THỜI GIAN ĐẦU của cửa sổ đo khi tính kết quả cuối - đây là
+  // giai đoạn TCP còn đang "tăng tốc" (slow-start) + các luồng song song
+  // chưa kịp khởi động hết, LUÔN chậm hơn tốc độ ổn định thật sự - tính cả
+  // giai đoạn này vào trung bình sẽ kéo kết quả xuống thấp giả tạo trên
+  // đường truyền nhanh (ĐÚNG NGUỒN GỐC gây sai lệch lớn so với Ookla trước
+  // đây - Ookla và các công cụ đo chuẩn khác đều loại bỏ giai đoạn này).
+  static const double _tiLeBoQuaTangToc = 0.25;
 
-  Future<double> _doTocDoTaiXuong(http.Client client) async {
-    const kichThuocMoiLan = 25 * 1000 * 1000; // 25MB/lần xin - vừa phải, chắc chắn dưới trần cho phép của máy chủ
+  Future<void> _guiPingTrongLucTai(http.Client client, List<int> ketQuaRa, bool Function() conDangTai) async {
+    // Đo Loaded Latency: bắn 1 request HEAD nhẹ (0 byte) mỗi ~1 giây TRONG
+    // LÚC các luồng tải xuống/tải lên vẫn đang chạy - qua CÙNG client (cùng
+    // hạ tầng kết nối) nên phản ánh đúng độ trễ THẬT dưới tải, không phải độ
+    // trễ của 1 kết nối rảnh rỗi riêng biệt.
+    while (conDangTai()) {
+      try {
+        final batDau = DateTime.now();
+        await client.head(Uri.parse('https://speed.cloudflare.com/__down?bytes=0')).timeout(const Duration(seconds: 5));
+        ketQuaRa.add(DateTime.now().difference(batDau).inMilliseconds);
+      } catch (_) {}
+      await Future.delayed(const Duration(milliseconds: 900));
+    }
+  }
+
+  Future<({double mbps, int? loadedLatencyMs, bool onDinh})> _doTocDoTaiXuong(http.Client client) async {
+    const kichThuocMoiLan = 25 * 1000 * 1000;
     int tongByteDaNhan = 0;
     final batDau = DateTime.now();
     final ketThucLuc = batDau.add(const Duration(seconds: _thoiLuongDoGiay));
+    bool dangTai = true;
 
+    // Ghi lại throughput tức thời theo từng mốc 200ms - dùng để cắt bỏ giai
+    // đoạn tăng tốc ban đầu VÀ để tính độ ổn định (coefficient of variation)
+    // của cửa sổ đã ổn định.
+    final dsMauThoiGian = <double>[]; // giây kể từ lúc bắt đầu
+    final dsMauMbps = <double>[];
     DateTime lanCapNhatCuoi = batDau;
     int byteLucCapNhatCuoi = 0;
     final timer = Timer.periodic(const Duration(milliseconds: 200), (_) {
       final baygio = DateTime.now();
       final byteVuaTaiTrongKhoang = tongByteDaNhan - byteLucCapNhatCuoi;
       final giayVuaTrongKhoang = baygio.difference(lanCapNhatCuoi).inMilliseconds / 1000;
-      if (giayVuaTrongKhoang > 0 && mounted) {
+      if (giayVuaTrongKhoang > 0) {
         final tocDoTucThoi = (byteVuaTaiTrongKhoang * 8) / giayVuaTrongKhoang / 1000000;
-        _capNhatKim(tocDoTucThoi);
+        if (mounted) _capNhatKim(tocDoTucThoi);
+        dsMauThoiGian.add(baygio.difference(batDau).inMilliseconds / 1000);
+        dsMauMbps.add(tocDoTucThoi);
       }
       lanCapNhatCuoi = baygio;
       byteLucCapNhatCuoi = tongByteDaNhan;
     });
+
+    final dsLoadedPing = <int>[];
+    final futurePing = _guiPingTrongLucTai(client, dsLoadedPing, () => dangTai);
 
     await Future.wait(List.generate(_soLuongSongSong, (_) async {
       while (DateTime.now().isBefore(ketThucLuc)) {
@@ -162,40 +220,51 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> with SingleTickerProv
           final res = await client.send(request).timeout(const Duration(seconds: 12));
           await for (final doan in res.stream) {
             tongByteDaNhan += doan.length;
-            if (DateTime.now().isAfter(ketThucLuc)) break; // dừng ngay khi hết giờ, không tải nốt phần thừa
+            if (DateTime.now().isAfter(ketThucLuc)) break;
           }
         } catch (_) {
-          break; // luồng này lỗi thì dừng riêng nó, các luồng khác vẫn tiếp tục
+          break;
         }
       }
     }));
 
+    dangTai = false;
+    await futurePing;
     timer.cancel();
-    final tongThoiGianGiay = DateTime.now().difference(batDau).inMilliseconds / 1000;
-    return tongThoiGianGiay > 0 ? (tongByteDaNhan * 8) / tongThoiGianGiay / 1000000 : 0;
+
+    final ketQua = _tinhThongLuongOnDinh(dsMauThoiGian, dsMauMbps, tongByteDaNhan, DateTime.now().difference(batDau).inMilliseconds / 1000);
+    dsLoadedPing.sort();
+    final loadedLatency = dsLoadedPing.isNotEmpty ? dsLoadedPing[dsLoadedPing.length ~/ 2] : null;
+    return (mbps: ketQua.mbps, loadedLatencyMs: loadedLatency, onDinh: ketQua.onDinh);
   }
 
-  /// Tải lên bằng NHIỀU LUỒNG SONG SONG, MỖI LUỒNG GỬI LIÊN TỤC (không chỉ 1
-  /// lần) cho tới hết thời gian đo - cùng lý do như phần tải xuống.
-  Future<double> _doTocDoTaiLen(http.Client client) async {
-    const kichThuocMoiLan = 5 * 1000 * 1000; // 5MB/lần gửi
+  Future<({double mbps, int? loadedLatencyMs, bool onDinh})> _doTocDoTaiLen(http.Client client) async {
+    const kichThuocMoiLan = 5 * 1000 * 1000;
     int tongByteDaGui = 0;
     final batDau = DateTime.now();
     final ketThucLuc = batDau.add(const Duration(seconds: _thoiLuongDoGiay));
+    bool dangTai = true;
 
+    final dsMauThoiGian = <double>[];
+    final dsMauMbps = <double>[];
     DateTime lanCapNhatCuoi = batDau;
     int byteLucCapNhatCuoi = 0;
     final timer = Timer.periodic(const Duration(milliseconds: 200), (_) {
       final baygio = DateTime.now();
       final byteVuaGuiTrongKhoang = tongByteDaGui - byteLucCapNhatCuoi;
       final giayVuaTrongKhoang = baygio.difference(lanCapNhatCuoi).inMilliseconds / 1000;
-      if (giayVuaTrongKhoang > 0 && mounted) {
+      if (giayVuaTrongKhoang > 0) {
         final tocDoTucThoi = (byteVuaGuiTrongKhoang * 8) / giayVuaTrongKhoang / 1000000;
-        _capNhatKim(tocDoTucThoi);
+        if (mounted) _capNhatKim(tocDoTucThoi);
+        dsMauThoiGian.add(baygio.difference(batDau).inMilliseconds / 1000);
+        dsMauMbps.add(tocDoTucThoi);
       }
       lanCapNhatCuoi = baygio;
       byteLucCapNhatCuoi = tongByteDaGui;
     });
+
+    final dsLoadedPing = <int>[];
+    final futurePing = _guiPingTrongLucTai(client, dsLoadedPing, () => dangTai);
 
     await Future.wait(List.generate(_soLuongSongSong, (_) async {
       while (DateTime.now().isBefore(ketThucLuc)) {
@@ -204,14 +273,47 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> with SingleTickerProv
           await client.post(Uri.parse('https://speed.cloudflare.com/__up'), body: duLieu).timeout(const Duration(seconds: 10));
           tongByteDaGui += kichThuocMoiLan;
         } catch (_) {
-          break; // luồng này lỗi thì dừng riêng nó, các luồng khác vẫn tiếp tục
+          break;
         }
       }
     }));
 
+    dangTai = false;
+    await futurePing;
     timer.cancel();
-    final tongThoiGianGiay = DateTime.now().difference(batDau).inMilliseconds / 1000;
-    return tongThoiGianGiay > 0 ? (tongByteDaGui * 8) / tongThoiGianGiay / 1000000 : 0;
+
+    final ketQua = _tinhThongLuongOnDinh(dsMauThoiGian, dsMauMbps, tongByteDaGui, DateTime.now().difference(batDau).inMilliseconds / 1000);
+    dsLoadedPing.sort();
+    final loadedLatency = dsLoadedPing.isNotEmpty ? dsLoadedPing[dsLoadedPing.length ~/ 2] : null;
+    return (mbps: ketQua.mbps, loadedLatencyMs: loadedLatency, onDinh: ketQua.onDinh);
+  }
+
+  /// Tính tốc độ CUỐI CÙNG từ CỬA SỔ ỔN ĐỊNH (bỏ qua 25% thời gian đầu - giai
+  /// đoạn tăng tốc TCP) thay vì trung bình toàn bộ thời gian đo - đây là thay
+  /// đổi phương pháp luận CỐT LÕI để khắc phục việc đo thấp hơn thực tế trên
+  /// đường truyền nhanh. Đồng thời đánh giá ĐỘ ỔN ĐỊNH: nếu độ lệch chuẩn của
+  /// các mẫu trong cửa sổ ổn định VƯỢT QUÁ 35% giá trị trung bình, coi là kết
+  /// quả CHƯA ỔN ĐỊNH (mạng dao động mạnh) - khuyến nghị đo lại thay vì âm
+  /// thầm nhận 1 con số không đáng tin.
+  ({double mbps, bool onDinh}) _tinhThongLuongOnDinh(List<double> dsThoiGian, List<double> dsMbps, int tongByte, double tongGiay) {
+    if (dsMbps.isEmpty || tongGiay <= 0) {
+      return (mbps: 0, onDinh: false);
+    }
+    final mocBoQua = tongGiay * _tiLeBoQuaTangToc;
+    final dsOnDinh = <double>[];
+    for (var i = 0; i < dsThoiGian.length; i++) {
+      if (dsThoiGian[i] >= mocBoQua) dsOnDinh.add(dsMbps[i]);
+    }
+    // Nếu cửa sổ ổn định quá ít mẫu (test quá ngắn/lỗi mạng giữa chừng) - dùng
+    // tổng byte/tổng thời gian TOÀN BỘ làm phương án dự phòng, vẫn còn hơn 0.
+    if (dsOnDinh.length < 3) {
+      return (mbps: (tongByte * 8) / tongGiay / 1000000, onDinh: false);
+    }
+    final trungBinh = dsOnDinh.reduce((a, b) => a + b) / dsOnDinh.length;
+    final phuongSai = dsOnDinh.map((v) => pow(v - trungBinh, 2)).reduce((a, b) => a + b) / dsOnDinh.length;
+    final doLechChuan = sqrt(phuongSai);
+    final onDinh = trungBinh > 0 ? (doLechChuan / trungBinh) <= 0.35 : false;
+    return (mbps: trungBinh, onDinh: onDinh);
   }
 
   String _danhGiaChatLuong(double? taiXuong, int? ping) {
@@ -247,7 +349,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> with SingleTickerProv
                     Icon(Icons.dns_outlined, size: 15, color: Colors.grey.shade600),
                     const SizedBox(width: 6),
                     Text(
-                      'Máy chủ: Cloudflare (tự động chọn điểm gần nhất)',
+                      _serverColo != null ? 'Máy chủ: Cloudflare · $_serverColo' : 'Máy chủ: Cloudflare (tự động chọn điểm gần nhất)',
                       style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700),
                     ),
                   ],
@@ -297,21 +399,67 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> with SingleTickerProv
               if (xongHoanTat || _giaiDoan == _GiaiDoan.loi) ...[
                 Row(
                   children: [
-                    if (_pingMs != null) Expanded(child: _theKetQuaNho('Ping', '$_pingMs', 'ms', Icons.network_ping, Colors.orange)),
-                    if (_pingMs != null && _tocDoTaiLenMbps != null) const SizedBox(width: 10),
+                    if (_idleLatencyMs != null) Expanded(child: _theKetQuaNho('Ping', '$_idleLatencyMs', 'ms', Icons.network_ping, Colors.orange)),
+                    if (_idleLatencyMs != null && _tocDoTaiLenMbps != null) const SizedBox(width: 10),
                     if (_tocDoTaiLenMbps != null) Expanded(child: _theKetQuaNho('Tải lên', _tocDoTaiLenMbps!.toStringAsFixed(1), 'Mbps', Icons.upload, Colors.green)),
                   ],
                 ),
+                if (!_ketQuaOnDinh) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: Colors.amber.withValues(alpha: .15), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.amber.shade700, width: 1)),
+                    child: Row(children: [
+                      Icon(Icons.warning_amber_rounded, color: Colors.amber.shade800, size: 18),
+                      const SizedBox(width: 8),
+                      const Expanded(child: Text('Kết quả dao động khá lớn trong lúc đo - mạng có thể chưa ổn định. Nên đo lại để có kết quả đáng tin cậy hơn.', style: TextStyle(fontSize: 12))),
+                    ]),
+                  ),
+                ],
+                if (_jitterMs != null || _loadedLatencyTaiXuongMs != null || _loadedLatencyTaiLenMs != null) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade200)),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Chi tiết độ trễ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
+                        const SizedBox(height: 6),
+                        if (_jitterMs != null) Text('Jitter (độ rung tín hiệu): $_jitterMs ms', style: const TextStyle(fontSize: 12)),
+                        if (_loadedLatencyTaiXuongMs != null) Text('Ping lúc đang tải xuống: $_loadedLatencyTaiXuongMs ms', style: const TextStyle(fontSize: 12)),
+                        if (_loadedLatencyTaiLenMs != null) Text('Ping lúc đang tải lên: $_loadedLatencyTaiLenMs ms', style: const TextStyle(fontSize: 12)),
+                        if (_idleLatencyMs != null && _loadedLatencyTaiXuongMs != null && (_loadedLatencyTaiXuongMs! - _idleLatencyMs!) > 200)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 6),
+                            child: Text('⚠️ Độ trễ tăng mạnh khi tải dữ liệu - có dấu hiệu nghẽn mạng (bufferbloat).', style: TextStyle(fontSize: 11.5, color: Colors.deepOrange)),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
                 if (_tocDoTaiXuongMbps != null) ...[
                   const SizedBox(height: 14),
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(color: Colors.blue.withValues(alpha: .08), borderRadius: BorderRadius.circular(12)),
-                    child: Text(_danhGiaChatLuong(_tocDoTaiXuongMbps, _pingMs), style: const TextStyle(fontSize: 13)),
+                    child: Text(_danhGiaChatLuong(_tocDoTaiXuongMbps, _idleLatencyMs), style: const TextStyle(fontSize: 13)),
                   ),
                 ],
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  child: Text(
+                    'Đây KHÔNG PHẢI phép đo của Speedtest by Ookla. Kết quả đo qua máy chủ Cloudflare công khai - nếu Ookla dùng máy chủ Viettel gần bạn hơn, kết quả 2 bên có thể khác nhau dù cả 2 đều đo đúng - đó là do khác tuyến mạng, không phải lỗi tính toán.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+                  ),
+                ),
+                const SizedBox(height: 4),
                 _theGiaiThichThongSo(),
                 if (_thongBaoLoi != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_thongBaoLoi!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red))),
               ],
