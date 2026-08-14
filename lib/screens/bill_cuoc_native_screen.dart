@@ -31,6 +31,7 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
   final _oTimKiem = TextEditingController();
   final Set<int> _idDaChon = {};
   bool _dangTai = false;
+  bool _boLocMoRong = false; // mặc định THU GỌN - đỡ chiếm chỗ màn hình, bấm mũi tên để mở ra khi cần đổi bộ lọc
   bool _dangMoTrinhDuyet = false;
   Timer? _hienGioTimKiem; // trì hoãn tìm kiếm - gõ là tự tìm, không cần bấm Enter
 
@@ -762,48 +763,79 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
   }
 
   Widget _khungBoLoc() {
+    String kyHienTai = '--';
+    for (final k in _dsKy) { if (k.id == _kyIdDangChon) { kyHienTai = k.tenKy; break; } }
+    String tvvHienTai = 'Tất cả CNKD';
+    if (_tvvDangChon != null) {
+      tvvHienTai = _tvvDangChon!;
+      for (final t in _dsTvv) { if (t.maTvv == _tvvDangChon) { tvvHienTai = t.tenTvv.isEmpty ? t.maTvv : t.tenTvv; break; } }
+    }
+    final trangThaiHienTai = _daThuDangChon == null ? 'Tất cả trạng thái' : (_daThuDangChon! ? 'Đã thu' : 'Chưa thu');
+
     return Padding(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
       child: Column(
         children: [
-          Row(children: [
-            Expanded(
-              child: DropdownButtonFormField<int>(
-                value: _kyIdDangChon,
-                decoration: const InputDecoration(labelText: 'Kỳ cước', isDense: true, border: OutlineInputBorder()),
-                items: _dsKy.map((k) => DropdownMenuItem(value: k.id, child: Text(k.tenKy))).toList(),
-                onChanged: (v) { setState(() { _kyIdDangChon = v; _tvvDangChon = null; _idDaChon.clear(); }); _timKhachHang(); },
-              ),
+          // Dòng TÓM TẮT bộ lọc hiện tại - LUÔN hiện, gọn 1 dòng, bấm để
+          // mở/thu bộ lọc chi tiết - đỡ chiếm màn hình như trước (3 khung
+          // dropdown + ô tìm kiếm chiếm gần nửa màn hình dù ít khi cần đổi).
+          InkWell(
+            onTap: () => setState(() => _boLocMoRong = !_boLocMoRong),
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(children: [
+                const Icon(Icons.filter_list, size: 18, color: Colors.grey),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text('$kyHienTai · $tvvHienTai · $trangThaiHienTai', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5, color: Colors.black87)),
+                ),
+                Icon(_boLocMoRong ? Icons.expand_less : Icons.expand_more, color: Colors.grey),
+              ]),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: DropdownButtonFormField<String>(
-                value: _tvvDangChon,
-                decoration: const InputDecoration(labelText: 'CNKD', isDense: true, border: OutlineInputBorder()),
-                items: [
-                  const DropdownMenuItem(value: null, child: Text('-- Tất cả --')),
-                  ..._dsTvv.map((t) => DropdownMenuItem(value: t.maTvv, child: Text(t.tenTvv.isEmpty ? t.maTvv : t.tenTvv))),
-                ],
-                onChanged: (v) { setState(() => _tvvDangChon = v); _timKhachHang(); },
+          ),
+          if (_boLocMoRong) ...[
+            const SizedBox(height: 4),
+            Row(children: [
+              Expanded(
+                child: DropdownButtonFormField<int>(
+                  value: _kyIdDangChon,
+                  decoration: const InputDecoration(labelText: 'Kỳ cước', isDense: true, border: OutlineInputBorder()),
+                  items: _dsKy.map((k) => DropdownMenuItem(value: k.id, child: Text(k.tenKy))).toList(),
+                  onChanged: (v) { setState(() { _kyIdDangChon = v; _tvvDangChon = null; _idDaChon.clear(); }); _timKhachHang(); },
+                ),
               ),
-            ),
-          ]),
-          const SizedBox(height: 8),
-          Row(children: [
-            Expanded(
-              child: DropdownButtonFormField<bool?>(
-                value: _daThuDangChon,
-                decoration: const InputDecoration(labelText: 'Trạng thái thu', isDense: true, border: OutlineInputBorder()),
-                items: const [
-                  DropdownMenuItem(value: null, child: Text('-- Tất cả --')),
-                  DropdownMenuItem(value: false, child: Text('Chưa thu')),
-                  DropdownMenuItem(value: true, child: Text('Đã thu')),
-                ],
-                onChanged: (v) { setState(() => _daThuDangChon = v); _timKhachHang(); },
+              const SizedBox(width: 8),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  value: _tvvDangChon,
+                  decoration: const InputDecoration(labelText: 'CNKD', isDense: true, border: OutlineInputBorder()),
+                  items: [
+                    const DropdownMenuItem(value: null, child: Text('-- Tất cả --')),
+                    ..._dsTvv.map((t) => DropdownMenuItem(value: t.maTvv, child: Text(t.tenTvv.isEmpty ? t.maTvv : t.tenTvv))),
+                  ],
+                  onChanged: (v) { setState(() => _tvvDangChon = v); _timKhachHang(); },
+                ),
               ),
-            ),
-          ]),
-          const SizedBox(height: 8),
+            ]),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(
+                child: DropdownButtonFormField<bool?>(
+                  value: _daThuDangChon,
+                  decoration: const InputDecoration(labelText: 'Trạng thái thu', isDense: true, border: OutlineInputBorder()),
+                  items: const [
+                    DropdownMenuItem(value: null, child: Text('-- Tất cả --')),
+                    DropdownMenuItem(value: false, child: Text('Chưa thu')),
+                    DropdownMenuItem(value: true, child: Text('Đã thu')),
+                  ],
+                  onChanged: (v) { setState(() => _daThuDangChon = v); _timKhachHang(); },
+                ),
+              ),
+            ]),
+            const SizedBox(height: 8),
+          ] else
+            const SizedBox(height: 6),
           TextField(
             controller: _oTimKiem,
             decoration: InputDecoration(
@@ -957,29 +989,44 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
         return CheckboxListTile(
           value: daChon,
           onChanged: (v) => setState(() { v == true ? _idDaChon.add(kh.id) : _idDaChon.remove(kh.id); }),
-          title: Row(children: [
-            Expanded(child: Text(kh.tenKhachHang, style: const TextStyle(fontWeight: FontWeight.w600))),
-            Container(
-              margin: const EdgeInsets.only(left: 4),
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(color: kh.daThu ? Colors.green.shade100 : Colors.orange.shade100, borderRadius: BorderRadius.circular(4)),
-              child: Text(kh.daThu ? 'Đã thu' : 'Chưa thu', style: TextStyle(fontSize: 11, color: kh.daThu ? Colors.green.shade800 : Colors.orange.shade900, fontWeight: FontWeight.bold)),
-            ),
-            if (kh.soLanDaInBill > 0)
-              Container(
-                margin: const EdgeInsets.only(left: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(4)),
-                child: Text('Bill x${kh.soLanDaInBill}', style: TextStyle(fontSize: 11, color: Colors.green.shade800, fontWeight: FontWeight.bold)),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Tên khách hàng chiếm TRỌN 1 dòng riêng - LỖI THẬT ĐÃ GẶP: nhét
+              // chung 1 hàng với 3 huy hiệu (Đã/Chưa thu, Bill, Nhiệt) khiến
+              // phần chữ tên bị co lại quá hẹp, tên dài (VD "Bộ Chỉ Huy Quân Sự
+              // Tỉnh") bị xuống dòng từng chữ một, cực kỳ khó nhìn. Giờ tên
+              // luôn đủ rộng cả dòng, cắt "..." nếu quá dài thay vì xuống dòng.
+              Text(kh.tenKhachHang, style: const TextStyle(fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 3),
+              // Các huy hiệu chuyển XUỐNG DÒNG RIÊNG, dùng Wrap để tự xuống
+              // dòng tiếp nếu màn hình quá hẹp không đủ chỗ cho cả 3 huy hiệu.
+              Wrap(
+                spacing: 4,
+                runSpacing: 4,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(color: kh.daThu ? Colors.green.shade100 : Colors.orange.shade100, borderRadius: BorderRadius.circular(4)),
+                    child: Text(kh.daThu ? 'Đã thu' : 'Chưa thu', style: TextStyle(fontSize: 11, color: kh.daThu ? Colors.green.shade800 : Colors.orange.shade900, fontWeight: FontWeight.bold)),
+                  ),
+                  if (kh.soLanDaInBill > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(4)),
+                      child: Text('Bill x${kh.soLanDaInBill}', style: TextStyle(fontSize: 11, color: Colors.green.shade800, fontWeight: FontWeight.bold)),
+                    ),
+                  if (kh.soLanDaInNhiet > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(color: Colors.blue.shade100, borderRadius: BorderRadius.circular(4)),
+                      child: Text('Nhiệt x${kh.soLanDaInNhiet}', style: TextStyle(fontSize: 11, color: Colors.blue.shade800, fontWeight: FontWeight.bold)),
+                    ),
+                ],
               ),
-            if (kh.soLanDaInNhiet > 0)
-              Container(
-                margin: const EdgeInsets.only(left: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(color: Colors.blue.shade100, borderRadius: BorderRadius.circular(4)),
-                child: Text('Nhiệt x${kh.soLanDaInNhiet}', style: TextStyle(fontSize: 11, color: Colors.blue.shade800, fontWeight: FontWeight.bold)),
-              ),
-          ]),
+            ],
+          ),
           subtitle: Text('${kh.soTb} · ${kh.tenTvv}\n${_dinhDangTien(kh.tongCuoc)}đ'
               '${kh.noTruoc > 0 ? ' · Nợ trước: ${_dinhDangTien(kh.noTruoc)}đ' : ''}'),
           isThreeLine: true,
