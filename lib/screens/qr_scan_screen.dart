@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/catalog_service.dart';
 import '../theme.dart';
@@ -30,11 +31,32 @@ class _QrScanScreenState extends State<QrScanScreen> with WidgetsBindingObserver
   // cứng nếu camera vẫn lỗi vì lý do khác.
   final _controller = MobileScannerController(detectionSpeed: DetectionSpeed.noDuplicates, autoStart: false);
   bool _dangXuLy = false; // chặn quét trùng liên tục trong lúc đang hiện kết quả
+  bool _chuaCoQuyenCamera = false; // hiện màn xin quyền RIÊNG thay vì để mobile_scanner tự lo (nghi vấn thêm)
+  bool _dangKiemTraQuyen = true;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _kiemTraQuyenRoiKhoiDong();
+  }
+
+  /// Tự xin quyền Camera RÕ RÀNG bằng permission_handler TRƯỚC KHI mount
+  /// widget MobileScanner - KHÔNG để plugin tự lo phần xin quyền (mobile_
+  /// scanner có xin quyền nội bộ, nhưng nghi vấn việc camera provider được
+  /// gọi TRƯỚC KHI quyền thật sự được cấp xong trên 1 số máy có thể là 1
+  /// phần nguyên nhân gây lỗi native "camera provider null" đã gặp).
+  Future<void> _kiemTraQuyenRoiKhoiDong() async {
+    final trangThai = await Permission.camera.request();
+    if (!mounted) return;
+    if (!trangThai.isGranted) {
+      setState(() {
+        _chuaCoQuyenCamera = true;
+        _dangKiemTraQuyen = false;
+      });
+      return;
+    }
+    setState(() => _dangKiemTraQuyen = false);
     WidgetsBinding.instance.addPostFrameCallback((_) => _khoiDongCameraAnToan());
   }
 
@@ -168,12 +190,43 @@ class _QrScanScreenState extends State<QrScanScreen> with WidgetsBindingObserver
     return Scaffold(
       appBar: AppBar(
         title: const Text('Quét mã QR'),
-        actions: [
-          IconButton(icon: const Icon(Icons.flash_on), tooltip: 'Bật/tắt đèn flash', onPressed: () => _controller.toggleTorch()),
-          IconButton(icon: const Icon(Icons.cameraswitch), tooltip: 'Đổi camera', onPressed: () => _controller.switchCamera()),
-        ],
+        actions: _chuaCoQuyenCamera || _dangKiemTraQuyen
+            ? null
+            : [
+                IconButton(icon: const Icon(Icons.flash_on), tooltip: 'Bật/tắt đèn flash', onPressed: () => _controller.toggleTorch()),
+                IconButton(icon: const Icon(Icons.cameraswitch), tooltip: 'Đổi camera', onPressed: () => _controller.switchCamera()),
+              ],
       ),
-      body: Stack(
+      body: _dangKiemTraQuyen
+          ? const Center(child: CircularProgressIndicator())
+          : _chuaCoQuyenCamera
+              ? Container(
+                  color: Colors.black,
+                  padding: const EdgeInsets.all(24),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.camera_alt_outlined, color: Colors.white, size: 48),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Chưa cấp quyền Camera cho app.\nVào Cài đặt máy > Ứng dụng > Viettel Khu Vực Vĩnh Hưng > Quyền > bật Camera.',
+                          style: TextStyle(color: Colors.white),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 20),
+                        OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(foregroundColor: Colors.white, side: const BorderSide(color: Colors.white)),
+                          onPressed: _kiemTraQuyenRoiKhoiDong,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Thử lại'),
+                        ),
+                        TextButton(onPressed: openAppSettings, child: const Text('Mở Cài đặt máy', style: TextStyle(color: Colors.white70))),
+                      ],
+                    ),
+                  ),
+                )
+              : Stack(
         fit: StackFit.expand,
         children: [
           MobileScanner(

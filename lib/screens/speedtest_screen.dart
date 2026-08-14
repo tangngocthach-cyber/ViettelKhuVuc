@@ -119,38 +119,28 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> with SingleTickerProv
   }
 
   /// Tải xuống bằng NHIỀU LUỒNG SONG SONG (mặc định 4) - ĐÚNG cách các công
-  /// cụ đo tốc độ THẬT hoạt động (Speedtest.net/Ookla). LỖI THẬT ĐÃ GẶP
-  /// TRƯỚC ĐÂY: chỉ dùng 1 luồng tải đơn - 1 kết nối TCP luôn có TRẦN THÔNG
-  /// LƯỢNG RIÊNG (do cơ chế kiểm soát tắc nghẽn TCP + slow-start), KHÔNG BAO
-  /// GIỜ "kéo hết" được đường truyền tốc độ cao dù mạng thật nhanh hơn NHIỀU
-  /// - đối chiếu thực tế với app Speedtest chuyên nghiệp cùng thời điểm cho
-  /// thấy kết quả SAI LỆCH TỚI 8 LẦN (446 Mbps thật vs chỉ đo được 59.9
-  /// Mbps). Đo trong 1 KHOẢNG THỜI GIAN CỐ ĐỊNH (không đợi tải hết file) vì
-  /// file cố tình để RẤT LỚN - đây mới là cách đo ĐÚNG "thông lượng thực sự
-  /// đạt được", không bị sai lệch bởi giai đoạn tăng tốc ban đầu (slow-start)
-  /// của TCP như khi đo qua 1 file nhỏ cố định.
+  /// cụ đo tốc độ THẬT hoạt động (Speedtest.net/Ookla). LỖI THẬT ĐÃ GẶP LẦN
+  /// 1: chỉ dùng 1 luồng tải đơn - 1 kết nối TCP luôn có TRẦN THÔNG LƯỢNG
+  /// RIÊNG, KHÔNG BAO GIỜ "kéo hết" được đường truyền tốc độ cao.
+  ///
+  /// LỖI THẬT ĐÃ GẶP LẦN 2 (sau khi sửa lần 1): đổi sang 4 luồng nhưng mỗi
+  /// luồng xin 1 LẦN DUY NHẤT file "200MB" - máy chủ Cloudflare speedtest RẤT
+  /// CÓ THỂ giới hạn kích thước tối đa cho phép mỗi yêu cầu (nhiều dịch vụ
+  /// tương tự giới hạn quanh mức 100MB) - xin vượt mức cho phép khiến máy chủ
+  /// trả về lỗi/nội dung rất ngắn thay vì dữ liệu thật, kết quả đo gần như
+  /// bằng 0 dù không có ngoại lệ nào bị ném ra (im lặng sai, khó phát hiện).
+  /// Sửa DỨT ĐIỂM: mỗi luồng xin file kích thước VỪA PHẢI (25MB, chắc chắn
+  /// trong giới hạn cho phép) rồi LẶP LẠI NHIỀU LẦN liên tục cho tới hết thời
+  /// gian đo - giống hệt cách hàm đo tải lên đã làm và cho kết quả đúng.
   static const int _soLuongSongSong = 4;
   static const int _thoiLuongDoGiay = 8;
 
   Future<double> _doTocDoTaiXuong(http.Client client) async {
-    const kichThuocMoiLuong = 200 * 1000 * 1000; // 200MB/luồng - đủ lớn, không lo tải hết trước khi hết giờ đo dù mạng rất nhanh
+    const kichThuocMoiLan = 25 * 1000 * 1000; // 25MB/lần xin - vừa phải, chắc chắn dưới trần cho phép của máy chủ
     int tongByteDaNhan = 0;
-    bool dangDo = true;
-
-    final dsSub = <StreamSubscription>[];
-    for (var i = 0; i < _soLuongSongSong; i++) {
-      try {
-        final request = http.Request('GET', Uri.parse('https://speed.cloudflare.com/__down?bytes=$kichThuocMoiLuong'));
-        final res = await client.send(request).timeout(const Duration(seconds: 15));
-        dsSub.add(res.stream.listen((doan) {
-          if (dangDo) tongByteDaNhan += doan.length;
-        }));
-      } catch (_) {
-        // 1 luồng lỗi không làm hỏng cả phép đo - các luồng còn lại vẫn tiếp tục.
-      }
-    }
-
     final batDau = DateTime.now();
+    final ketThucLuc = batDau.add(const Duration(seconds: _thoiLuongDoGiay));
+
     DateTime lanCapNhatCuoi = batDau;
     int byteLucCapNhatCuoi = 0;
     final timer = Timer.periodic(const Duration(milliseconds: 200), (_) {
@@ -165,11 +155,22 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> with SingleTickerProv
       byteLucCapNhatCuoi = tongByteDaNhan;
     });
 
-    await Future.delayed(const Duration(seconds: _thoiLuongDoGiay));
-    dangDo = false;
-    timer.cancel();
-    for (final sub in dsSub) { await sub.cancel(); } // dừng hẳn tải để không lãng phí dung lượng di động của CNKD
+    await Future.wait(List.generate(_soLuongSongSong, (_) async {
+      while (DateTime.now().isBefore(ketThucLuc)) {
+        try {
+          final request = http.Request('GET', Uri.parse('https://speed.cloudflare.com/__down?bytes=$kichThuocMoiLan'));
+          final res = await client.send(request).timeout(const Duration(seconds: 12));
+          await for (final doan in res.stream) {
+            tongByteDaNhan += doan.length;
+            if (DateTime.now().isAfter(ketThucLuc)) break; // dừng ngay khi hết giờ, không tải nốt phần thừa
+          }
+        } catch (_) {
+          break; // luồng này lỗi thì dừng riêng nó, các luồng khác vẫn tiếp tục
+        }
+      }
+    }));
 
+    timer.cancel();
     final tongThoiGianGiay = DateTime.now().difference(batDau).inMilliseconds / 1000;
     return tongThoiGianGiay > 0 ? (tongByteDaNhan * 8) / tongThoiGianGiay / 1000000 : 0;
   }
