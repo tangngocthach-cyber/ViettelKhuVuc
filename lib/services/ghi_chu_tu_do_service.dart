@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/ghi_chu_tu_do.dart';
 
 /// Lưu trữ Sổ ghi chú kiểu iOS Notes - dùng file JSON RIÊNG BIỆT
@@ -69,6 +70,126 @@ class GhiChuTuDoService {
   static Future<String> duongDanTepMoi(String duoiFile) async {
     final thuMuc = await _thuMucTepDinhKem();
     return '${thuMuc.path}/${DateTime.now().millisecondsSinceEpoch}.$duoiFile';
+  }
+
+  // ============================================================================
+  // SAO LƯU / KHÔI PHỤC - dữ liệu Sổ ghi chú CHỈ nằm trên máy (không đồng bộ
+  // server) - XÓA APP CÀI LẠI SẼ MẤT TRẮNG nếu không sao lưu trước. File sao
+  // lưu NHÚNG LUÔN cả ảnh vẽ tay + ghi âm dạng base64 vào trong 1 file JSON
+  // duy nhất (không cần thư viện nén .zip riêng) - khôi phục lại đầy đủ
+  // 100%, không thiếu file đính kèm nào.
+  // ============================================================================
+
+  /// Xuất TOÀN BỘ ghi chú (kèm ảnh vẽ tay + ghi âm) ra 1 file JSON duy nhất.
+  static Future<File> xuatBackup() async {
+    final ds = await layDanhSach();
+    final dir = await getTemporaryDirectory();
+    await _donDepFileTamSaoLuu(dir);
+
+    final dsXuat = <Map<String, dynamic>>[];
+    for (final gc in ds) {
+      final j = gc.toJson();
+      if (gc.duongDanVeTay != null) {
+        final f = File(gc.duongDanVeTay!);
+        if (await f.exists()) {
+          j['ve_tay_base64'] = base64Encode(await f.readAsBytes());
+          j['ve_tay_duoi_file'] = gc.duongDanVeTay!.split('.').last;
+        }
+      }
+      if (gc.duongDanGhiAm != null) {
+        final f = File(gc.duongDanGhiAm!);
+        if (await f.exists()) {
+          j['ghi_am_base64'] = base64Encode(await f.readAsBytes());
+          j['ghi_am_duoi_file'] = gc.duongDanGhiAm!.split('.').last;
+        }
+      }
+      dsXuat.add(j);
+    }
+
+    final tenFile = 'sao-luu-so-ghi-chu-${DateTime.now().millisecondsSinceEpoch}.json';
+    final file = File('${dir.path}/$tenFile');
+    await file.writeAsString(jsonEncode(dsXuat));
+    await _luuThoiGianSaoLuuCuoi();
+    return file;
+  }
+
+  static const _khoaLanSaoLuuCuoi = 'so_ghi_chu_tu_do_lan_sao_luu_cuoi';
+
+  static Future<void> _luuThoiGianSaoLuuCuoi() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_khoaLanSaoLuuCuoi, DateTime.now().toIso8601String());
+    } catch (_) {}
+  }
+
+  /// Lấy thời điểm sao lưu gần nhất - dùng để nhắc người dùng nếu đã lâu
+  /// chưa sao lưu (dữ liệu chỉ nằm trên máy, xóa app cài lại là mất trắng).
+  static Future<DateTime?> layLanSaoLuuCuoi() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final luu = prefs.getString(_khoaLanSaoLuuCuoi);
+      return luu != null ? DateTime.tryParse(luu) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> _donDepFileTamSaoLuu(Directory dir) async {
+    try {
+      for (final f in dir.listSync()) {
+        if (f is File && f.path.split('/').last.startsWith('sao-luu-so-ghi-chu-')) {
+          try { await f.delete(); } catch (_) {}
+        }
+      }
+    } catch (_) {}
+  }
+
+  /// Đọc file sao lưu JSON, giải mã lại ảnh vẽ tay/ghi âm thành file THẬT
+  /// trên máy, rồi THÊM MỚI/CẬP NHẬT vào Sổ ghi chú theo ID - KHÔNG xóa ghi
+  /// chú hiện có nào không nằm trong file sao lưu (an toàn, không mất dữ
+  /// liệu ngoài ý muốn). Trả về số lượng đã khôi phục thành công.
+  static Future<int> khoiPhucTuFile(File file) async {
+    final noiDung = await file.readAsString();
+    final danhSachTho = jsonDecode(noiDung) as List;
+    final dsHienCo = await layDanhSach();
+
+    var soLuongKhoiPhuc = 0;
+    for (final tho in danhSachTho) {
+      try {
+        String? duongDanVeTayMoi;
+        if (tho['ve_tay_base64'] != null) {
+          duongDanVeTayMoi = await duongDanTepMoi(tho['ve_tay_duoi_file'] ?? 'png');
+          await File(duongDanVeTayMoi).writeAsBytes(base64Decode(tho['ve_tay_base64']));
+        }
+        String? duongDanGhiAmMoi;
+        if (tho['ghi_am_base64'] != null) {
+          duongDanGhiAmMoi = await duongDanTepMoi(tho['ghi_am_duoi_file'] ?? 'm4a');
+          await File(duongDanGhiAmMoi).writeAsBytes(base64Decode(tho['ghi_am_base64']));
+        }
+
+        final gc = GhiChuTuDo(
+          id: tho['id'],
+          tieuDe: tho['tieu_de'] ?? '',
+          noiDung: tho['noi_dung'] ?? '',
+          duongDanVeTay: duongDanVeTayMoi,
+          duongDanGhiAm: duongDanGhiAmMoi,
+          giayGhiAm: tho['giay_ghi_am'],
+          ngayTao: DateTime.tryParse(tho['ngay_tao'] ?? '') ?? DateTime.now(),
+          ngayCapNhat: DateTime.tryParse(tho['ngay_cap_nhat'] ?? '') ?? DateTime.now(),
+        );
+        final viTri = dsHienCo.indexWhere((e) => e.id == gc.id);
+        if (viTri >= 0) {
+          dsHienCo[viTri] = gc;
+        } else {
+          dsHienCo.add(gc);
+        }
+        soLuongKhoiPhuc++;
+      } catch (_) {
+        // 1 dòng lỗi định dạng thì bỏ qua, không làm hỏng cả quá trình khôi phục
+      }
+    }
+    await _luuTatCa(dsHienCo);
+    return soLuongKhoiPhuc;
   }
 }
 
