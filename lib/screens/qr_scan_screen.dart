@@ -33,6 +33,8 @@ class _QrScanScreenState extends State<QrScanScreen> with WidgetsBindingObserver
   bool _dangXuLy = false; // chặn quét trùng liên tục trong lúc đang hiện kết quả
   bool _chuaCoQuyenCamera = false; // hiện màn xin quyền RIÊNG thay vì để mobile_scanner tự lo (nghi vấn thêm)
   bool _dangKiemTraQuyen = true;
+  bool _dangKhoiDongCamera = false; // CHẶN gọi start() CHỒNG NHAU - race condition thật đã tìm thấy (xem _khoiDongCameraAnToan)
+  bool _daDispose = false; // biết chắc widget đã hủy - chặn gọi lên controller đã dispose() từ lifecycle callback đến muộn
 
   @override
   void initState() {
@@ -47,8 +49,9 @@ class _QrScanScreenState extends State<QrScanScreen> with WidgetsBindingObserver
   /// gọi TRƯỚC KHI quyền thật sự được cấp xong trên 1 số máy có thể là 1
   /// phần nguyên nhân gây lỗi native "camera provider null" đã gặp).
   Future<void> _kiemTraQuyenRoiKhoiDong() async {
+    if (_daDispose) return;
     final trangThai = await Permission.camera.request();
-    if (!mounted) return;
+    if (!mounted || _daDispose) return;
     if (!trangThai.isGranted) {
       setState(() {
         _chuaCoQuyenCamera = true;
@@ -60,18 +63,34 @@ class _QrScanScreenState extends State<QrScanScreen> with WidgetsBindingObserver
     WidgetsBinding.instance.addPostFrameCallback((_) => _khoiDongCameraAnToan());
   }
 
+  /// Khởi động camera AN TOÀN - CHẶN GỌI CHỒNG NHAU (race condition THẬT đã
+  /// tìm thấy: nếu người dùng bấm "Thử lại" nhiều lần liên tiếp, hoặc app
+  /// chuyển nền/quay lại (didChangeAppLifecycleState) đúng lúc 1 lệnh start()
+  /// TRƯỚC ĐÓ CHƯA XONG, mobile_scanner có thể nhận 2 lệnh start() chồng
+  /// nhau - đây là nguyên nhân đã ghi nhận thật trong các báo cáo lỗi chính
+  /// thức của mobile_scanner, có thể biểu hiện ra ngoài dưới dạng lỗi native
+  /// mơ hồ như "getClass() on a null object reference" thay vì thông báo rõ
+  /// ràng). Kiểm tra CẢ `_daDispose` để không bao giờ gọi lên controller ĐÃ
+  /// bị `.dispose()` (VD lifecycle callback tới muộn sau khi màn hình đã bị
+  /// đóng) - gọi method lên tài nguyên native đã giải phóng là NGUYÊN NHÂN
+  /// KINH ĐIỂN của đúng loại lỗi "null object reference" này.
   Future<void> _khoiDongCameraAnToan() async {
+    if (_dangKhoiDongCamera || _daDispose) return;
+    _dangKhoiDongCamera = true;
     try {
       await _controller.start();
     } catch (_) {
       // Lỗi đã được `errorBuilder` của MobileScanner tự bắt và hiện ra màn
       // hình cho người dùng rồi (kèm nút "Thử lại") - không cần xử lý thêm
       // gì ở đây, chỉ cần không để exception này làm crash cả app.
+    } finally {
+      _dangKhoiDongCamera = false;
     }
   }
 
   @override
   void dispose() {
+    _daDispose = true;
     WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     super.dispose();
@@ -83,7 +102,7 @@ class _QrScanScreenState extends State<QrScanScreen> with WidgetsBindingObserver
   /// MIUI), gây lỗi native Camera2/CameraX như đã gặp thực tế.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!_controller.value.isInitialized) return;
+    if (_daDispose || !_controller.value.isInitialized) return;
     if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
       _controller.stop();
     } else if (state == AppLifecycleState.resumed) {
