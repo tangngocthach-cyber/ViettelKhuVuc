@@ -86,6 +86,7 @@ class AppConfig {
   static const String apiBillCuocDanhSachKy = '$baseUrl/api/bill-cuoc/danh-sach-ky.php';
   static const String apiBillCuocDanhSachKhachHang = '$baseUrl/api/bill-cuoc/danh-sach-khach-hang.php';
   static const String apiBillCuocGhiLogInNhiet = '$baseUrl/api/bill-cuoc/ghi-log-in-nhiet.php';
+  static const String apiBillCuocSuaThongTin = '$baseUrl/api/bill-cuoc/sua-thong-tin.php';
   /// Bản đồ vị trí + hiệu suất các hộp chia cáp quang GPON (Leaflet.js, dữ
   /// liệu nhập từ file KML, cập nhật qua admin/ban-do-hop-cap.php).
   static const String urlBanDoHopCap = '$baseUrl/ban-do-hop-cap.php';
@@ -95,6 +96,7 @@ class AppConfig {
   static const String urlBanDoKhachHang = '$baseUrl/ban-do-khach-hang.php';
   static const String apiToaDoDanhSach = '$baseUrl/api/toa-do/danh-sach.php';
   static const String apiToaDoCapNhat = '$baseUrl/api/toa-do/cap-nhat.php';
+  static const String apiToaDoXoa = '$baseUrl/api/toa-do/xoa.php';
   static const String urlThuVienTaiLieu = '$baseUrl/e-tai-lieu.php';
   static const String urlTroLyKPI = '$baseUrl/tro-ly-ai.php';
   /// Trang chủ - nơi có sẵn khung "Hỏi đáp tự động Viettel Vĩnh Hưng" (chatbox
