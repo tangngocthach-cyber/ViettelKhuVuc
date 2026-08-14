@@ -21,13 +21,31 @@ class QrScanScreen extends StatefulWidget {
 }
 
 class _QrScanScreenState extends State<QrScanScreen> with WidgetsBindingObserver {
-  final _controller = MobileScannerController(detectionSpeed: DetectionSpeed.noDuplicates);
+  // autoStart: false - KHÔNG để plugin tự khởi động camera NGAY LÚC TẠO
+  // controller (đúng lúc widget vừa dựng, platform view/texture Android có
+  // thể CHƯA gắn xong) - đây là nguyên nhân hay gặp của lỗi native
+  // "getClass() on a null object reference" (camera provider null vì được
+  // gọi quá sớm). Tự gọi start() thủ công SAU KHI khung hình đầu tiên đã
+  // dựng xong (`addPostFrameCallback`), bọc try/catch để không văng lỗi
+  // cứng nếu camera vẫn lỗi vì lý do khác.
+  final _controller = MobileScannerController(detectionSpeed: DetectionSpeed.noDuplicates, autoStart: false);
   bool _dangXuLy = false; // chặn quét trùng liên tục trong lúc đang hiện kết quả
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _khoiDongCameraAnToan());
+  }
+
+  Future<void> _khoiDongCameraAnToan() async {
+    try {
+      await _controller.start();
+    } catch (_) {
+      // Lỗi đã được `errorBuilder` của MobileScanner tự bắt và hiện ra màn
+      // hình cho người dùng rồi (kèm nút "Thử lại") - không cần xử lý thêm
+      // gì ở đây, chỉ cần không để exception này làm crash cả app.
+    }
   }
 
   @override
@@ -47,7 +65,7 @@ class _QrScanScreenState extends State<QrScanScreen> with WidgetsBindingObserver
     if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
       _controller.stop();
     } else if (state == AppLifecycleState.resumed) {
-      _controller.start();
+      _khoiDongCameraAnToan();
     }
   }
 
@@ -190,7 +208,7 @@ class _QrScanScreenState extends State<QrScanScreen> with WidgetsBindingObserver
                       const SizedBox(height: 20),
                       OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(foregroundColor: Colors.white, side: const BorderSide(color: Colors.white)),
-                        onPressed: () => _controller.start(),
+                        onPressed: _khoiDongCameraAnToan,
                         icon: const Icon(Icons.refresh),
                         label: const Text('Thử lại'),
                       ),
