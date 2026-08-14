@@ -315,9 +315,17 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
       _DongInNhiet('PHIẾU LƯU (CNKD giữ)', dam: true),
       _DongInNhiet(kh.tenKhachHang),
       _DongInNhiet('SĐT: ${kh.soTb}  Tiền: ${_dinhDangTien(tongNo)}đ'),
+      _DongInNhiet('Ngày in: ${_dinhDangNgayGio(DateTime.now())}'),
       _DongInNhiet('Ngày thu: ................  Đã thu: [ ]'),
     ];
     return (than: than, duoi: duoi);
+  }
+
+  /// Định dạng ngày giờ kiểu VN (dd/MM/yyyy HH:mm) - tự viết tay thay vì
+  /// thêm gói intl, vì file này chưa cần tới intl ở đâu khác.
+  String _dinhDangNgayGio(DateTime t) {
+    String bu2(int n) => n.toString().padLeft(2, '0');
+    return '${bu2(t.day)}/${bu2(t.month)}/${t.year} ${bu2(t.hour)}:${bu2(t.minute)}';
   }
 
   /// ĐÃ CÓ BẰNG CHỨNG THẬT (ảnh hóa đơn in ra từ web bị lỗi phông) - máy in
@@ -374,14 +382,34 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
       caoLogo = logoImg.height * (rongLogo / logoImg.width);
     }
 
-    // Đo trước layout (giống hệt cách bản web đo trước bằng canvas tạm)
-    final layout = <({String text, double y, double size, FontWeight weight, bool giua})>[];
+    // Đo trước layout - LƯU LUÔN CHÍNH TEXTPAINTER ĐÃ ĐO (không đo lại lần 2
+    // ở bước vẽ) để đảm bảo chiều cao dành ra KHỚP CHÍNH XÁC với số dòng
+    // thật sự sẽ hiển thị. LỖI CŨ đã gặp: đo cao theo giả định "luôn 1
+    // dòng", nhưng lúc vẽ TextPainter TỰ XUỐNG DÒNG nếu chữ dài (VD địa chỉ)
+    // - phần chữ xuống dòng 2 đè lên đúng vị trí của dòng kế tiếp, gây chồng
+    // chữ y hệt trên hóa đơn thật đã in ra. Giờ dùng `tp.height` THẬT (đã
+    // tính đúng số dòng sau khi bọc chữ) để tính khoảng cách xuống dòng kế
+    // tiếp, không còn giả định "1 dòng" nữa.
+    final layout = <({TextPainter? tp, double y})>[];
     double y = caoLogo + (coLogo ? 20 : 14);
     for (final d in dsDong) {
-      final double size = d.dam && d.to ? 24 : (d.to ? 24 : 15);
+      // TĂNG TỪ 15/24 - cỡ chữ cũ quá nhỏ, khó đọc trên hóa đơn in ra (đã
+      // sửa y hệt bên bản Web trước đó, giờ áp dụng luôn cho app).
+      final double size = d.to ? 30 : 19;
       final weight = d.dam ? FontWeight.w900 : FontWeight.w400;
-      layout.add((text: d.text, y: y + size, size: size, weight: weight, giua: true));
-      y += size + 10;
+      if (d.text.isEmpty) {
+        layout.add((tp: null, y: y));
+        y += size + 10;
+        continue;
+      }
+      final tp = TextPainter(
+        text: TextSpan(text: d.text, style: TextStyle(color: Colors.black, fontSize: size, fontWeight: weight)),
+        textAlign: TextAlign.center,
+        textDirection: TextDirection.ltr,
+      );
+      tp.layout(maxWidth: rong - 20);
+      layout.add((tp: tp, y: y));
+      y += tp.height + 10; // dùng CHIỀU CAO THẬT (đã tính đúng số dòng đã bọc chữ)
     }
     final double cao = y + 16;
 
@@ -397,16 +425,10 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
       );
     }
 
-    for (final d in layout) {
-      if (d.text.isEmpty) continue;
-      final tp = TextPainter(
-        text: TextSpan(text: d.text, style: TextStyle(color: Colors.black, fontSize: d.size, fontWeight: d.weight)),
-        textAlign: TextAlign.center,
-        textDirection: TextDirection.ltr,
-      );
-      tp.layout(maxWidth: rong - 20);
-      final dx = (rong - tp.width) / 2;
-      tp.paint(canvas, Offset(dx, d.y - d.size));
+    for (final item in layout) {
+      if (item.tp == null) continue;
+      final dx = (rong - item.tp!.width) / 2;
+      item.tp!.paint(canvas, Offset(dx, item.y));
     }
 
     final picture = recorder.endRecording();
