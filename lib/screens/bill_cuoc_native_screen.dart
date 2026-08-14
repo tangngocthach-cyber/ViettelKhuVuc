@@ -471,17 +471,24 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
     return PrintBluetoothThermal.connect(macPrinterAddress: mac);
   }
 
-  /// Đảm bảo kết nối Bluetooth ĐANG THẬT SỰ CÒN SỐNG trước khi gửi lệnh in.
-  /// LÝ DO CẦN HÀM NÀY: biến `_mayInDangKetNoi` trong app chỉ ghi nhớ LẦN
-  /// KẾT NỐI THÀNH CÔNG GẦN NHẤT, không tự cập nhật khi máy in rớt kết nối
-  /// ngầm (hết pin, ra khỏi tầm, tự tắt...) - app vẫn tưởng "đang kết nối"
-  /// trong khi thực tế socket đã chết, dẫn tới `writeBytes` âm thầm trả về
-  /// false. Gọi `PrintBluetoothThermal.connectionStatus` để hỏi THẲNG hệ
-  /// điều hành xem có còn sống không, nếu không thì tự kết nối lại bằng
-  /// đúng địa chỉ MAC đã lưu trước khi thử gửi.
+  /// Đảm bảo kết nối Bluetooth ĐANG THẬT SỰ CÒN SỐNG trước khi gửi lệnh in -
+  /// LUÔN NGẮT-RỒI-KẾT-NỐI-LẠI THẬT SỰ, KHÔNG còn tin vào
+  /// `PrintBluetoothThermal.connectionStatus` nữa.
+  ///
+  /// LÝ DO ĐỔI CÁCH LÀM (bằng chứng thật đã thu thập): "Test in ảnh" (dữ
+  /// liệu ảnh cực nhẹ, chỉ ~3KB, sinh ra từ pipeline vẽ Canvas) LUÔN thất
+  /// bại NGAY TỪ BYTE ĐẦU TIÊN (0/3090 byte) - dù hàm này đã báo "còn kết
+  /// nối" (connectionStatus = true) nên KHÔNG hề kết nối lại trước khi gửi.
+  /// Trong khi đó "Dò giới hạn" trước đây (dữ liệu sinh nhanh bằng vòng lặp
+  /// đơn giản, không qua bước vẽ Canvas mất thời gian) lại gửi thành công
+  /// tới 112KB với cùng 1 cấu trúc lệnh. Khác biệt duy nhất là THỜI GIAN Xử
+  /// LÝ trước khi gửi (vẽ Canvas mất vài trăm ms) - nghi ngờ trong lúc đó
+  /// kết nối Bluetooth bị "treo ngầm" mà `connectionStatus` KHÔNG phát hiện
+  /// ra (báo sai "còn sống" dù socket thật đã chết). Từ giờ LUÔN chủ động
+  /// ngắt-kết-nối-lại NGAY TRƯỚC MỌI LẦN GỬI, không dựa vào việc hỏi trạng
+  /// thái nữa - tốn thêm ~200ms mỗi lần in nhưng đảm bảo chắc chắn có 1 kết
+  /// nối thật, mới toanh.
   Future<bool> _damBaoConKetNoi() async {
-    final conSong = await PrintBluetoothThermal.connectionStatus;
-    if (conSong) return true;
     if (_mayInDangKetNoi == null) return false;
     return _ngatRoiKetNoiLai(_mayInDangKetNoi!.macAdress);
   }
