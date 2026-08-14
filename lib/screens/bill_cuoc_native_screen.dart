@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../config.dart';
@@ -34,9 +34,20 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
   bool _dangMoTrinhDuyet = false;
   Timer? _hienGioTimKiem; // trì hoãn tìm kiếm - gõ là tự tìm, không cần bấm Enter
 
-  // ---- Trạng thái máy in nhiệt Bluetooth (Classic Bluetooth/SPP) ----
-  List<BluetoothInfo> _dsMayInDaGhepDoi = [];
-  BluetoothInfo? _mayInDangKetNoi;
+  // ---- Trạng thái máy in nhiệt Bluetooth Low Energy (BLE) ----
+  // ĐỔI TỪ Bluetooth cổ điển (Classic/SPP) SANG BLE - bằng chứng thật: in
+  // trên WEB (dùng Web Bluetooth API = BLE) hoàn toàn bình thường, chỉ APP
+  // (dùng Bluetooth cổ điển qua print_bluetooth_thermal) luôn lỗi dù đã thử
+  // mọi cách suốt nhiều ngày. Máy in EG-582BT hỗ trợ cả 2 chuẩn, nhưng
+  // riêng chuẩn cổ điển của máy này có vấn đề với lệnh in ảnh - chuẩn BLE
+  // thì ổn. Dùng ĐÚNG service/characteristic UUID mà bản web đã dùng và
+  // chứng minh chạy tốt.
+  static final _uuidDichVuIn = Guid('000018f0-0000-1000-8000-00805f9b34fb');
+  static final _uuidDacTinhIn = Guid('00002af1-0000-1000-8000-00805f9b34fb');
+
+  List<ScanResult> _dsMayInTimThay = [];
+  BluetoothDevice? _mayInDangKetNoi;
+  BluetoothCharacteristic? _dacTinhIn;
   bool _dangKetNoiMayIn = false;
   bool _dangInHangLoat = false;
   int _khachDangInHangLoat = 0;
@@ -64,15 +75,16 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
   Future<void> _tuDongKetNoiLaiMayInDaLuu() async {
     final prefs = await SharedPreferences.getInstance();
     final macDaLuu = prefs.getString(_khoaMacMayInDaLuu);
-    final tenDaLuu = prefs.getString(_khoaTenMayInDaLuu);
-    if (macDaLuu == null || tenDaLuu == null) return;
+    if (macDaLuu == null) return;
     // Chỉ hỏi quyền đã được cấp hay chưa (KHÔNG chủ động hiện hộp thoại xin
     // quyền ngay lúc mở app - dễ gây khó chịu) - nếu chưa có quyền thì bỏ
     // qua tự kết nối, CNKD tự bấm "Kết nối" (lúc đó mới xin quyền) khi cần.
     final coQuyenKetNoi = await Permission.bluetoothConnect.status;
     final coQuyenQuet = await Permission.bluetoothScan.status;
     if (!coQuyenKetNoi.isGranted || !coQuyenQuet.isGranted) return;
-    await _ketNoiMayIn(BluetoothInfo(name: tenDaLuu, macAdress: macDaLuu), luuLaiMacDinh: false);
+    // Tạo lại tham chiếu thiết bị BLE CHỈ TỪ ID đã lưu, không cần quét lại
+    // từ đầu - đúng API chính thức của flutter_blue_plus cho việc này.
+    await _ketNoiMayIn(BluetoothDevice.fromId(macDaLuu), luuLaiMacDinh: false);
   }
 
   Future<void> _taiDanhSachKy() async {
@@ -192,12 +204,31 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
 
   Future<void> _chonMayIn() async {
     if (!await _xinQuyenBluetooth()) return;
-    final ds = await PrintBluetoothThermal.pairedBluetooths;
-    setState(() => _dsMayInDaGhepDoi = ds);
+
+    final trangThaiAdapter = await FlutterBluePlus.adapterState.first;
+    if (trangThaiAdapter != BluetoothAdapterState.on) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vui lòng bật Bluetooth trên máy trước.')));
+      return;
+    }
+
+    setState(() => _dsMayInTimThay = []);
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('⏳ Đang tìm máy in Bluetooth gần đây...')));
+
+    final dangKy = FlutterBluePlus.scanResults.listen((ds) {
+      if (mounted) setState(() => _dsMayInTimThay = ds);
+    });
+    try {
+      await FlutterBluePlus.startScan(timeout: const Duration(seconds: 6));
+      await Future.delayed(const Duration(seconds: 6));
+    } finally {
+      await dangKy.cancel();
+      try { await FlutterBluePlus.stopScan(); } catch (_) {}
+    }
+
     if (!mounted) return;
-    if (ds.isEmpty) {
+    if (_dsMayInTimThay.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Chưa có máy in nào được ghép đôi Bluetooth. Vào Cài đặt > Bluetooth của máy để ghép đôi với máy in nhiệt trước.'),
+        content: Text('Không tìm thấy máy in Bluetooth nào gần đây. Đảm bảo máy in đã bật và ở gần điện thoại.'),
       ));
       return;
     }
@@ -207,15 +238,17 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
         child: ListView(
           shrinkWrap: true,
           children: [
-            const Padding(padding: EdgeInsets.all(12), child: Text('Chọn máy in đã ghép đôi', style: TextStyle(fontWeight: FontWeight.bold))),
-            for (final may in ds)
+            const Padding(padding: EdgeInsets.all(12), child: Text('Chọn máy in tìm thấy', style: TextStyle(fontWeight: FontWeight.bold))),
+            for (final kq in _dsMayInTimThay)
               ListTile(
                 leading: const Icon(Icons.print),
-                title: Text(may.name),
-                subtitle: Text(may.macAdress),
+                title: Text(kq.device.platformName.isNotEmpty
+                    ? kq.device.platformName
+                    : (kq.advertisementData.advName.isNotEmpty ? kq.advertisementData.advName : '(Không có tên)')),
+                subtitle: Text(kq.device.remoteId.toString()),
                 onTap: () async {
                   Navigator.pop(context);
-                  await _ketNoiMayIn(may);
+                  await _ketNoiMayIn(kq.device);
                 },
               ),
           ],
@@ -224,24 +257,25 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
     );
   }
 
-  Future<void> _ketNoiMayIn(BluetoothInfo may, {bool luuLaiMacDinh = true}) async {
+  Future<void> _ketNoiMayIn(BluetoothDevice thietBi, {bool luuLaiMacDinh = true}) async {
     setState(() => _dangKetNoiMayIn = true);
     try {
-      // Ngắt kết nối cũ trước (nếu có) - phòng trường hợp socket cũ đang bị
-      // treo (VD sau 1 lần gửi lệnh in lỗi) khiến connect() mới không bao
-      // giờ thành công cho tới khi ngắt hẳn.
-      final ok = await _ngatRoiKetNoiLai(may.macAdress);
+      // Ngắt kết nối cũ trước (nếu có) rồi kết nối lại + tự dò đúng
+      // dịch vụ/đặc tính in - xem giải thích chi tiết ở `_ngatRoiKetNoiLai`.
+      final ok = await _ngatRoiKetNoiLai(thietBi);
       setState(() {
-        _mayInDangKetNoi = ok ? may : null;
+        _mayInDangKetNoi = ok ? thietBi : null;
         _dangKetNoiMayIn = false;
       });
       if (ok && luuLaiMacDinh) {
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(_khoaMacMayInDaLuu, may.macAdress);
-        await prefs.setString(_khoaTenMayInDaLuu, may.name);
+        await prefs.setString(_khoaMacMayInDaLuu, thietBi.remoteId.toString());
+        await prefs.setString(_khoaTenMayInDaLuu, thietBi.platformName);
       }
       if (mounted && luuLaiMacDinh) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? '✅ Đã kết nối: ${may.name}' : '❌ Kết nối thất bại, thử lại.')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok
+            ? '✅ Đã kết nối: ${thietBi.platformName.isNotEmpty ? thietBi.platformName : thietBi.remoteId}'
+            : '❌ Kết nối thất bại, thử lại.')));
       }
     } catch (e) {
       setState(() => _dangKetNoiMayIn = false);
@@ -460,56 +494,70 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
     );
   }
 
-  /// Ngắt kết nối cũ (nếu có) TRƯỚC KHI kết nối lại - nếu gọi `connect()`
-  /// thẳng khi socket cũ vẫn còn treo (do vừa gửi 1 gói tin lớn làm máy in
-  /// "đơ"), plugin dễ giữ lại tham chiếu socket chết, khiến MỌI lần kết nối
-  /// sau đó (kể cả bấm tay nút "Kết nối") đều thất bại cho tới khi thoát
-  /// hẳn app - ĐÃ GẶP ĐÚNG TRIỆU CHỨNG NÀY trên máy thật.
-  Future<bool> _ngatRoiKetNoiLai(String mac) async {
-    try { await PrintBluetoothThermal.disconnect; } catch (_) {}
+  /// Ngắt kết nối cũ (nếu có) rồi kết nối BLE lại từ đầu + TỰ DÒ đúng dịch
+  /// vụ (service `000018f0`) và đặc tính (characteristic `00002af1`) dùng
+  /// để gửi lệnh in - PHẢI dò lại đặc tính SAU MỖI LẦN kết nối (yêu cầu bắt
+  /// buộc của BLE, không phải tùy chọn) - lưu vào `_dacTinhIn` để các hàm
+  /// gửi dữ liệu dùng.
+  Future<bool> _ngatRoiKetNoiLai(BluetoothDevice? thietBi) async {
+    final device = thietBi ?? _mayInDangKetNoi;
+    if (device == null) return false;
+    try { await device.disconnect(); } catch (_) {}
     await Future.delayed(const Duration(milliseconds: 200));
-    return PrintBluetoothThermal.connect(macPrinterAddress: mac);
+    try {
+      await device.connect(timeout: const Duration(seconds: 10));
+      final dsDichVu = await device.discoverServices();
+      for (final dv in dsDichVu) {
+        if (dv.uuid == _uuidDichVuIn) {
+          for (final dt in dv.characteristics) {
+            if (dt.uuid == _uuidDacTinhIn) {
+              _dacTinhIn = dt;
+              return true;
+            }
+          }
+        }
+      }
+      return false; // kết nối được nhưng máy in này không có đúng dịch vụ/đặc tính mong đợi
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Đảm bảo kết nối Bluetooth ĐANG THẬT SỰ CÒN SỐNG trước khi gửi lệnh in -
-  /// LUÔN NGẮT-RỒI-KẾT-NỐI-LẠI THẬT SỰ, KHÔNG còn tin vào
-  /// `PrintBluetoothThermal.connectionStatus` nữa.
-  ///
-  /// LÝ DO ĐỔI CÁCH LÀM (bằng chứng thật đã thu thập): "Test in ảnh" (dữ
-  /// liệu ảnh cực nhẹ, chỉ ~3KB, sinh ra từ pipeline vẽ Canvas) LUÔN thất
-  /// bại NGAY TỪ BYTE ĐẦU TIÊN (0/3090 byte) - dù hàm này đã báo "còn kết
-  /// nối" (connectionStatus = true) nên KHÔNG hề kết nối lại trước khi gửi.
-  /// Trong khi đó "Dò giới hạn" trước đây (dữ liệu sinh nhanh bằng vòng lặp
-  /// đơn giản, không qua bước vẽ Canvas mất thời gian) lại gửi thành công
-  /// tới 112KB với cùng 1 cấu trúc lệnh. Khác biệt duy nhất là THỜI GIAN Xử
-  /// LÝ trước khi gửi (vẽ Canvas mất vài trăm ms) - nghi ngờ trong lúc đó
-  /// kết nối Bluetooth bị "treo ngầm" mà `connectionStatus` KHÔNG phát hiện
-  /// ra (báo sai "còn sống" dù socket thật đã chết). Từ giờ LUÔN chủ động
-  /// ngắt-kết-nối-lại NGAY TRƯỚC MỌI LẦN GỬI, không dựa vào việc hỏi trạng
-  /// thái nữa - tốn thêm ~200ms mỗi lần in nhưng đảm bảo chắc chắn có 1 kết
-  /// nối thật, mới toanh.
+  /// LUÔN NGẮT-RỒI-KẾT-NỐI-LẠI THẬT SỰ (xem giải thích chi tiết lịch sử ở
+  /// `_ngatRoiKetNoiLai`) - tốn thêm ~200ms mỗi lần in nhưng đảm bảo chắc
+  /// chắn có 1 kết nối thật, mới toanh, đã dò đúng đặc tính để ghi.
   Future<bool> _damBaoConKetNoi() async {
     if (_mayInDangKetNoi == null) return false;
-    return _ngatRoiKetNoiLai(_mayInDangKetNoi!.macAdress);
+    return _ngatRoiKetNoiLai(_mayInDangKetNoi);
   }
 
-  /// Gửi dữ liệu chia thành từng gói nhỏ - TRẢ VỀ SỐ BYTE ĐÃ GỬI THÀNH CÔNG
-  /// (không chỉ true/false) - con số này QUAN TRỌNG để phát hiện và khắc
-  /// phục đúng nguyên nhân gốc của lỗi in nhiệt (xem giải thích chi tiết ở
-  /// `_inHoaDonNhietTra`).
-  Future<int> _guiByteChiaGoiDemSo(List<int> duLieu, {int kichThuocGoi = 512, int treGiuaGoiMs = 20}) async {
+  /// Gửi dữ liệu chia thành từng gói nhỏ qua đặc tính BLE - TRẢ VỀ SỐ BYTE
+  /// ĐÃ GỬI THÀNH CÔNG (không chỉ true/false) - con số này QUAN TRỌNG để
+  /// phát hiện và khắc phục đúng nguyên nhân gốc của lỗi in nhiệt (xem giải
+  /// thích chi tiết ở `_inHoaDonNhietTra`).
+  ///
+  /// Kích thước gói mặc định (100 byte) và độ trễ (15ms) khớp CHÍNH XÁC với
+  /// bản Web đã chứng minh in ổn định (`KICH_THUOC_GOI = 100` trong
+  /// in-nhiet.js) - BLE có giới hạn kích thước gói tin (MTU) nhỏ hơn nhiều
+  /// so với Bluetooth cổ điển, gói quá lớn dễ bị từ chối hoặc cắt mất.
+  Future<int> _guiByteChiaGoiDemSo(List<int> duLieu, {int kichThuocGoi = 100, int treGiuaGoiMs = 15}) async {
+    if (_dacTinhIn == null) return 0;
     int daGui = 0;
     for (int i = 0; i < duLieu.length; i += kichThuocGoi) {
       final ketThuc = (i + kichThuocGoi < duLieu.length) ? i + kichThuocGoi : duLieu.length;
-      final ok = await PrintBluetoothThermal.writeBytes(duLieu.sublist(i, ketThuc));
-      if (!ok) return daGui;
+      try {
+        await _dacTinhIn!.write(duLieu.sublist(i, ketThuc), withoutResponse: false);
+      } catch (_) {
+        return daGui;
+      }
       daGui = ketThuc;
       if (ketThuc < duLieu.length) await Future.delayed(Duration(milliseconds: treGiuaGoiMs));
     }
     return daGui;
   }
 
-  Future<bool> _guiByteChiaGoi(List<int> duLieu, {int kichThuocGoi = 512, int treGiuaGoiMs = 20}) async {
+  Future<bool> _guiByteChiaGoi(List<int> duLieu, {int kichThuocGoi = 100, int treGiuaGoiMs = 15}) async {
     final daGui = await _guiByteChiaGoiDemSo(duLieu, kichThuocGoi: kichThuocGoi, treGiuaGoiMs: treGiuaGoiMs);
     return daGui == duLieu.length;
   }
@@ -577,7 +625,7 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
 
       // Sau khi đã dọn sạch, thử kết nối lại rồi gửi lại TOÀN BỘ hóa đơn 1
       // lần nữa (lần gửi lại này bắt đầu từ đầu, không tiếp tục từ giữa).
-      final ketNoiLai = await _ngatRoiKetNoiLai(_mayInDangKetNoi!.macAdress);
+      final ketNoiLai = await _ngatRoiKetNoiLai(_mayInDangKetNoi);
       if (ketNoiLai) {
         await Future.delayed(const Duration(milliseconds: 300));
         daGui = await _guiByteChiaGoiDemSo(lenh);
@@ -808,7 +856,7 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
         const SizedBox(width: 6),
         Expanded(
           child: Text(
-            _mayInDangKetNoi != null ? 'Máy in: ${_mayInDangKetNoi!.name}' : 'Chưa kết nối máy in nhiệt',
+            _mayInDangKetNoi != null ? 'Máy in: ${_mayInDangKetNoi!.platformName.isNotEmpty ? _mayInDangKetNoi!.platformName : _mayInDangKetNoi!.remoteId}' : 'Chưa kết nối máy in nhiệt',
             style: const TextStyle(fontSize: 12.5),
             overflow: TextOverflow.ellipsis,
           ),
