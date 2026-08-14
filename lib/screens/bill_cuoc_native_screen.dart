@@ -488,6 +488,41 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
     return bo;
   }
 
+  /// Sửa Số điện thoại / Địa chỉ khách hàng ngay trong app - server tự ghi
+  /// lịch sử ai sửa gì để sau này Admin xuất Excel đối chiếu (xem chi tiết
+  /// ở BillCuocService.suaThongTinKhachHang).
+  Future<void> _suaThongTinKhachHang(BillCuocKhachHang kh) async {
+    final oSoDt = TextEditingController(text: kh.soDtLienHe);
+    final oDiaChi = TextEditingController(text: kh.diaChiTbc);
+    final luu = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Sửa thông tin: ${kh.tenKhachHang}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: oSoDt, decoration: const InputDecoration(labelText: 'Số điện thoại khách hàng'), keyboardType: TextInputType.phone),
+            const SizedBox(height: 10),
+            TextField(controller: oDiaChi, decoration: const InputDecoration(labelText: 'Địa chỉ'), maxLines: 2),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Hủy')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Lưu')),
+        ],
+      ),
+    );
+    if (luu != true || !mounted) return;
+    final loi = await BillCuocService.suaThongTinKhachHang(
+      khId: kh.id,
+      soDtLienHe: oSoDt.text.trim(),
+      diaChiTbc: oDiaChi.text.trim(),
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(loi == null ? '✅ Đã lưu thay đổi.' : '❌ $loi')));
+    if (loi == null) _timKhachHang(trang: _trangHienTai);
+  }
+
   void _xemTruocHoaDon(BillCuocKhachHang kh) {
     final noiDung = _soanNoiDungHoaDon(kh);
     final toanBo = [...noiDung.than, _DongInNhiet(''), ...noiDung.duoi];
@@ -945,6 +980,7 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
           secondary: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              IconButton(icon: const Icon(Icons.edit_outlined), tooltip: 'Sửa SĐT/địa chỉ', onPressed: () => _suaThongTinKhachHang(kh)),
               IconButton(icon: const Icon(Icons.visibility), tooltip: 'Xem trước hóa đơn nhiệt', onPressed: () => _xemTruocHoaDon(kh)),
               IconButton(icon: const Icon(Icons.print), tooltip: 'In nhiệt khách này', onPressed: () => _inHoaDonNhiet(kh)),
             ],
