@@ -1,7 +1,7 @@
 name: vinhhung_app
 description: Ứng dụng di động Viettel Khu Vực Vĩnh Hưng
 publish_to: 'none'
-version: 1.1.2+12
+version: 1.0.2+2
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -56,7 +56,7 @@ dependencies:
   local_auth: ^2.3.0
 
   # Quét mã QR/vạch (sản phẩm, hợp đồng) bằng camera
-  mobile_scanner: ^6.0.2
+  mobile_scanner: ^6.0.10  # nâng từ 6.0.2 - bản cũ có lỗi native "camera có thể null trên Android"/"crash khi không có camera" đã được chính NSX vá ở các bản sau, đúng khớp lỗi thật đã gặp
 
   # Xuất file Excel (.xlsx) thật cho Sổ ghi chú
   excel: ^4.0.6
