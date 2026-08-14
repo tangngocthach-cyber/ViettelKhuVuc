@@ -85,6 +85,30 @@ class BillCuocService {
     } catch (_) {}
   }
 
+  /// Sửa số điện thoại/địa chỉ khách hàng - CHỈ 2 trường này (xem giải
+  /// thích lý do trong file PHP tương ứng) - server tự ghi lịch sử ai sửa
+  /// gì, khi nào để sau này Admin xuất Excel đối chiếu.
+  static Future<String?> suaThongTinKhachHang({
+    required int khId,
+    required String soDtLienHe,
+    required String diaChiTbc,
+  }) async {
+    final token = await AuthService.getToken();
+    if (token == null) return 'Chưa đăng nhập.';
+    try {
+      final res = await http.post(
+        Uri.parse(AppConfig.apiBillCuocSuaThongTin),
+        headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'kh_id=$khId&so_dt_lien_he=${Uri.encodeComponent(soDtLienHe)}&dia_chi_tbc=${Uri.encodeComponent(diaChiTbc)}',
+      ).timeout(const Duration(seconds: 15));
+      final data = jsonDecode(res.body);
+      if (res.statusCode == 200 && data['success'] == true) return null;
+      return data['message']?.toString() ?? 'Lưu thất bại (mã ${res.statusCode}).';
+    } catch (e) {
+      return 'Lỗi kết nối: $e';
+    }
+  }
+
   /// Mở trang IN (Thông báo cước / Thông báo nợ) trên TRÌNH DUYỆT NGOÀI của
   /// máy (Chrome thật, KHÔNG phải WebView trong app) - trả về URL đầy đủ kèm
   /// vé đăng nhập 1 lần, để trình duyệt ngoài tự đăng nhập rồi mở đúng trang
