@@ -4,6 +4,7 @@ import '../services/auth_service.dart';
 import '../widgets/icon_grid_view.dart';
 import 'calculator_screen.dart';
 import 'ghi_chu_screen.dart';
+import 'so_ghi_chu_screen.dart';
 import 'lich_screen.dart';
 import 'qr_scan_screen.dart';
 import 'cham_tu_danh_sach_screen.dart';
@@ -79,6 +80,15 @@ class _CongDongTabState extends State<CongDongTab> {
       const GridModuleItem(icon: Icons.link, label: 'Tiện ích nội bộ', url: AppConfig.urlTienIchNoiBo),
       const GridModuleItem(icon: Icons.table_chart, label: 'Kho Dữ liệu bán hàng', url: AppConfig.urlKhoDuLieuExcel),
       const GridModuleItem(icon: Icons.smart_toy, label: 'Trợ lý KPI (AI)', url: AppConfig.urlTroLyKPI),
+      // Trước đây gọi là "Sổ ghi chú" (nằm ở mục Tiện ích) - đổi tên và
+      // chuyển sang đây theo yêu cầu, TÍNH NĂNG GIỮ NGUYÊN (vẫn đúng
+      // GhiChuScreen cũ - có nhắc hẹn/loại/mức ưu tiên, phù hợp làm việc
+      // hơn là 1 sổ ghi chú đơn thuần).
+      GridModuleItem(
+        icon: Icons.people_alt,
+        label: 'Quản lý dữ liệu khách hàng',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GhiChuScreen())),
+      ),
     ];
 
     // ĐẶT TÊN RIÊNG TỪNG ITEM (không gom vào 1 mảng rồi lấy theo index nữa)
@@ -125,7 +135,11 @@ class _CongDongTabState extends State<CongDongTab> {
       GridModuleItem(
         icon: Icons.note_alt,
         label: 'Sổ ghi chú',
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GhiChuScreen())),
+        // Đổi sang màn Sổ ghi chú KIỂU MỚI (như iOS Notes - chữ + viết tay +
+        // ghi âm), thay cho GhiChuScreen cũ (đã chuyển sang mục "Công việc &
+        // KPI" với tên "Quản lý dữ liệu khách hàng"). Dữ liệu 2 bên tách
+        // biệt hoàn toàn, không lẫn vào nhau.
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SoGhiChuScreen())),
       ),
       GridModuleItem(
         icon: Icons.calendar_month,
