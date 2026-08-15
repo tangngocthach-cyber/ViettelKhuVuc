@@ -24,50 +24,89 @@ class IconGridView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GridView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
       shrinkWrap: !cuonRieng,
       physics: cuonRieng ? null : const NeverScrollableScrollPhysics(),
       // responsive: điện thoại 4 cột, máy tính bảng (>600dp) 6 cột - không vỡ layout
       gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: 110,
-        mainAxisSpacing: 16,
-        crossAxisSpacing: 8,
-        childAspectRatio: .85,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 10,
+        childAspectRatio: .82,
       ),
       itemCount: items.length,
-      itemBuilder: (context, i) {
-        final item = items[i];
-        return InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: item.onTap ??
-              () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => WebViewScreen(url: item.url!, title: item.label)),
-                  ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: AppTheme.viettelRed.withValues(alpha: .1),
-                  borderRadius: BorderRadius.circular(16),
+      itemBuilder: (context, i) => _TheModule(item: items[i]),
+    );
+  }
+}
+
+/// 1 ô module dạng thẻ nổi nhẹ, có hiệu ứng "lún xuống" mượt khi chạm - thay
+/// cho icon trần trên nền trong suốt trước đây (nguyên nhân chính khiến giao
+/// diện bị chê "sơ sài"). Dùng StatefulWidget CHỈ để xử lý animation nhấn -
+/// KHÔNG thêm state nghiệp vụ nào, giữ widget nhẹ, không ảnh hưởng hiệu năng
+/// cuộn danh sách dài.
+class _TheModule extends StatefulWidget {
+  final GridModuleItem item;
+  const _TheModule({required this.item});
+
+  @override
+  State<_TheModule> createState() => _TheModuleState();
+}
+
+class _TheModuleState extends State<_TheModule> {
+  bool _dangNhan = false;
+
+  void _moTrang(BuildContext context) {
+    widget.item.onTap?.call();
+    if (widget.item.onTap == null) {
+      Navigator.push(context, MaterialPageRoute(builder: (_) => WebViewScreen(url: widget.item.url!, title: widget.item.label)));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final toiDangSang = Theme.of(context).brightness == Brightness.light;
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _dangNhan = true),
+      onTapCancel: () => setState(() => _dangNhan = false),
+      onTapUp: (_) => setState(() => _dangNhan = false),
+      onTap: () => _moTrang(context),
+      child: AnimatedScale(
+        scale: _dangNhan ? .93 : 1,
+        duration: const Duration(milliseconds: 110),
+        curve: Curves.easeOut,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 58,
+              height: 58,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: toiDangSang
+                      ? [AppTheme.viettelRed.withValues(alpha: .12), AppTheme.viettelRed.withValues(alpha: .05)]
+                      : [AppTheme.viettelRed.withValues(alpha: .28), AppTheme.viettelRed.withValues(alpha: .12)],
                 ),
-                child: Icon(item.icon, color: AppTheme.viettelRed, size: 28),
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: _dangNhan
+                    ? []
+                    : [BoxShadow(color: AppTheme.viettelRed.withValues(alpha: toiDangSang ? .10 : .18), blurRadius: 10, offset: const Offset(0, 4))],
               ),
-              const SizedBox(height: 6),
-              Text(
-                item.label,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 12.5),
-              ),
-            ],
-          ),
-        );
-      },
+              child: Icon(widget.item.icon, color: AppTheme.viettelRed, size: 26),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              widget.item.label,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, height: 1.2),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
