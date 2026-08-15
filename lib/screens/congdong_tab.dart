@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../config.dart';
+import '../theme.dart';
 import '../services/auth_service.dart';
 import '../widgets/icon_grid_view.dart';
 import 'calculator_screen.dart';
@@ -207,8 +208,12 @@ class _CongDongTabState extends State<CongDongTab> {
 
   Widget _tieuDeNhom(String ten) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      child: Text(ten, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87)),
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 6),
+      child: Row(children: [
+        Container(width: 4, height: 16, decoration: BoxDecoration(color: AppTheme.viettelRed, borderRadius: BorderRadius.circular(3))),
+        const SizedBox(width: 8),
+        Text(ten, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15.5, color: Colors.black87, letterSpacing: -.2)),
+      ]),
     );
   }
 }
