@@ -85,27 +85,51 @@ class BillCuocService {
     } catch (_) {}
   }
 
-  /// Sửa số điện thoại/địa chỉ khách hàng - CHỈ 2 trường này (xem giải
-  /// thích lý do trong file PHP tương ứng) - server tự ghi lịch sử ai sửa
-  /// gì, khi nào để sau này Admin xuất Excel đối chiếu.
+  /// Sửa số điện thoại/địa chỉ + lý do chưa thu/mô tả chi tiết của khách
+  /// hàng - server tự ghi lịch sử ai sửa gì, khi nào để sau này Admin xuất
+  /// Excel đối chiếu. Tham số lý do là TÙY CHỌN (null = không đổi trường đó).
   static Future<String?> suaThongTinKhachHang({
     required int khId,
     required String soDtLienHe,
     required String diaChiTbc,
+    int? lyDoChuaThuId,
+    String? moTaLyDo,
   }) async {
     final token = await AuthService.getToken();
     if (token == null) return 'Chưa đăng nhập.';
     try {
+      final phanThan = StringBuffer('kh_id=$khId&so_dt_lien_he=${Uri.encodeComponent(soDtLienHe)}&dia_chi_tbc=${Uri.encodeComponent(diaChiTbc)}');
+      if (lyDoChuaThuId != null) phanThan.write('&ly_do_chua_thu_id=$lyDoChuaThuId');
+      if (moTaLyDo != null) phanThan.write('&mo_ta_ly_do=${Uri.encodeComponent(moTaLyDo)}');
       final res = await http.post(
         Uri.parse(AppConfig.apiBillCuocSuaThongTin),
         headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/x-www-form-urlencoded'},
-        body: 'kh_id=$khId&so_dt_lien_he=${Uri.encodeComponent(soDtLienHe)}&dia_chi_tbc=${Uri.encodeComponent(diaChiTbc)}',
+        body: phanThan.toString(),
       ).timeout(const Duration(seconds: 15));
       final data = jsonDecode(res.body);
       if (res.statusCode == 200 && data['success'] == true) return null;
       return data['message']?.toString() ?? 'Lưu thất bại (mã ${res.statusCode}).';
     } catch (e) {
       return 'Lỗi kết nối: $e';
+    }
+  }
+
+  /// Danh sách lý do chưa thu cước (do Admin quản lý) - dùng cho dropdown khi sửa thông tin khách hàng.
+  static Future<List<({int id, String lyDo})>> layDanhSachLyDoChuaThu() async {
+    final token = await AuthService.getToken();
+    if (token == null) return [];
+    try {
+      final res = await http.get(
+        Uri.parse(AppConfig.apiBillCuocDanhSachLyDo),
+        headers: {'Authorization': 'Bearer $token'},
+      ).timeout(const Duration(seconds: 10));
+      final data = jsonDecode(res.body);
+      if (res.statusCode == 200 && data['success'] == true) {
+        return (data['data'] as List).map((e) => (id: (e['id'] as num).toInt(), lyDo: e['ly_do'].toString())).toList();
+      }
+      return [];
+    } catch (_) {
+      return [];
     }
   }
 
