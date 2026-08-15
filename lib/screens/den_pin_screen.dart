@@ -253,11 +253,17 @@ class _DenPinScreenState extends State<DenPinScreen> with WidgetsBindingObserver
         foregroundColor: Colors.white,
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Column(
-              children: [
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
                 const SizedBox(height: 12),
                 GestureDetector(
                   onTap: _bamNutChinh,
@@ -347,10 +353,14 @@ class _DenPinScreenState extends State<DenPinScreen> with WidgetsBindingObserver
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
-              ],
-            ),
-          ),
+                        const SizedBox(height: 16),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
         ),
       ),
     );

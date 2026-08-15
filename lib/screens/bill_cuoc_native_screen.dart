@@ -495,22 +495,51 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
   Future<void> _suaThongTinKhachHang(BillCuocKhachHang kh) async {
     final oSoDt = TextEditingController(text: kh.soDtLienHe);
     final oDiaChi = TextEditingController(text: kh.diaChiTbc);
+    final oMoTaLyDo = TextEditingController(text: kh.moTaLyDo);
+    int? lyDoDangChon = kh.lyDoChuaThuId;
+
+    // Tải danh sách lý do TRƯỚC khi mở hộp thoại - đơn giản hơn tải giữa
+    // chừng lúc dialog đã mở (không cần StatefulBuilder xử lý trạng thái
+    // "đang tải").
+    final dsLyDo = await BillCuocService.layDanhSachLyDoChuaThu();
+    if (!mounted) return;
+
     final luu = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: Text('Sửa thông tin: ${kh.tenKhachHang}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: oSoDt, decoration: const InputDecoration(labelText: 'Số điện thoại khách hàng'), keyboardType: TextInputType.phone),
-            const SizedBox(height: 10),
-            TextField(controller: oDiaChi, decoration: const InputDecoration(labelText: 'Địa chỉ'), maxLines: 2),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text('Sửa thông tin: ${kh.tenKhachHang}'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(controller: oSoDt, decoration: const InputDecoration(labelText: 'Số điện thoại khách hàng'), keyboardType: TextInputType.phone),
+                const SizedBox(height: 10),
+                TextField(controller: oDiaChi, decoration: const InputDecoration(labelText: 'Địa chỉ'), maxLines: 2),
+                const Divider(height: 24),
+                DropdownButtonFormField<int?>(
+                  value: lyDoDangChon,
+                  decoration: const InputDecoration(labelText: 'Lý do chưa thu (nếu có)'),
+                  items: [
+                    const DropdownMenuItem<int?>(value: null, child: Text('-- Không ghi lý do --')),
+                    ...dsLyDo.map((ld) => DropdownMenuItem<int?>(value: ld.id, child: Text(ld.lyDo, overflow: TextOverflow.ellipsis))),
+                  ],
+                  onChanged: (v) => setDialogState(() => lyDoDangChon = v),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: oMoTaLyDo,
+                  decoration: const InputDecoration(labelText: 'Mô tả chi tiết', hintText: 'VD: Đã liên hệ 2 lần, khách hẹn thứ 6 tuần sau'),
+                  maxLines: 2,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Hủy')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Lưu')),
           ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Hủy')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Lưu')),
-        ],
       ),
     );
     if (luu != true || !mounted) return;
@@ -518,6 +547,8 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
       khId: kh.id,
       soDtLienHe: oSoDt.text.trim(),
       diaChiTbc: oDiaChi.text.trim(),
+      lyDoChuaThuId: lyDoDangChon ?? 0, // 0 = server hiểu là "bỏ lý do" (NULL)
+      moTaLyDo: oMoTaLyDo.text.trim(),
     );
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(loi == null ? '✅ Đã lưu thay đổi.' : '❌ $loi')));
