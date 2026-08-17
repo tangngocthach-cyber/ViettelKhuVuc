@@ -70,29 +70,29 @@ class _CongDongTabState extends State<CongDongTab> {
   @override
   Widget build(BuildContext context) {
     final congViec = [
-      const GridModuleItem(icon: Icons.dashboard, label: 'Dashboard KPI', url: AppConfig.urlDashboardKPI),
-      const GridModuleItem(icon: Icons.assignment_turned_in, label: 'Nhập kết quả giao việc', url: AppConfig.urlNhapKetQua),
-      const GridModuleItem(icon: Icons.fact_check, label: 'Giao việc - Xem tổng hợp', url: AppConfig.urlGiaoViecTongHop),
-      const GridModuleItem(icon: Icons.receipt_long, label: 'Kết quả Thu cước', url: AppConfig.urlThuCuocDashboard),
+      const GridModuleItem(icon: Icons.dashboard_outlined, label: 'Dashboard KPI', url: AppConfig.urlDashboardKPI),
+      const GridModuleItem(icon: Icons.assignment_turned_in_outlined, label: 'Nhập kết quả giao việc', url: AppConfig.urlNhapKetQua),
+      const GridModuleItem(icon: Icons.fact_check_outlined, label: 'Giao việc - Xem tổng hợp', url: AppConfig.urlGiaoViecTongHop),
+      const GridModuleItem(icon: Icons.receipt_long_outlined, label: 'Kết quả Thu cước', url: AppConfig.urlThuCuocDashboard),
       GridModuleItem(
-        icon: Icons.receipt,
+        icon: Icons.receipt_outlined,
         label: 'Bill cước & Thông báo nợ',
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BillCuocNativeScreen())),
       ),
       GridModuleItem(
-        icon: Icons.quiz,
+        icon: Icons.quiz_outlined,
         label: 'Khảo sát lý do khách hàng',
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const KhaoSatDanhSachScreen())),
       ),
       const GridModuleItem(icon: Icons.link, label: 'Tiện ích nội bộ', url: AppConfig.urlTienIchNoiBo),
-      const GridModuleItem(icon: Icons.table_chart, label: 'Kho Dữ liệu bán hàng', url: AppConfig.urlKhoDuLieuExcel),
-      const GridModuleItem(icon: Icons.smart_toy, label: 'Trợ lý KPI (AI)', url: AppConfig.urlTroLyKPI),
+      const GridModuleItem(icon: Icons.table_chart_outlined, label: 'Kho Dữ liệu bán hàng', url: AppConfig.urlKhoDuLieuExcel),
+      const GridModuleItem(icon: Icons.smart_toy_outlined, label: 'Trợ lý KPI (AI)', url: AppConfig.urlTroLyKPI),
       // Trước đây gọi là "Sổ ghi chú" (nằm ở mục Tiện ích) - đổi tên và
       // chuyển sang đây theo yêu cầu, TÍNH NĂNG GIỮ NGUYÊN (vẫn đúng
       // GhiChuScreen cũ - có nhắc hẹn/loại/mức ưu tiên, phù hợp làm việc
       // hơn là 1 sổ ghi chú đơn thuần).
       GridModuleItem(
-        icon: Icons.people_alt,
+        icon: Icons.people_alt_outlined,
         label: 'Quản lý dữ liệu khách hàng',
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GhiChuScreen())),
       ),
@@ -103,30 +103,30 @@ class _CongDongTabState extends State<CongDongTab> {
     // cố định vị trí, nên khi thêm mục mới vào GIỮA mảng, mọi thứ bị lệch
     // hết vị trí. Đặt tên riêng từng cái để không bao giờ lặp lại lỗi này
     // nữa dù có thêm/bớt mục sau này.
-    final banDoHopCap = const GridModuleItem(icon: Icons.map, label: 'Bản đồ Hộp cáp GPON', url: AppConfig.urlBanDoHopCap);
-    final banDoKhachHang = const GridModuleItem(icon: Icons.location_on, label: 'Bản đồ số khách hàng', url: AppConfig.urlBanDoKhachHang);
+    final banDoHopCap = const GridModuleItem(icon: Icons.map_outlined, label: 'Bản đồ Hộp cáp GPON', url: AppConfig.urlBanDoHopCap);
+    final banDoKhachHang = const GridModuleItem(icon: Icons.location_on_outlined, label: 'Bản đồ số khách hàng', url: AppConfig.urlBanDoKhachHang);
     final thuThapToaDo = GridModuleItem(
       icon: Icons.gps_fixed,
       label: 'Thu thập tọa độ',
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ToaDoKhachHangScreen())),
     );
     final chamTuDeXuat = GridModuleItem(
-      icon: Icons.add_location_alt,
+      icon: Icons.add_location_alt_outlined,
       label: 'Chấm tủ đề xuất',
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChamTuDanhSachScreen())),
     );
 
     final hocTap = [
-      const GridModuleItem(icon: Icons.school, label: 'E-Learning', url: AppConfig.urlKhoaHoc),
+      const GridModuleItem(icon: Icons.school_outlined, label: 'E-Learning', url: AppConfig.urlKhoaHoc),
       const GridModuleItem(icon: Icons.history, label: 'Lịch sử học tập', url: AppConfig.urlLichSuHocTap),
-      const GridModuleItem(icon: Icons.workspace_premium, label: 'Chứng chỉ của tôi', url: AppConfig.urlChungChiCuaToi),
-      const GridModuleItem(icon: Icons.folder_shared, label: 'Thư viện tài liệu', url: AppConfig.urlThuVienTaiLieu),
+      const GridModuleItem(icon: Icons.workspace_premium_outlined, label: 'Chứng chỉ của tôi', url: AppConfig.urlChungChiCuaToi),
+      const GridModuleItem(icon: Icons.folder_shared_outlined, label: 'Thư viện tài liệu', url: AppConfig.urlThuVienTaiLieu),
     ];
     final congDong = [
-      const GridModuleItem(icon: Icons.forum, label: 'Diễn đàn thảo luận', url: AppConfig.urlDienDan),
+      const GridModuleItem(icon: Icons.forum_outlined, label: 'Diễn đàn thảo luận', url: AppConfig.urlDienDan),
       const GridModuleItem(icon: Icons.search, label: 'Tìm kiếm', url: AppConfig.urlTimKiem),
-      const GridModuleItem(icon: Icons.casino, label: 'Quay số trúng thưởng', url: AppConfig.urlQuaySo),
-      const GridModuleItem(icon: Icons.card_giftcard, label: 'Bốc thăm trúng thưởng', url: AppConfig.urlBocTham),
+      const GridModuleItem(icon: Icons.casino_outlined, label: 'Quay số trúng thưởng', url: AppConfig.urlQuaySo),
+      const GridModuleItem(icon: Icons.card_giftcard_outlined, label: 'Bốc thăm trúng thưởng', url: AppConfig.urlBocTham),
     ];
     final tienIch = [
       GridModuleItem(
@@ -135,12 +135,12 @@ class _CongDongTabState extends State<CongDongTab> {
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const QrScanScreen())),
       ),
       GridModuleItem(
-        icon: Icons.calculate,
+        icon: Icons.calculate_outlined,
         label: 'Máy tính',
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CalculatorScreen())),
       ),
       GridModuleItem(
-        icon: Icons.note_alt,
+        icon: Icons.note_alt_outlined,
         label: 'Sổ ghi chú',
         // Đổi sang màn Sổ ghi chú KIỂU MỚI (như iOS Notes - chữ + viết tay +
         // ghi âm), thay cho GhiChuScreen cũ (đã chuyển sang mục "Công việc &
@@ -149,12 +149,12 @@ class _CongDongTabState extends State<CongDongTab> {
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SoGhiChuScreen())),
       ),
       GridModuleItem(
-        icon: Icons.calendar_month,
+        icon: Icons.calendar_month_outlined,
         label: 'Lịch Âm - Dương',
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LichScreen())),
       ),
       GridModuleItem(
-        icon: Icons.timer,
+        icon: Icons.timer_outlined,
         label: 'Bấm giờ',
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DongHoBamGioScreen())),
       ),
@@ -164,7 +164,7 @@ class _CongDongTabState extends State<CongDongTab> {
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DenPinScreen())),
       ),
       GridModuleItem(
-        icon: Icons.explore,
+        icon: Icons.explore_outlined,
         label: 'La bàn',
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LaBanScreen())),
       ),
