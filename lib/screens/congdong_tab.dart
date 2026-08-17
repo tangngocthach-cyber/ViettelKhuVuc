@@ -7,7 +7,6 @@ import 'calculator_screen.dart';
 import 'ghi_chu_screen.dart';
 import 'so_ghi_chu_screen.dart';
 import 'lich_screen.dart';
-import 'qr_scan_screen.dart';
 import 'cham_tu_danh_sach_screen.dart';
 import 'bill_cuoc_native_screen.dart';
 import 'toa_do_khach_hang_screen.dart';
@@ -15,7 +14,6 @@ import 'dong_ho_bam_gio_screen.dart';
 import 'den_pin_screen.dart';
 import 'la_ban_screen.dart';
 import 'thuoc_do_screen.dart';
-import 'speedtest_screen.dart';
 import 'khao_sat_danh_sach_screen.dart';
 
 /// Tab Cộng đồng - ĐẦY ĐỦ công cụ nội bộ như menu thật trên website (không chỉ
@@ -130,11 +128,6 @@ class _CongDongTabState extends State<CongDongTab> {
     ];
     final tienIch = [
       GridModuleItem(
-        icon: Icons.qr_code_scanner,
-        label: 'Quét mã QR',
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const QrScanScreen())),
-      ),
-      GridModuleItem(
         icon: Icons.calculate_outlined,
         label: 'Máy tính',
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CalculatorScreen())),
@@ -172,11 +165,6 @@ class _CongDongTabState extends State<CongDongTab> {
         icon: Icons.straighten,
         label: 'Thước đo',
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ThuocDoScreen())),
-      ),
-      GridModuleItem(
-        icon: Icons.speed,
-        label: 'Speedtest',
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SpeedtestScreen())),
       ),
     ];
 
