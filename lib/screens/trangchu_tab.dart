@@ -28,6 +28,12 @@ class TrangChuTab extends StatelessWidget {
       const GridModuleItem(icon: Icons.policy_outlined, label: 'Chính sách', url: AppConfig.urlChinhSach),
       const GridModuleItem(icon: Icons.phone_outlined, label: 'Liên hệ', url: AppConfig.urlLienHe),
     ];
+    final congDong = [
+      const GridModuleItem(icon: Icons.forum_outlined, label: 'Diễn đàn thảo luận', url: AppConfig.urlDienDan),
+      const GridModuleItem(icon: Icons.search, label: 'Tìm kiếm', url: AppConfig.urlTimKiem),
+      const GridModuleItem(icon: Icons.casino_outlined, label: 'Quay số trúng thưởng', url: AppConfig.urlQuaySo),
+      const GridModuleItem(icon: Icons.card_giftcard_outlined, label: 'Bốc thăm trúng thưởng', url: AppConfig.urlBocTham),
+    ];
 
     return Scaffold(
       appBar: AppBar(title: const Text('Viettel Khu Vực Vĩnh Hưng')),
@@ -37,6 +43,8 @@ class TrangChuTab extends StatelessWidget {
           IconGridView(items: dichVuVienThong, cuonRieng: false),
           _tieuDeNhom('Thiết bị & Giải pháp'),
           IconGridView(items: thietBiGiaiPhap, cuonRieng: false),
+          _tieuDeNhom('Cộng đồng & Ưu đãi'),
+          IconGridView(items: congDong, cuonRieng: false),
           _tieuDeNhom('Thông tin chung'),
           IconGridView(items: thongTinChung, cuonRieng: false),
           const SizedBox(height: 24),

@@ -120,12 +120,6 @@ class _CongDongTabState extends State<CongDongTab> {
       const GridModuleItem(icon: Icons.workspace_premium_outlined, label: 'Chứng chỉ của tôi', url: AppConfig.urlChungChiCuaToi),
       const GridModuleItem(icon: Icons.folder_shared_outlined, label: 'Thư viện tài liệu', url: AppConfig.urlThuVienTaiLieu),
     ];
-    final congDong = [
-      const GridModuleItem(icon: Icons.forum_outlined, label: 'Diễn đàn thảo luận', url: AppConfig.urlDienDan),
-      const GridModuleItem(icon: Icons.search, label: 'Tìm kiếm', url: AppConfig.urlTimKiem),
-      const GridModuleItem(icon: Icons.casino_outlined, label: 'Quay số trúng thưởng', url: AppConfig.urlQuaySo),
-      const GridModuleItem(icon: Icons.card_giftcard_outlined, label: 'Bốc thăm trúng thưởng', url: AppConfig.urlBocTham),
-    ];
     final tienIch = [
       GridModuleItem(
         icon: Icons.calculate_outlined,
@@ -190,8 +184,6 @@ class _CongDongTabState extends State<CongDongTab> {
           ),
           _tieuDeNhom('Học tập & Tài liệu'),
           IconGridView(items: hocTap, cuonRieng: false),
-          _tieuDeNhom('Cộng đồng & Ưu đãi'),
-          IconGridView(items: congDong, cuonRieng: false),
           _tieuDeNhom('Tiện ích'),
           IconGridView(items: tienIch, cuonRieng: false),
           const SizedBox(height: 24),
