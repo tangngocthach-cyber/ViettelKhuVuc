@@ -16,6 +16,7 @@ import 'den_pin_screen.dart';
 import 'la_ban_screen.dart';
 import 'thuoc_do_screen.dart';
 import 'speedtest_screen.dart';
+import 'khao_sat_danh_sach_screen.dart';
 
 /// Tab Cộng đồng - ĐẦY ĐỦ công cụ nội bộ như menu thật trên website (không chỉ
 /// 4 mục Diễn đàn/Tìm kiếm/Quay số/Bốc thăm như bản đầu). Quyền xem từng trang
@@ -77,6 +78,11 @@ class _CongDongTabState extends State<CongDongTab> {
         icon: Icons.receipt,
         label: 'Bill cước & Thông báo nợ',
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BillCuocNativeScreen())),
+      ),
+      GridModuleItem(
+        icon: Icons.quiz,
+        label: 'Khảo sát lý do khách hàng',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const KhaoSatDanhSachScreen())),
       ),
       const GridModuleItem(icon: Icons.link, label: 'Tiện ích nội bộ', url: AppConfig.urlTienIchNoiBo),
       const GridModuleItem(icon: Icons.table_chart, label: 'Kho Dữ liệu bán hàng', url: AppConfig.urlKhoDuLieuExcel),
