@@ -20,6 +20,17 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # GitHub Actions KHÔNG CHO PHÉP dùng trực tiếp "secrets.X" bên trong điều
+    # kiện "if:" của từng bước (chặn để tránh lộ giá trị secret ra log/biểu
+    # đồ workflow) - ĐÂY LÀ LỖI THẬT ĐÃ GẶP: "Unrecognized named-value:
+    # 'secrets'". Cách khắc phục CHÍNH THỨC theo tài liệu GitHub: gán secret
+    # vào biến môi trường (env) cấp job TRƯỚC, rồi mới kiểm tra biến env đó
+    # trong "if:" - giá trị secret thật vẫn được dùng bình thường bên trong
+    # các bước "run:" phía dưới, không bị ảnh hưởng gì.
+    env:
+      CO_KEY_PROPERTIES: ${{ secrets.ANDROID_KEY_PROPERTIES != '' }}
+      CO_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      CO_GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES_JSON != '' }}
     steps:
       - name: Tải mã nguồn
         uses: actions/checkout@v4
@@ -48,15 +59,15 @@ jobs:
       # (giống hệt cách codemagic.yaml gốc cũng tự bỏ qua nếu thiếu file) -
       # APK vẫn build được, chỉ là KHÔNG có chữ ký release + KHÔNG có Firebase.
       - name: Khôi phục android/key.properties từ Secret (nếu có)
-        if: ${{ secrets.ANDROID_KEY_PROPERTIES != '' }}
+        if: ${{ env.CO_KEY_PROPERTIES == 'true' }}
         run: echo "${{ secrets.ANDROID_KEY_PROPERTIES }}" > android/key.properties
 
       - name: Khôi phục file keystore (.keystore) từ Secret (nếu có, dạng base64)
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: ${{ env.CO_KEYSTORE == 'true' }}
         run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/vinhhung-release.keystore
 
       - name: Khôi phục google-services.json từ Secret (nếu có)
-        if: ${{ secrets.GOOGLE_SERVICES_JSON != '' }}
+        if: ${{ env.CO_GOOGLE_SERVICES == 'true' }}
         run: echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > android/app/google-services.json
 
       # ---- Bước 3: Ép SDK 36 lên mọi thư viện con, TRỪ "app" và "mobile_scanner" ----
