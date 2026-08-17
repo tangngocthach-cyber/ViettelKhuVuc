@@ -82,19 +82,23 @@ class _TheModuleState extends State<_TheModule> {
               width: 58,
               height: 58,
               decoration: BoxDecoration(
+                // Nền RẤT NHẠT (gần trắng) thay vì đỏ đậm như trước - đúng
+                // phong cách app chuyên nghiệp tham khảo (nền chỉ ánh hồng rất
+                // nhẹ, không lấn át icon).
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: toiDangSang
-                      ? [AppTheme.viettelRed.withValues(alpha: .12), AppTheme.viettelRed.withValues(alpha: .05)]
-                      : [AppTheme.viettelRed.withValues(alpha: .28), AppTheme.viettelRed.withValues(alpha: .12)],
+                      ? [const Color(0xFFFFF3F4), const Color(0xFFFFFAFA)]
+                      : [AppTheme.viettelRed.withValues(alpha: .22), AppTheme.viettelRed.withValues(alpha: .10)],
                 ),
-                borderRadius: BorderRadius.circular(18),
-                boxShadow: _dangNhan
-                    ? []
-                    : [BoxShadow(color: AppTheme.viettelRed.withValues(alpha: toiDangSang ? .10 : .18), blurRadius: 10, offset: const Offset(0, 4))],
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: toiDangSang ? const Color(0xFFFFE3E5) : Colors.transparent, width: 1),
               ),
-              child: Icon(widget.item.icon, color: AppTheme.viettelRed, size: 26),
+              // Icon NÉT MẢNH (outline) thay vì tô đặc - kiểu tô đặc dày nhìn
+              // "thô", icon nét mảnh trông tinh tế/chuyên nghiệp hơn hẳn, đúng
+              // góp ý so sánh với app tham khảo.
+              child: Icon(widget.item.icon, color: AppTheme.viettelRed, size: 24),
             ),
             const SizedBox(height: 7),
             Text(
