@@ -16,17 +16,14 @@ workflows:
           nó chạy quá sớm, trước khi file_picker tự gán lại compileSdk của chính nó).
           BỎ QUA module "app" để tránh đúng lỗi "already evaluated" đã gặp ở lần thử trước
           (module app bị ép evaluationDependsOn nên afterEvaluate gọi vào nó bị quá muộn).
-          BỎ QUA LUÔN "mobile_scanner" (module quét mã QR, bọc thư viện CameraX của Google) -
-          NGHI VẤN CHÍNH của lỗi native "getClass() on a null object reference" khi mở camera -
-          ép SDK 36 (rất mới) lên module này khác với SDK mà tác giả mobile_scanner đã build/
-          kiểm thử thật, có thể gây lệch hành vi merge manifest/tài nguyên native phía CameraX.
-          Để mobile_scanner tự dùng đúng compileSdk mà chính nó khai báo, KHÔNG ép theo SDK 36.
+          (Đã gỡ ngoại lệ riêng cho "mobile_scanner" vì tính năng Quét mã QR đã
+          được XÓA HẲN khỏi app - không còn dùng thư viện này nữa.)
         script: |
           if [ -f android/build.gradle.kts ]; then
             cat >> android/build.gradle.kts << 'GRADLE_EOF'
 
           subprojects {
-              if (name != "app" && name != "mobile_scanner") {
+              if (name != "app") {
                   afterEvaluate {
                       extensions.findByType(com.android.build.gradle.BaseExtension::class.java)?.let {
                           it.compileSdkVersion(36)
@@ -40,7 +37,7 @@ workflows:
             cat >> android/build.gradle << 'GRADLE_EOF'
 
           subprojects { proj ->
-              if (proj.name != 'app' && proj.name != 'mobile_scanner') {
+              if (proj.name != 'app') {
                   proj.afterEvaluate {
                       if (proj.hasProperty('android')) {
                           proj.android {
