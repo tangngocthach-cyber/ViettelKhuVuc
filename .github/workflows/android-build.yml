@@ -1,0 +1,212 @@
+name: Build Android APK (dự phòng khi Codemagic hết lượt)
+
+# ============================================================================
+# FILE NÀY LÀ BẢN DỊCH CHÍNH XÁC của codemagic.yaml sang GitHub Actions -
+# CHỈ dùng khi Codemagic hết lượt build miễn phí trong tháng. KHÔNG đụng tới
+# codemagic.yaml, KHÔNG đụng tới bất kỳ file Dart/pubspec.yaml nào - đầu
+# tháng Codemagic có lượt lại, dùng lại bình thường như cũ, không ảnh hưởng.
+#
+# CÁCH CHẠY: vào tab "Actions" trên GitHub -> chọn workflow này -> bấm
+# "Run workflow" (chạy tay), HOẶC tự động chạy mỗi khi push code lên nhánh
+# main (xem phần "on:" bên dưới).
+# ============================================================================
+
+on:
+  workflow_dispatch: # cho phép bấm nút "Run workflow" chạy tay trên GitHub
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Tải mã nguồn
+        uses: actions/checkout@v4
+
+      - name: Cài Flutter (bản stable, giống Codemagic)
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Cài Java 17 (bắt buộc cho Android Gradle Plugin mới)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # ---- Bước 1: Tự sinh khung Android (giống hệt codemagic.yaml) ----
+      - name: Tự sinh khung Android (ở thư mục TẠM riêng, không đụng vào lib/pubspec.yaml thật)
+        run: |
+          set -e
+          flutter create --platforms=android --project-name vinhhung_app --org com.vinhhung /tmp/android_scaffold
+          rsync -a --ignore-existing /tmp/android_scaffold/android/ ./android/
+
+      # ---- Bước 2: Khôi phục 3 file bí mật từ GitHub Secrets (nếu đã cấu
+      # hình) - xem hướng dẫn thiết lập Secrets ở cuối file này. Nếu CHƯA
+      # thiết lập Secrets, các bước sau tự động BỎ QUA phần ký/Firebase
+      # (giống hệt cách codemagic.yaml gốc cũng tự bỏ qua nếu thiếu file) -
+      # APK vẫn build được, chỉ là KHÔNG có chữ ký release + KHÔNG có Firebase.
+      - name: Khôi phục android/key.properties từ Secret (nếu có)
+        if: ${{ secrets.ANDROID_KEY_PROPERTIES != '' }}
+        run: echo "${{ secrets.ANDROID_KEY_PROPERTIES }}" > android/key.properties
+
+      - name: Khôi phục file keystore (.keystore) từ Secret (nếu có, dạng base64)
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/vinhhung-release.keystore
+
+      - name: Khôi phục google-services.json từ Secret (nếu có)
+        if: ${{ secrets.GOOGLE_SERVICES_JSON != '' }}
+        run: echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > android/app/google-services.json
+
+      # ---- Bước 3: Ép SDK 36 lên mọi thư viện con, TRỪ "app" và "mobile_scanner" ----
+      - name: Ép thư viện con dùng Android SDK 36 (trừ app và mobile_scanner)
+        run: |
+          if [ -f android/build.gradle.kts ]; then
+            cat >> android/build.gradle.kts << 'GRADLE_EOF'
+
+          subprojects {
+              if (name != "app" && name != "mobile_scanner") {
+                  afterEvaluate {
+                      extensions.findByType(com.android.build.gradle.BaseExtension::class.java)?.let {
+                          it.compileSdkVersion(36)
+                      }
+                  }
+              }
+          }
+          GRADLE_EOF
+          fi
+          if [ -f android/build.gradle ]; then
+            cat >> android/build.gradle << 'GRADLE_EOF'
+
+          subprojects { proj ->
+              if (proj.name != 'app' && proj.name != 'mobile_scanner') {
+                  proj.afterEvaluate {
+                      if (proj.hasProperty('android')) {
+                          proj.android {
+                              compileSdkVersion 36
+                          }
+                      }
+                  }
+              }
+          }
+          GRADLE_EOF
+          fi
+
+      # ---- Bước 4: Ép module app dùng thẳng SDK 36 ----
+      - name: Ép module app dùng Android SDK 36
+        run: |
+          if [ -f android/app/build.gradle.kts ]; then
+            awk '{print} /^[[:space:]]*android[[:space:]]*\{/ && !done {print "    compileSdk = 36"; done=1}' android/app/build.gradle.kts > android/app/build.gradle.kts.tmp && mv android/app/build.gradle.kts.tmp android/app/build.gradle.kts
+          fi
+          if [ -f android/app/build.gradle ]; then
+            awk '{print} /^[[:space:]]*android[[:space:]]*\{/ && !done {print "    compileSdkVersion 36"; done=1}' android/app/build.gradle > android/app/build.gradle.tmp && mv android/app/build.gradle.tmp android/app/build.gradle
+          fi
+
+      # ---- Bước 5: Ép minSdk = 23 (bắt buộc cho local_auth) ----
+      - name: Ép minSdk = 23
+        run: |
+          if [ -f android/app/build.gradle.kts ]; then
+            sed -i -E 's/minSdk[[:space:]]*=[[:space:]]*flutter\.minSdkVersion/minSdk = 23/' android/app/build.gradle.kts
+          fi
+          if [ -f android/app/build.gradle ]; then
+            sed -i -E 's/minSdkVersion[[:space:]]+flutter\.minSdkVersion/minSdkVersion 23/' android/app/build.gradle
+          fi
+
+      # ---- Bước 6: Bật core library desugaring (bắt buộc cho flutter_local_notifications) ----
+      - name: Bật core library desugaring
+        run: |
+          if [ -f android/app/build.gradle.kts ]; then
+            cat >> android/app/build.gradle.kts << 'DESUGAR_EOF'
+
+          android {
+              compileOptions {
+                  isCoreLibraryDesugaringEnabled = true
+              }
+          }
+
+          dependencies {
+              coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+          }
+          DESUGAR_EOF
+          fi
+
+      # ---- Bước 7: Áp dụng chữ ký release (chỉ chạy nếu key.properties đã khôi phục thành công ở Bước 2) ----
+      - name: Áp dụng chữ ký cố định (keystore) cho bản release
+        run: |
+          if [ -f android/app/build.gradle.kts ] && [ -f android/key.properties ]; then
+            { echo 'import java.util.Properties'; echo 'import java.io.FileInputStream'; cat android/app/build.gradle.kts; } > android/app/build.gradle.kts.tmp
+            mv android/app/build.gradle.kts.tmp android/app/build.gradle.kts
+            cat >> android/app/build.gradle.kts << 'SIGN_EOF'
+
+          val keystorePropertiesFile = rootProject.file("key.properties")
+          val keystoreProperties = Properties()
+          if (keystorePropertiesFile.exists()) {
+              keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+          }
+
+          android {
+              signingConfigs {
+                  create("release") {
+                      keyAlias = keystoreProperties.getProperty("keyAlias")
+                      keyPassword = keystoreProperties.getProperty("keyPassword")
+                      storeFile = file(keystoreProperties.getProperty("storeFile"))
+                      storePassword = keystoreProperties.getProperty("storePassword")
+                  }
+              }
+              buildTypes {
+                  getByName("release") {
+                      signingConfig = signingConfigs.getByName("release")
+                  }
+              }
+          }
+          SIGN_EOF
+          fi
+
+      # ---- Bước 8: Áp dụng plugin Firebase (chỉ chạy nếu google-services.json đã khôi phục thành công) ----
+      - name: Áp dụng plugin Firebase (Google Services + Crashlytics)
+        run: |
+          if [ -f android/build.gradle.kts ] && [ -f android/app/google-services.json ]; then
+            { echo 'buildscript {'; \
+              echo '    repositories { google(); mavenCentral() }'; \
+              echo '    dependencies {'; \
+              echo '        classpath("com.google.gms:google-services:4.4.2")'; \
+              echo '        classpath("com.google.firebase:firebase-crashlytics-gradle:3.0.2")'; \
+              echo '    }'; \
+              echo '}'; \
+              cat android/build.gradle.kts; } > android/build.gradle.kts.tmp
+            mv android/build.gradle.kts.tmp android/build.gradle.kts
+          fi
+          if [ -f android/app/build.gradle.kts ] && [ -f android/app/google-services.json ]; then
+            cat >> android/app/build.gradle.kts << 'FIREBASE_EOF'
+
+          apply(plugin = "com.google.gms.google-services")
+          apply(plugin = "com.google.firebase.crashlytics")
+          FIREBASE_EOF
+          fi
+
+      - name: Lấy các thư viện Flutter
+        run: flutter pub get
+
+      - name: Kiểm tra lỗi code Dart trước khi build Android
+        run: |
+          flutter analyze --no-fatal-infos --no-fatal-warnings > /tmp/analyze_log.txt 2>&1 || true
+          cat /tmp/analyze_log.txt
+          if grep -qE "^ *error " /tmp/analyze_log.txt; then
+            echo "⚠️ Có LỖI THẬT trong code Dart (xem dòng 'error' ở log phía trên)."
+            echo "Dừng build sớm để đỡ tốn thời gian chờ Gradle."
+            exit 1
+          fi
+          echo "Không có lỗi nghiêm trọng, tiếp tục build."
+
+      - name: Build file APK (bản release)
+        run: flutter build apk --release
+
+      # ---- Đóng gói APK để tải về từ tab Actions (Codemagic tự làm việc này,
+      # GitHub Actions cần khai báo rõ artifact mới tải về được) ----
+      - name: Đăng file APK để tải về
+        uses: actions/upload-artifact@v4
+        with:
+          name: vinhhung-app-release-apk
+          path: build/app/outputs/flutter-apk/*.apk
+          retention-days: 30
