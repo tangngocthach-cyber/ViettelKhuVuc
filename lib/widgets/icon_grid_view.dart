@@ -29,10 +29,10 @@ class IconGridView extends StatelessWidget {
       physics: cuonRieng ? null : const NeverScrollableScrollPhysics(),
       // responsive: điện thoại 4 cột, máy tính bảng (>600dp) 6 cột - không vỡ layout
       gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 110,
-        mainAxisSpacing: 12,
+        maxCrossAxisExtent: 118, // tăng nhẹ để chứa ô icon lớn hơn
+        mainAxisSpacing: 14,
         crossAxisSpacing: 10,
-        childAspectRatio: .82,
+        childAspectRatio: .78,
       ),
       itemCount: items.length,
       itemBuilder: (context, i) => _TheModule(item: items[i]),
@@ -79,8 +79,8 @@ class _TheModuleState extends State<_TheModule> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 58,
-              height: 58,
+              width: 66,
+              height: 66,
               decoration: BoxDecoration(
                 // Nền RẤT NHẠT (gần trắng) thay vì đỏ đậm như trước - đúng
                 // phong cách app chuyên nghiệp tham khảo (nền chỉ ánh hồng rất
@@ -92,21 +92,21 @@ class _TheModuleState extends State<_TheModule> {
                       ? [const Color(0xFFFFF3F4), const Color(0xFFFFFAFA)]
                       : [AppTheme.viettelRed.withValues(alpha: .22), AppTheme.viettelRed.withValues(alpha: .10)],
                 ),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(18),
                 border: Border.all(color: toiDangSang ? const Color(0xFFFFE3E5) : Colors.transparent, width: 1),
               ),
-              // Icon NÉT MẢNH (outline) thay vì tô đặc - kiểu tô đặc dày nhìn
-              // "thô", icon nét mảnh trông tinh tế/chuyên nghiệp hơn hẳn, đúng
-              // góp ý so sánh với app tham khảo.
-              child: Icon(widget.item.icon, color: AppTheme.viettelRed, size: 24),
+              // Icon NÉT MẢNH (outline) - TĂNG KÍCH THƯỚC (24->30) theo góp ý
+              // "icon hơi nhỏ và khá mỏng" - icon lớn hơn tự nhiên trông đậm
+              // nét hơn, dễ nhìn hơn trên màn hình nhỏ.
+              child: Icon(widget.item.icon, color: AppTheme.viettelRed, size: 30),
             ),
-            const SizedBox(height: 7),
+            const SizedBox(height: 8),
             Text(
               widget.item.label,
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, height: 1.2),
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, height: 1.25),
             ),
           ],
         ),
