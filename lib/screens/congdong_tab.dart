@@ -72,6 +72,7 @@ class _CongDongTabState extends State<CongDongTab> {
       const GridModuleItem(icon: Icons.assignment_turned_in_outlined, label: 'Nhập kết quả giao việc', url: AppConfig.urlNhapKetQua),
       const GridModuleItem(icon: Icons.fact_check_outlined, label: 'Giao việc - Xem tổng hợp', url: AppConfig.urlGiaoViecTongHop),
       const GridModuleItem(icon: Icons.receipt_long_outlined, label: 'Kết quả Thu cước', url: AppConfig.urlThuCuocDashboard),
+      const GridModuleItem(icon: Icons.checklist_rtl, label: 'Checklist việc hằng ngày', url: AppConfig.urlChecklistHangNgay),
       GridModuleItem(
         icon: Icons.receipt_outlined,
         label: 'Bill cước & Thông báo nợ',
