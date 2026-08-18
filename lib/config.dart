@@ -75,6 +75,7 @@ class AppConfig {
   static const String urlNhapKetQua = '$baseUrl/nhap-ket-qua.php';
   static const String urlGiaoViecTongHop = '$baseUrl/giao-viec-tong-hop.php';
   static const String urlThuCuocDashboard = '$baseUrl/thu-cuoc-dashboard.php';
+  static const String urlChecklistHangNgay = '$baseUrl/checklist-hang-ngay.php';
   static const String urlTienIchNoiBo = '$baseUrl/tien-ich-noi-bo.php';
   static const String urlKhoaHoc = '$baseUrl/khoa-hoc.php';
   static const String urlLichSuHocTap = '$baseUrl/lich-su-hoc-tap.php';
