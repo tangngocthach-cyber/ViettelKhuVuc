@@ -85,22 +85,43 @@ class BillCuocService {
     } catch (_) {}
   }
 
-  /// Sửa số điện thoại/địa chỉ + lý do chưa thu/mô tả chi tiết của khách
-  /// hàng - server tự ghi lịch sử ai sửa gì, khi nào để sau này Admin xuất
-  /// Excel đối chiếu. Tham số lý do là TÙY CHỌN (null = không đổi trường đó).
-  static Future<String?> suaThongTinKhachHang({
+  /// Sửa RIÊNG số điện thoại/địa chỉ của khách hàng - KHÔNG động vào lý do
+  /// chưa thu (tách hẳn khỏi capNhatLyDoChuaThu() bên dưới để tránh sửa
+  /// nhầm lý do khi chỉ định sửa SĐT/địa chỉ, và ngược lại). Server tự ghi
+  /// lịch sử ai sửa gì, khi nào để sau này Admin xuất Excel đối chiếu.
+  static Future<String?> suaThongTinLienHe({
     required int khId,
     required String soDtLienHe,
     required String diaChiTbc,
-    int? lyDoChuaThuId,
-    String? moTaLyDo,
   }) async {
     final token = await AuthService.getToken();
     if (token == null) return 'Chưa đăng nhập.';
     try {
-      final phanThan = StringBuffer('kh_id=$khId&so_dt_lien_he=${Uri.encodeComponent(soDtLienHe)}&dia_chi_tbc=${Uri.encodeComponent(diaChiTbc)}');
-      if (lyDoChuaThuId != null) phanThan.write('&ly_do_chua_thu_id=$lyDoChuaThuId');
-      if (moTaLyDo != null) phanThan.write('&mo_ta_ly_do=${Uri.encodeComponent(moTaLyDo)}');
+      final phanThan = 'kh_id=$khId&so_dt_lien_he=${Uri.encodeComponent(soDtLienHe)}&dia_chi_tbc=${Uri.encodeComponent(diaChiTbc)}';
+      final res = await http.post(
+        Uri.parse(AppConfig.apiBillCuocSuaThongTin),
+        headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/x-www-form-urlencoded'},
+        body: phanThan,
+      ).timeout(const Duration(seconds: 15));
+      final data = jsonDecode(res.body);
+      if (res.statusCode == 200 && data['success'] == true) return null;
+      return data['message']?.toString() ?? 'Lưu thất bại (mã ${res.statusCode}).';
+    } catch (e) {
+      return 'Lỗi kết nối: $e';
+    }
+  }
+
+  /// Cập nhật RIÊNG lý do chưa thu + mô tả chi tiết - KHÔNG động vào
+  /// SĐT/địa chỉ (xem giải thích ở suaThongTinLienHe() phía trên).
+  static Future<String?> capNhatLyDoChuaThu({
+    required int khId,
+    int? lyDoChuaThuId,
+    String moTaLyDo = '',
+  }) async {
+    final token = await AuthService.getToken();
+    if (token == null) return 'Chưa đăng nhập.';
+    try {
+      final phanThan = StringBuffer('kh_id=$khId&ly_do_chua_thu_id=${lyDoChuaThuId ?? 0}&mo_ta_ly_do=${Uri.encodeComponent(moTaLyDo)}');
       final res = await http.post(
         Uri.parse(AppConfig.apiBillCuocSuaThongTin),
         headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/x-www-form-urlencoded'},
