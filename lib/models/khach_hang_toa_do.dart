@@ -15,8 +15,14 @@ class KhachHangToaDo {
   final String? thoiGianCapNhat;
   final double? hopCapLat;
   final double? hopCapLng;
+  final int? nguoiCapNhatId;
+  final bool daThu;
+  final int? lyDoChuaThuId;
+  final String? tenLyDoChuaThu;
+  final String? moTaLyDo;
 
   bool get coToaDo => lat != null && lng != null;
+  bool get coLyDoChuaThu => !daThu && ((tenLyDoChuaThu != null && tenLyDoChuaThu!.isNotEmpty) || (moTaLyDo != null && moTaLyDo!.isNotEmpty));
 
   KhachHangToaDo({
     required this.id,
@@ -33,6 +39,11 @@ class KhachHangToaDo {
     this.thoiGianCapNhat,
     this.hopCapLat,
     this.hopCapLng,
+    this.nguoiCapNhatId,
+    this.daThu = false,
+    this.lyDoChuaThuId,
+    this.tenLyDoChuaThu,
+    this.moTaLyDo,
   });
 
   static double? _soHoacRong(dynamic v) {
@@ -56,5 +67,10 @@ class KhachHangToaDo {
         thoiGianCapNhat: j['thoi_gian_cap_nhat']?.toString(),
         hopCapLat: _soHoacRong(j['hop_cap_lat']),
         hopCapLng: _soHoacRong(j['hop_cap_lng']),
+        nguoiCapNhatId: (j['nguoi_cap_nhat_id'] as num?)?.toInt(),
+        daThu: (j['da_thu']?.toString() ?? '0') == '1',
+        lyDoChuaThuId: (j['ly_do_chua_thu_id'] as num?)?.toInt(),
+        tenLyDoChuaThu: j['ten_ly_do_chua_thu']?.toString(),
+        moTaLyDo: j['mo_ta_ly_do']?.toString(),
       );
 }
