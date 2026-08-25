@@ -57,4 +57,23 @@ class ToaDoService {
       return 'Lỗi kết nối: $e';
     }
   }
+
+  /// Xóa tọa độ - server tự kiểm tra CHỈ cho phép xóa tọa độ do chính tài
+  /// khoản đang gọi API đã tạo (dùng chung logic phân quyền với bản web).
+  static Future<String?> xoaToaDo(String soTb) async {
+    final token = await AuthService.getToken();
+    if (token == null) return 'Chưa đăng nhập.';
+    try {
+      final res = await http.post(
+        Uri.parse(AppConfig.apiToaDoXoa),
+        headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'so_tb=${Uri.encodeComponent(soTb)}',
+      ).timeout(const Duration(seconds: 15));
+      final data = jsonDecode(res.body);
+      if (res.statusCode == 200 && data['success'] == true) return null;
+      return data['message']?.toString() ?? 'Xóa thất bại (mã ${res.statusCode}).';
+    } catch (e) {
+      return 'Lỗi kết nối: $e';
+    }
+  }
 }
