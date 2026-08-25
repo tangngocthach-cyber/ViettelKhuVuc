@@ -489,12 +489,49 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
     return bo;
   }
 
-  /// Sửa Số điện thoại / Địa chỉ khách hàng ngay trong app - server tự ghi
-  /// lịch sử ai sửa gì để sau này Admin xuất Excel đối chiếu (xem chi tiết
-  /// ở BillCuocService.suaThongTinKhachHang).
-  Future<void> _suaThongTinKhachHang(BillCuocKhachHang kh) async {
+  /// Sửa RIÊNG Số điện thoại / Địa chỉ khách hàng - tách hẳn khỏi Lý do chưa
+  /// thu (xem _capNhatLyDoChuaThu bên dưới) để tránh sửa nhầm SĐT/địa chỉ
+  /// khi chỉ định cập nhật lý do, và ngược lại - server tự ghi lịch sử ai
+  /// sửa gì để sau này Admin xuất Excel đối chiếu (xem
+  /// BillCuocService.suaThongTinLienHe).
+  Future<void> _suaThongTinLienHe(BillCuocKhachHang kh) async {
     final oSoDt = TextEditingController(text: kh.soDtLienHe);
     final oDiaChi = TextEditingController(text: kh.diaChiTbc);
+
+    final luu = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Sửa SĐT/Địa chỉ: ${kh.tenKhachHang}'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: oSoDt, decoration: const InputDecoration(labelText: 'Số điện thoại khách hàng'), keyboardType: TextInputType.phone),
+              const SizedBox(height: 10),
+              TextField(controller: oDiaChi, decoration: const InputDecoration(labelText: 'Địa chỉ'), maxLines: 2),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Hủy')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Lưu')),
+        ],
+      ),
+    );
+    if (luu != true || !mounted) return;
+    final loi = await BillCuocService.suaThongTinLienHe(
+      khId: kh.id,
+      soDtLienHe: oSoDt.text.trim(),
+      diaChiTbc: oDiaChi.text.trim(),
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(loi == null ? '✅ Đã lưu thay đổi.' : '❌ $loi')));
+    if (loi == null) _timKhachHang(trang: _trangHienTai);
+  }
+
+  /// Cập nhật RIÊNG Lý do chưa thu + mô tả chi tiết - KHÔNG động vào
+  /// SĐT/địa chỉ (xem giải thích ở _suaThongTinLienHe phía trên).
+  Future<void> _capNhatLyDoChuaThu(BillCuocKhachHang kh) async {
     final oMoTaLyDo = TextEditingController(text: kh.moTaLyDo);
     int? lyDoDangChon = kh.lyDoChuaThuId;
 
@@ -508,15 +545,11 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: Text('Sửa thông tin: ${kh.tenKhachHang}'),
+          title: Text('Lý do chưa thu: ${kh.tenKhachHang}'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(controller: oSoDt, decoration: const InputDecoration(labelText: 'Số điện thoại khách hàng'), keyboardType: TextInputType.phone),
-                const SizedBox(height: 10),
-                TextField(controller: oDiaChi, decoration: const InputDecoration(labelText: 'Địa chỉ'), maxLines: 2),
-                const Divider(height: 24),
                 DropdownButtonFormField<int?>(
                   value: lyDoDangChon,
                   decoration: const InputDecoration(labelText: 'Lý do chưa thu (nếu có)'),
@@ -543,11 +576,9 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
       ),
     );
     if (luu != true || !mounted) return;
-    final loi = await BillCuocService.suaThongTinKhachHang(
+    final loi = await BillCuocService.capNhatLyDoChuaThu(
       khId: kh.id,
-      soDtLienHe: oSoDt.text.trim(),
-      diaChiTbc: oDiaChi.text.trim(),
-      lyDoChuaThuId: lyDoDangChon ?? 0, // 0 = server hiểu là "bỏ lý do" (NULL)
+      lyDoChuaThuId: lyDoDangChon,
       moTaLyDo: oMoTaLyDo.text.trim(),
     );
     if (!mounted) return;
@@ -1065,13 +1096,15 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
             icon: const Icon(Icons.more_vert),
             onSelected: (chon) {
               switch (chon) {
-                case 'sua': _suaThongTinKhachHang(kh); break;
+                case 'sua': _suaThongTinLienHe(kh); break;
+                case 'ly_do': _capNhatLyDoChuaThu(kh); break;
                 case 'xem': _xemTruocHoaDon(kh); break;
                 case 'in': _inHoaDonNhiet(kh); break;
               }
             },
             itemBuilder: (_) => [
               const PopupMenuItem(value: 'sua', child: ListTile(leading: Icon(Icons.edit_outlined), title: Text('Sửa SĐT/địa chỉ'), contentPadding: EdgeInsets.zero, dense: true)),
+              const PopupMenuItem(value: 'ly_do', child: ListTile(leading: Icon(Icons.comment_outlined), title: Text('Lý do chưa thu'), contentPadding: EdgeInsets.zero, dense: true)),
               const PopupMenuItem(value: 'xem', child: ListTile(leading: Icon(Icons.visibility), title: Text('Xem trước hóa đơn nhiệt'), contentPadding: EdgeInsets.zero, dense: true)),
               const PopupMenuItem(value: 'in', child: ListTile(leading: Icon(Icons.print), title: Text('In nhiệt khách này'), contentPadding: EdgeInsets.zero, dense: true)),
             ],
