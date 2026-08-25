@@ -535,10 +535,11 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
     final oMoTaLyDo = TextEditingController(text: kh.moTaLyDo);
     int? lyDoDangChon = kh.lyDoChuaThuId;
 
-    // Tải danh sách lý do TRƯỚC khi mở hộp thoại - đơn giản hơn tải giữa
-    // chừng lúc dialog đã mở (không cần StatefulBuilder xử lý trạng thái
-    // "đang tải").
+    // Tải danh sách lý do + lịch sử cập nhật TRƯỚC khi mở hộp thoại - đơn
+    // giản hơn tải giữa chừng lúc dialog đã mở (không cần StatefulBuilder
+    // xử lý trạng thái "đang tải" cho từng phần riêng lẻ).
     final dsLyDo = await BillCuocService.layDanhSachLyDoChuaThu();
+    final lichSu = await BillCuocService.layLichSuLyDo(kh.id);
     if (!mounted) return;
 
     final luu = await showDialog<bool>(
@@ -549,6 +550,7 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 DropdownButtonFormField<int?>(
                   value: lyDoDangChon,
@@ -565,6 +567,35 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
                   decoration: const InputDecoration(labelText: 'Mô tả chi tiết', hintText: 'VD: Đã liên hệ 2 lần, khách hẹn thứ 6 tuần sau'),
                   maxLines: 2,
                 ),
+                const Divider(height: 24),
+                Row(children: const [Icon(Icons.history, size: 16), SizedBox(width: 6), Text('Lịch sử cập nhật (ai đã cập nhật, khi nào)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13))]),
+                const SizedBox(height: 6),
+                if (lichSu.isEmpty)
+                  const Text('Chưa có lượt cập nhật nào.', style: TextStyle(fontSize: 12, color: Colors.grey))
+                else
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 180),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: lichSu.map((ls) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: RichText(
+                            text: TextSpan(
+                              style: const TextStyle(fontSize: 12, color: Colors.black87),
+                              children: [
+                                TextSpan(text: '${ls['nguoi_cap_nhat']}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                TextSpan(text: ' đã đổi ${ls['truong']} — ${ls['thoi_gian']}\n'),
+                                TextSpan(text: ls['gia_tri_cu'], style: const TextStyle(decoration: TextDecoration.lineThrough, color: Colors.grey)),
+                                const TextSpan(text: '  →  '),
+                                TextSpan(text: ls['gia_tri_moi'], style: const TextStyle(color: Colors.green, fontWeight: FontWeight.w600)),
+                              ],
+                            ),
+                          ),
+                        )).toList(),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
