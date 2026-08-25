@@ -26,6 +26,7 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
   int? _kyIdDangChon;
   String? _tvvDangChon;
   bool? _daThuDangChon; // null = tất cả, true = đã thu, false = chưa thu
+  bool _chuaCoLyDoDangChon = false; // chỉ hiện khách CHƯA thu và CHƯA cập nhật lý do
   int _trangHienTai = 1;
   int _tongSoTrang = 1;
   final _oTimKiem = TextEditingController();
@@ -107,6 +108,7 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
       tvv: _tvvDangChon,
       tuKhoa: _oTimKiem.text.trim(),
       daThu: _daThuDangChon,
+      chuaCoLyDo: _chuaCoLyDoDangChon,
       trang: trang,
     );
     setState(() {
@@ -864,6 +866,7 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
       for (final t in _dsTvv) { if (t.maTvv == _tvvDangChon) { tvvHienTai = t.tenTvv.isEmpty ? t.maTvv : t.tenTvv; break; } }
     }
     final trangThaiHienTai = _daThuDangChon == null ? 'Tất cả trạng thái' : (_daThuDangChon! ? 'Đã thu' : 'Chưa thu');
+    final tomTatChuaCoLyDo = _chuaCoLyDoDangChon ? ' · Chưa có lý do' : '';
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
@@ -881,7 +884,7 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
                 const Icon(Icons.filter_list, size: 18, color: Colors.grey),
                 const SizedBox(width: 6),
                 Expanded(
-                  child: Text('$kyHienTai · $tvvHienTai · $trangThaiHienTai', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5, color: Colors.black87)),
+                  child: Text('$kyHienTai · $tvvHienTai · $trangThaiHienTai$tomTatChuaCoLyDo', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5, color: Colors.black87)),
                 ),
                 Icon(_boLocMoRong ? Icons.expand_less : Icons.expand_more, color: Colors.grey),
               ]),
@@ -926,6 +929,24 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
                 ),
               ),
             ]),
+            const SizedBox(height: 4),
+            // Lọc khách CHƯA CẬP NHẬT LÝ DO - chỉ có ý nghĩa với khách CHƯA
+            // thu, nên tự động ép trạng thái về "Chưa thu" khi bật lên, tránh
+            // kết quả gây hiểu lầm (giống hệt logic bên web).
+            CheckboxListTile(
+              value: _chuaCoLyDoDangChon,
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              title: const Text('Chỉ hiện khách CHƯA cập nhật lý do chưa thu', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Color(0xFFB8860B))),
+              onChanged: (v) {
+                setState(() {
+                  _chuaCoLyDoDangChon = v ?? false;
+                  if (_chuaCoLyDoDangChon) _daThuDangChon = false;
+                });
+                _timKhachHang();
+              },
+            ),
             const SizedBox(height: 8),
           ] else
             const SizedBox(height: 6),

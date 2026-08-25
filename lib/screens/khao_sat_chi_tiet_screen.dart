@@ -22,6 +22,8 @@ class _KhaoSatChiTietScreenState extends State<KhaoSatChiTietScreen> {
   List<KhaoSatLyDo> _dsLyDo = [];
   final _oTimKiem = TextEditingController();
   String _tuKhoa = '';
+  String? _tvvDangChon; // null = tất cả
+  String? _trangThaiDangChon; // null = tất cả, 'da' = đã khảo sát, 'chua' = chưa khảo sát
 
   @override
   void initState() {
@@ -49,9 +51,29 @@ class _KhaoSatChiTietScreenState extends State<KhaoSatChiTietScreen> {
     });
   }
 
+  /// Danh sách MÃ TVV có mặt trong đợt này (lấy từ chính dữ liệu đã tải, KHÔNG
+  /// gọi thêm API riêng) - dùng cho dropdown lọc.
+  List<String> get _dsMaTvv {
+    final s = _dsKhachHang.map((kh) => kh.maTvv).where((tvv) => tvv.isNotEmpty).toSet().toList();
+    s.sort();
+    return s;
+  }
+
   List<KhaoSatKhachHang> get _dsHienThi {
-    if (_tuKhoa.isEmpty) return _dsKhachHang;
-    return _dsKhachHang.where((kh) => kh.tenKhachHang.toLowerCase().contains(_tuKhoa) || kh.soTb.toLowerCase().contains(_tuKhoa)).toList();
+    var ds = _dsKhachHang;
+    if (_tvvDangChon != null) ds = ds.where((kh) => kh.maTvv == _tvvDangChon).toList();
+    if (_trangThaiDangChon == 'da') ds = ds.where((kh) => kh.daKhaoSat).toList();
+    if (_trangThaiDangChon == 'chua') ds = ds.where((kh) => !kh.daKhaoSat).toList();
+    if (_tuKhoa.isNotEmpty) ds = ds.where((kh) => kh.tenKhachHang.toLowerCase().contains(_tuKhoa) || kh.soTb.toLowerCase().contains(_tuKhoa)).toList();
+    return ds;
+  }
+
+  /// Tiến độ đã/chưa khảo sát theo ĐÚNG mã TVV đang lọc (KHÔNG tính lọc
+  /// trạng thái/từ khóa, vì đó chính là cái đang muốn đếm) - để CNKD biết
+  /// ngay còn thiếu bao nhiêu người chưa cập nhật, tránh sót.
+  ({int tong, int daXong}) get _tienDoTheoTvv {
+    final ds = _tvvDangChon == null ? _dsKhachHang : _dsKhachHang.where((kh) => kh.maTvv == _tvvDangChon).toList();
+    return (tong: ds.length, daXong: ds.where((kh) => kh.daKhaoSat).length);
   }
 
   @override
@@ -77,6 +99,53 @@ class _KhaoSatChiTietScreenState extends State<KhaoSatChiTietScreen> {
                         ),
                       ),
                     ),
+                    if (_dsMaTvv.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: DropdownButtonFormField<String?>(
+                          value: _tvvDangChon,
+                          decoration: const InputDecoration(labelText: 'Tư vấn viên (CNKD)', isDense: true, border: OutlineInputBorder()),
+                          items: [
+                            const DropdownMenuItem<String?>(value: null, child: Text('-- Tất cả --')),
+                            ..._dsMaTvv.map((tvv) => DropdownMenuItem<String?>(value: tvv, child: Text(tvv))),
+                          ],
+                          onChanged: (v) => setState(() => _tvvDangChon = v),
+                        ),
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
+                      child: Row(
+                        children: [
+                          ChoiceChip(label: const Text('Tất cả'), selected: _trangThaiDangChon == null, onSelected: (_) => setState(() => _trangThaiDangChon = null)),
+                          const SizedBox(width: 6),
+                          ChoiceChip(label: const Text('Chưa khảo sát'), selected: _trangThaiDangChon == 'chua', onSelected: (_) => setState(() => _trangThaiDangChon = 'chua')),
+                          const SizedBox(width: 6),
+                          ChoiceChip(label: const Text('Đã khảo sát'), selected: _trangThaiDangChon == 'da', onSelected: (_) => setState(() => _trangThaiDangChon = 'da')),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: Builder(builder: (context) {
+                        final td = _tienDoTheoTvv;
+                        final conThieu = td.tong - td.daXong;
+                        return Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text.rich(TextSpan(
+                            style: const TextStyle(fontSize: 12.5, color: Colors.black54),
+                            children: [
+                              TextSpan(text: (_tvvDangChon != null ? 'CNKD $_tvvDangChon: ' : 'Toàn đợt: ')),
+                              TextSpan(text: 'đã khảo sát ${td.daXong}/${td.tong} ', style: const TextStyle(fontWeight: FontWeight.w600)),
+                              TextSpan(
+                                text: conThieu > 0 ? '(còn thiếu $conThieu)' : '(đã xong hết)',
+                                style: TextStyle(color: conThieu > 0 ? Colors.red.shade700 : Colors.green.shade700, fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          )),
+                        );
+                      }),
+                    ),
+                    const SizedBox(height: 4),
                     Expanded(
                       child: _dsHienThi.isEmpty
                           ? const Center(child: Text('Không tìm thấy khách hàng nào.', style: TextStyle(color: Colors.grey)))
@@ -107,9 +176,10 @@ class _KhaoSatChiTietScreenState extends State<KhaoSatChiTietScreen> {
   }
 
   Widget _dongKhachHang(KhaoSatKhachHang kh) {
+    final chiTietPhu = [kh.soTb, kh.sdt, if (_tvvDangChon == null && kh.maTvv.isNotEmpty) 'TVV: ${kh.maTvv}'].where((s) => s.isNotEmpty).join(' · ');
     return ListTile(
       title: Text(kh.tenKhachHang, style: const TextStyle(fontWeight: FontWeight.w600)),
-      subtitle: Text([kh.soTb, kh.sdt].where((s) => s.isNotEmpty).join(' · ')),
+      subtitle: Text(chiTietPhu),
       trailing: kh.daKhaoSat
           ? const Icon(Icons.check_circle, color: Colors.green)
           : const Icon(Icons.radio_button_unchecked, color: Colors.grey),
