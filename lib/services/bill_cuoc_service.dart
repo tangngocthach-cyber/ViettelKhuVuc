@@ -154,6 +154,26 @@ class BillCuocService {
     }
   }
 
+  /// Lịch sử cập nhật "Lý do chưa thu" của 1 khách hàng - AI cập nhật, khi
+  /// nào - đọc CHUNG 1 bảng với bản web nên luôn đồng bộ dù cập nhật từ đâu.
+  static Future<List<Map<String, String>>> layLichSuLyDo(int khId) async {
+    final token = await AuthService.getToken();
+    if (token == null) return [];
+    try {
+      final res = await http.get(
+        Uri.parse('${AppConfig.apiBillCuocLichSuLyDo}?kh_id=$khId'),
+        headers: {'Authorization': 'Bearer $token'},
+      ).timeout(const Duration(seconds: 10));
+      final data = jsonDecode(res.body);
+      if (res.statusCode == 200 && data['success'] == true) {
+        return (data['lich_su'] as List).map((e) => Map<String, String>.from(e as Map)).toList();
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
   /// Mở trang IN (Thông báo cước / Thông báo nợ) trên TRÌNH DUYỆT NGOÀI của
   /// máy (Chrome thật, KHÔNG phải WebView trong app) - trả về URL đầy đủ kèm
   /// vé đăng nhập 1 lần, để trình duyệt ngoài tự đăng nhập rồi mở đúng trang
