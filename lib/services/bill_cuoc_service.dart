@@ -29,7 +29,7 @@ class BillCuocService {
     String? tvv,
     String? tuKhoa,
     bool? daThu,
-    bool chuaCoLyDo = false,
+    String locLyDo = '', // '' = tất cả, 'da' = đã cập nhật, 'chua' = chưa cập nhật lý do - ĐỒNG BỘ với bản web
     int trang = 1,
   }) async {
     final token = await AuthService.getToken();
@@ -39,7 +39,7 @@ class BillCuocService {
       if (tvv != null && tvv.isNotEmpty) thamSo['tvv'] = tvv;
       if (tuKhoa != null && tuKhoa.isNotEmpty) thamSo['q'] = tuKhoa;
       if (daThu != null) thamSo['da_thu'] = daThu ? '1' : '0';
-      if (chuaCoLyDo) thamSo['chua_co_ly_do'] = '1';
+      if (locLyDo.isNotEmpty) thamSo['loc_ly_do'] = locLyDo;
 
       final uri = Uri.parse(AppConfig.apiBillCuocDanhSachKhachHang).replace(queryParameters: thamSo);
       final res = await http.get(uri, headers: {'Authorization': 'Bearer $token'}).timeout(const Duration(seconds: 15));
