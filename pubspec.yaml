@@ -1,7 +1,7 @@
 name: vinhhung_app
 description: Ứng dụng di động Viettel Khu Vực Vĩnh Hưng
 publish_to: 'none'
-version: 1.1.5+15
+version: 1.0.2+2
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -47,6 +47,16 @@ dependencies:
   geolocator: ^13.0.1
   torch_light: ^1.1.0
   flutter_compass: ^0.8.1
+
+  # La bàn nâng cao: đổi tọa độ GPS thành địa chỉ chữ đọc được (reverse
+  # geocoding) - cùng nhà phát hành với geolocator (Baseflow), đã tin dùng
+  # sẵn trong dự án nên rủi ro thấp khi thêm mới.
+  geocoding: ^3.0.0
+
+  # La bàn nâng cao: đọc cảm biến gia tốc kế (accelerometer) để làm THƯỚC
+  # THỦY (level bubble) - flutter_compass CHỈ cho hướng la bàn, không có dữ
+  # liệu nghiêng trục X/Y cần thiết cho thước thủy.
+  sensors_plus: ^6.0.1
 
   # Lưu token đăng nhập AN TOÀN (mã hóa bằng Keystore của máy) - thay cho
   # SharedPreferences thường (không mã hóa)
