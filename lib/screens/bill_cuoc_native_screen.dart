@@ -26,7 +26,7 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
   int? _kyIdDangChon;
   String? _tvvDangChon;
   bool? _daThuDangChon; // null = tất cả, true = đã thu, false = chưa thu
-  bool _chuaCoLyDoDangChon = false; // chỉ hiện khách CHƯA thu và CHƯA cập nhật lý do
+  String _locLyDoDangChon = ''; // '' = tất cả, 'da' = đã cập nhật, 'chua' = chưa cập nhật lý do - ĐỒNG BỘ với bản web
   int _trangHienTai = 1;
   int _tongSoTrang = 1;
   final _oTimKiem = TextEditingController();
@@ -108,7 +108,7 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
       tvv: _tvvDangChon,
       tuKhoa: _oTimKiem.text.trim(),
       daThu: _daThuDangChon,
-      chuaCoLyDo: _chuaCoLyDoDangChon,
+      locLyDo: _locLyDoDangChon,
       trang: trang,
     );
     setState(() {
@@ -866,7 +866,7 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
       for (final t in _dsTvv) { if (t.maTvv == _tvvDangChon) { tvvHienTai = t.tenTvv.isEmpty ? t.maTvv : t.tenTvv; break; } }
     }
     final trangThaiHienTai = _daThuDangChon == null ? 'Tất cả trạng thái' : (_daThuDangChon! ? 'Đã thu' : 'Chưa thu');
-    final tomTatChuaCoLyDo = _chuaCoLyDoDangChon ? ' · Chưa có lý do' : '';
+    final tomTatLyDo = switch (_locLyDoDangChon) { 'da' => ' · Đã có lý do', 'chua' => ' · Chưa có lý do', _ => '' };
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
@@ -884,7 +884,7 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
                 const Icon(Icons.filter_list, size: 18, color: Colors.grey),
                 const SizedBox(width: 6),
                 Expanded(
-                  child: Text('$kyHienTai · $tvvHienTai · $trangThaiHienTai$tomTatChuaCoLyDo', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5, color: Colors.black87)),
+                  child: Text('$kyHienTai · $tvvHienTai · $trangThaiHienTai$tomTatLyDo', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5, color: Colors.black87)),
                 ),
                 Icon(_boLocMoRong ? Icons.expand_less : Icons.expand_more, color: Colors.grey),
               ]),
@@ -929,20 +929,23 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
                 ),
               ),
             ]),
+            const SizedBox(height: 8),
+            // Lọc theo tình trạng lý do chưa thu - 3 trạng thái, ĐỒNG BỘ với
+            // bản web. Chọn "Đã cập nhật"/"Chưa cập nhật" tự động ép trạng
+            // thái về "Chưa thu" (lý do chỉ có ý nghĩa với khách chưa thu).
+            Text('Lý do chưa thu', style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
             const SizedBox(height: 4),
-            // Lọc khách CHƯA CẬP NHẬT LÝ DO - chỉ có ý nghĩa với khách CHƯA
-            // thu, nên tự động ép trạng thái về "Chưa thu" khi bật lên, tránh
-            // kết quả gây hiểu lầm (giống hệt logic bên web).
-            CheckboxListTile(
-              value: _chuaCoLyDoDangChon,
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              controlAffinity: ListTileControlAffinity.leading,
-              title: const Text('Chỉ hiện khách CHƯA cập nhật lý do chưa thu', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Color(0xFFB8860B))),
-              onChanged: (v) {
+            SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(value: '', label: Text('Tất cả', style: TextStyle(fontSize: 12))),
+                ButtonSegment(value: 'da', label: Text('Đã cập nhật', style: TextStyle(fontSize: 12))),
+                ButtonSegment(value: 'chua', label: Text('Chưa cập nhật', style: TextStyle(fontSize: 12))),
+              ],
+              selected: {_locLyDoDangChon},
+              onSelectionChanged: (s) {
                 setState(() {
-                  _chuaCoLyDoDangChon = v ?? false;
-                  if (_chuaCoLyDoDangChon) _daThuDangChon = false;
+                  _locLyDoDangChon = s.first;
+                  if (_locLyDoDangChon.isNotEmpty) _daThuDangChon = false;
                 });
                 _timKhachHang();
               },
@@ -1141,8 +1144,27 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
               ),
             ],
           ),
-          subtitle: Text('${kh.soTb} · ${kh.tenTvv}\n${_dinhDangTien(kh.tongCuoc)}đ'
-              '${kh.noTruoc > 0 ? ' · Nợ trước: ${_dinhDangTien(kh.noTruoc)}đ' : ''}'),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${kh.soTb} · ${kh.tenTvv}\n${_dinhDangTien(kh.tongCuoc)}đ'
+                  '${kh.noTruoc > 0 ? ' · Nợ trước: ${_dinhDangTien(kh.noTruoc)}đ' : ''}'),
+              // Badge lý do chưa thu + màu theo mức độ rủi ro - ĐỒNG BỘ với
+              // bản web (chỉ hiện khi khách CHƯA thu và ĐÃ có lý do).
+              if (!kh.daThu && kh.tenLyDo != null && kh.tenLyDo!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Builder(builder: (context) {
+                    final rr = nhanMucDoRuiRo(kh.mucDoRuiRo);
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(color: Color(rr.mau).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)),
+                      child: Text('${kh.tenLyDo} · RR: ${rr.nhan}', style: TextStyle(fontSize: 11, color: Color(rr.mau), fontWeight: FontWeight.w600)),
+                    );
+                  }),
+                ),
+            ],
+          ),
           isThreeLine: true,
           secondary: PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
@@ -1235,6 +1257,16 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
               onPressed: _kyIdDangChon == null ? null : _xuatExcel,
             ),
           ),
+          const SizedBox(height: 6),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFFB8860B)),
+              icon: const Icon(Icons.comment_outlined, size: 18),
+              label: const Text('Xuất Excel KH đã cập nhật lý do'),
+              onPressed: _kyIdDangChon == null ? null : _xuatExcelLyDo,
+            ),
+          ),
         ]),
       ),
     );
@@ -1249,6 +1281,27 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
       return;
     }
     var duongDan = '/bill-cuoc.php?xuat_toan_bo_excel=1&ky_id=$_kyIdDangChon';
+    if (_tvvDangChon != null) duongDan += '&tvv=$_tvvDangChon';
+    final link = '${AppConfig.urlSessionLogin}?ticket=$ticket&redirect=${Uri.encodeComponent(duongDan)}';
+    final uri = Uri.parse(link);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Không mở được trình duyệt.')));
+    }
+  }
+
+  /// Xuất Excel KHÁCH HÀNG ĐÃ CẬP NHẬT LÝ DO chưa thu (kèm tên lý do, mức độ
+  /// rủi ro, mô tả chi tiết, người/thời điểm cập nhật) - dùng CHUNG đúng
+  /// endpoint đã xây trên web (bill-cuoc.php?xuat_ly_do_excel=1), không cần
+  /// API riêng cho app.
+  Future<void> _xuatExcelLyDo() async {
+    final ticket = await AuthService.getWebTicket();
+    if (ticket == null) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Không tạo được liên kết xuất file, thử lại.')));
+      return;
+    }
+    var duongDan = '/bill-cuoc.php?xuat_ly_do_excel=1&ky_id=$_kyIdDangChon';
     if (_tvvDangChon != null) duongDan += '&tvv=$_tvvDangChon';
     final link = '${AppConfig.urlSessionLogin}?ticket=$ticket&redirect=${Uri.encodeComponent(duongDan)}';
     final uri = Uri.parse(link);

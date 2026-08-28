@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../config.dart';
+import '../services/auth_service.dart';
 import '../models/khao_sat.dart';
 import '../services/khao_sat_service.dart';
 
@@ -79,7 +82,16 @@ class _KhaoSatChiTietScreenState extends State<KhaoSatChiTietScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.tenDot, overflow: TextOverflow.ellipsis)),
+      appBar: AppBar(
+        title: Text(widget.tenDot, overflow: TextOverflow.ellipsis),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.file_download_outlined),
+            tooltip: 'Xuất Excel KH đã khảo sát',
+            onPressed: _xuatExcel,
+          ),
+        ],
+      ),
       body: _dangTai
           ? const Center(child: CircularProgressIndicator())
           : _loi != null
@@ -302,6 +314,27 @@ class _KhaoSatChiTietScreenState extends State<KhaoSatChiTietScreen> {
         );
       default:
         return TextField(controller: oCtrl, decoration: InputDecoration(labelText: nhan));
+    }
+  }
+
+  /// Xuất Excel khách hàng ĐÃ KHẢO SÁT trong đợt này (đúng bộ lọc CNKD đang
+  /// chọn trên app) - dùng CHUNG đúng endpoint đã xây trên web
+  /// (khao-sat.php?xuat_excel=1), mở bằng trình duyệt ngoài để tải file về,
+  /// giống hệt cơ chế đã dùng cho Bill cước & Thông báo nợ.
+  Future<void> _xuatExcel() async {
+    final ticket = await AuthService.getWebTicket();
+    if (ticket == null) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Không tạo được liên kết xuất file, thử lại.')));
+      return;
+    }
+    var duongDan = '/khao-sat.php?dot_id=${widget.dotId}&xuat_excel=1';
+    if (_tvvDangChon != null) duongDan += '&tvv=$_tvvDangChon';
+    final link = '${AppConfig.urlSessionLogin}?ticket=$ticket&redirect=${Uri.encodeComponent(duongDan)}';
+    final uri = Uri.parse(link);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Không mở được trình duyệt.')));
     }
   }
 }
