@@ -28,7 +28,7 @@ class _LaBanScreenState extends State<LaBanScreen> {
   double? _doChinhXac; // radian - null hoặc lớn = độ chính xác thấp, cần hiệu chuẩn
   bool _khongHoTroLaBan = false;
 
-  double _nghiêngX = 0, _nghiêngY = 0; // dùng cho thước thủy, đã lọc rung tương tự
+  double _nghiengX = 0, _nghiengY = 0; // dùng cho thước thủy, đã lọc rung tương tự
 
   bool _cheDoToi = true; // mặc định tối cho giống la bàn thật, có thể bật sáng
   double? _huongKhoa; // hướng mục tiêu đã khóa (null = chưa khóa)
@@ -77,8 +77,8 @@ class _LaBanScreenState extends State<LaBanScreen> {
       if (!mounted) return;
       setState(() {
         // Lọc rung tương tự la bàn - gia tốc kế thô cũng rung khá nhiều.
-        _nghiêngX = _nghiêngX * 0.85 + event.x * 0.15;
-        _nghiêngY = _nghiêngY * 0.85 + event.y * 0.15;
+        _nghiengX = _nghiengX * 0.85 + event.x * 0.15;
+        _nghiengY = _nghiengY * 0.85 + event.y * 0.15;
       });
     });
   }
@@ -277,8 +277,8 @@ class _LaBanScreenState extends State<LaBanScreen> {
   Widget _theThuocThuy(Color nen, Color chu, Color chuPhu) {
     // Trọng lực chuẩn ~9.8 m/s² khi máy nằm PHẲNG (trục Z hứng toàn bộ trọng
     // lực, X/Y ~0) - lệch X/Y càng nhiều nghĩa là máy càng nghiêng.
-    final lechX = (_nghiêngX / 9.8).clamp(-1.0, 1.0);
-    final lechY = (_nghiêngY / 9.8).clamp(-1.0, 1.0);
+    final lechX = (_nghiengX / 9.8).clamp(-1.0, 1.0);
+    final lechY = (_nghiengY / 9.8).clamp(-1.0, 1.0);
     final canBang = lechX.abs() < 0.03 && lechY.abs() < 0.03;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20),

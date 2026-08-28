@@ -375,7 +375,7 @@ class _TabHenGioState extends State<_TabHenGio> {
             alignment: WrapAlignment.center,
             children: [1, 3, 5, 10, 15, 30].map((phut) {
               return ActionChip(
-                label: Text('$phút phút'),
+                label: Text('$phut phút'),
                 onPressed: () => setState(() {
                   _gioChon = 0;
                   _phutChon = phut;
