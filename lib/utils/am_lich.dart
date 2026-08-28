@@ -48,11 +48,14 @@ class AmLich {
     final mpr = 306.0253 + 385.81691806 * k + 0.0107306 * t2 + 0.00001236 * t3;
     final f = 21.2964 + 390.67050646 * k - 0.0016528 * t2 - 0.00000239 * t3;
     var c1 = (0.1734 - 0.000393 * t) * sin(m * dr) + 0.0021 * sin(2 * dr * m);
-    c1 -= 0.4068 * sin(mpr * dr) + 0.0161 * sin(dr * 2 * mpr);
+    c1 -= 0.4068 * sin(mpr * dr);
+    c1 += 0.0161 * sin(dr * 2 * mpr);
     c1 -= 0.0004 * sin(dr * 3 * mpr);
     c1 += 0.0104 * sin(dr * 2 * f) - 0.0051 * sin(dr * (m + mpr));
-    c1 -= 0.0074 * sin(dr * (m - mpr)) + 0.0004 * sin(dr * (2 * f + m));
-    c1 -= 0.0004 * sin(dr * (2 * f - m)) - 0.0006 * sin(dr * (2 * f + mpr));
+    c1 -= 0.0074 * sin(dr * (m - mpr));
+    c1 += 0.0004 * sin(dr * (2 * f + m));
+    c1 -= 0.0004 * sin(dr * (2 * f - m));
+    c1 -= 0.0006 * sin(dr * (2 * f + mpr));
     c1 += 0.0010 * sin(dr * (2 * f - mpr)) + 0.0005 * sin(dr * (2 * mpr + m));
     double deltat;
     if (t < -11) {
@@ -130,7 +133,12 @@ class AmLich {
       b11 = _getLunarMonth11(yy + 1, timeZone);
     }
     final lunarDay = dayNumber - monthStart + 1;
-    final diff = ((monthStart - a11) / 29 + 0.5).floor();
+    // ĐÚNG theo mã nguồn gốc đã kiểm chứng (Hồ Ngọc Đức) - KHÔNG cộng +0.5 ở
+    // đây. Bản trước đây lỡ cộng +0.5 (làm tròn thay vì lấy phần nguyên) -
+    // tuy không phải nguyên nhân chính của lỗi lệch ngày vừa phát hiện,
+    // nhưng vẫn là 1 sai lệch so với thuật toán gốc, có thể gây sai THÁNG ở
+    // các ngày giáp ranh hiếm gặp nếu không sửa cùng lúc.
+    final diff = ((monthStart - a11) / 29).floor();
     var lunarLeap = 0;
     var lunarMonth = diff + 11;
     if (b11 - a11 > 365) {
