@@ -28,6 +28,8 @@ class BillCuocKhachHang {
   final int soLanDaInNhiet;
   final int? lyDoChuaThuId;
   final String moTaLyDo;
+  final String? tenLyDo; // tên lý do (JOIN sẵn từ server) - null nếu chưa cập nhật lý do
+  final String? mucDoRuiRo; // 'thap' | 'trung_binh' | 'cao' - Admin gán sẵn cho từng lý do
 
   BillCuocKhachHang({
     required this.id,
@@ -57,6 +59,8 @@ class BillCuocKhachHang {
     required this.soLanDaInNhiet,
     this.lyDoChuaThuId,
     this.moTaLyDo = '',
+    this.tenLyDo,
+    this.mucDoRuiRo,
   });
 
   factory BillCuocKhachHang.fromJson(Map<String, dynamic> j) {
@@ -90,7 +94,23 @@ class BillCuocKhachHang {
       soLanDaInNhiet: soNguyen(j['so_lan_da_in_nhiet']),
       lyDoChuaThuId: j['ly_do_chua_thu_id'] == null ? null : soNguyen(j['ly_do_chua_thu_id']),
       moTaLyDo: chuoi(j['mo_ta_ly_do']),
+      tenLyDo: j['ten_ly_do'] == null ? null : chuoi(j['ten_ly_do']),
+      mucDoRuiRo: j['muc_do_rui_ro'] == null ? null : chuoi(j['muc_do_rui_ro']),
     );
+  }
+}
+
+/// Nhãn hiển thị + màu cho mức độ rủi ro - bản Dart tương ứng hàm PHP
+/// nhan_muc_do_rui_ro() (includes/functions.php) để 2 bên LUÔN hiển thị
+/// giống nhau, không lệch cách gọi tên giữa web và app.
+({String nhan, int mau}) nhanMucDoRuiRo(String? mucDo) {
+  switch (mucDo) {
+    case 'thap':
+      return (nhan: 'Thấp', mau: 0xFF198754);
+    case 'cao':
+      return (nhan: 'Cao', mau: 0xFFDC3545);
+    default:
+      return (nhan: 'Trung bình', mau: 0xFFFFA000);
   }
 }
 
