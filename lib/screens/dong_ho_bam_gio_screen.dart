@@ -401,21 +401,77 @@ class _TabHenGioState extends State<_TabHenGio> {
   }
 
   Widget _oChonSo(String nhan, int giaTri, int max, ValueChanged<int> onChanged) {
+    // SỬA LỖI HIỂN THỊ: bản trước dùng perspective/diameterRatio quá mạnh
+    // (0.005 / 1.3) khiến các số ở xa tâm bị BÓP MÉO PHỐI CẢNH 3D trông như
+    // ký tự lạ (không phải lỗi font, mà do hiệu ứng nghiêng/cong quá mức).
+    // Giảm phối cảnh xuống mức nhẹ hơn nhiều + tự tô màu rõ ràng: số ĐANG
+    // CHỌN tô đậm màu đỏ Viettel, số khác màu xám nhạt dần theo khoảng
+    // cách - để mắt nhìn RÕ số nào đang được chọn, không còn mù mờ.
+    final controller = FixedExtentScrollController(initialItem: giaTri);
     return Expanded(
       child: Column(
         children: [
-          Text(nhan, style: TextStyle(color: Colors.grey.shade600, fontSize: 12.5)),
+          Text(nhan, style: TextStyle(color: Colors.grey.shade600, fontSize: 12.5, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 4),
           Expanded(
-            child: ListWheelScrollView.useDelegate(
-              itemExtent: 42,
-              perspective: 0.005,
-              diameterRatio: 1.3,
-              physics: const FixedExtentScrollPhysics(),
-              controller: FixedExtentScrollController(initialItem: giaTri),
-              onSelectedItemChanged: onChanged,
-              childDelegate: ListWheelChildBuilderDelegate(
-                childCount: max + 1,
-                builder: (context, i) => Center(child: Text(i.toString().padLeft(2, '0'), style: const TextStyle(fontSize: 22, fontFeatures: [FontFeature.tabularFigures()]))),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Dải nền nổi bật đúng vị trí số đang chọn (chuẩn UX của mọi bộ chọn giờ/phút)
+                  Container(
+                    height: 42,
+                    margin: const EdgeInsets.symmetric(horizontal: 6),
+                    decoration: BoxDecoration(
+                      color: AppTheme.viettelRed.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  AnimatedBuilder(
+                animation: controller,
+                builder: (context, child) {
+                  double viTriHienTai = giaTri.toDouble();
+                  if (controller.hasClients && controller.position.hasContentDimensions) {
+                    viTriHienTai = controller.selectedItem.toDouble();
+                    // Nội suy mượt theo offset thực tế khi đang kéo (không chỉ nhảy theo item)
+                    final offset = controller.offset / 42.0;
+                    viTriHienTai = offset;
+                  }
+                  return ListWheelScrollView.useDelegate(
+                    itemExtent: 42,
+                    perspective: 0.0015,
+                    diameterRatio: 2.2,
+                    physics: const FixedExtentScrollPhysics(),
+                    controller: controller,
+                    onSelectedItemChanged: onChanged,
+                    childDelegate: ListWheelChildBuilderDelegate(
+                      childCount: max + 1,
+                      builder: (context, i) {
+                        final khoangCach = (i - viTriHienTai).abs();
+                        final dangChon = khoangCach < 0.5;
+                        final doMo = (1 - (khoangCach * 0.45)).clamp(0.25, 1.0);
+                        return Center(
+                          child: Text(
+                            i.toString().padLeft(2, '0'),
+                            style: TextStyle(
+                              fontSize: dangChon ? 24 : 20,
+                              fontWeight: dangChon ? FontWeight.bold : FontWeight.normal,
+                              color: dangChon ? AppTheme.viettelRed : Colors.grey.shade500.withOpacity(doMo),
+                              fontFeatures: const [FontFeature.tabularFigures()],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
+                ],
               ),
             ),
           ),

@@ -222,58 +222,66 @@ class _TabMayTinhState extends State<_TabMayTinh> {
       child: Column(
         children: [
           // ---- Vùng hiển thị: dòng biểu thức (trên, nhỏ) + dòng xem trước
-          // kết quả thời gian thực (dưới, lớn) - ĐÚNG yêu cầu "2 dòng". ----
-          Expanded(
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.history, color: Colors.grey),
-                        tooltip: 'Lịch sử',
-                        onPressed: _lichSu.isEmpty ? null : _moLichSu,
-                      ),
-                      const Spacer(),
-                      Row(
-                        children: [
-                          Text('Khoa học', style: TextStyle(color: Colors.grey.shade400, fontSize: 12.5)),
-                          Switch(
-                            value: _cheDoKhoaHoc,
-                            activeColor: AppTheme.viettelRed,
-                            onChanged: (v) {
-                              HapticFeedback.selectionClick();
-                              setState(() => _cheDoKhoaHoc = v);
-                            },
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const Spacer(),
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerRight,
-                    child: Text(
-                      _bieuThuc.isEmpty ? '0' : _bieuThuc,
-                      style: TextStyle(color: Colors.grey.shade400, fontSize: 26, fontWeight: FontWeight.w400),
+          // kết quả thời gian thực (dưới, lớn) - ĐÚNG yêu cầu "2 dòng".
+          // SỬA LỖI HIỂN THỊ: bản trước dùng Expanded (co giãn tự do theo
+          // phần không gian còn lại) - khi bật "Khoa học" thêm 2 hàng nút
+          // phía dưới chiếm chỗ, Expanded này bị ép nhỏ đột ngột khiến nội
+          // dung bên trong (chữ cỡ 48px) TRÀN/ĐÈ lên đúng hàng nút Khoa học
+          // phía dưới nó. Đổi sang chiều cao CỐ ĐỊNH rõ ràng (khác nhau tùy
+          // có bật Khoa học hay không, có animation mượt khi chuyển đổi) +
+          // giảm cỡ chữ khi ở chế độ Khoa học - đảm bảo LUÔN đủ chỗ, không
+          // bao giờ chồng chéo dù màn hình nhỏ tới đâu.
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            height: _cheDoKhoaHoc ? 120 : 170,
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.history, color: Colors.grey),
+                      tooltip: 'Lịch sử',
+                      onPressed: _lichSu.isEmpty ? null : _moLichSu,
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerRight,
-                    child: Text(
-                      _xemTruoc,
-                      style: const TextStyle(color: Colors.white, fontSize: 48, fontWeight: FontWeight.w300),
+                    const Spacer(),
+                    Row(
+                      children: [
+                        Text('Khoa học', style: TextStyle(color: Colors.grey.shade400, fontSize: 12.5)),
+                        Switch(
+                          value: _cheDoKhoaHoc,
+                          activeColor: AppTheme.viettelRed,
+                          onChanged: (v) {
+                            HapticFeedback.selectionClick();
+                            setState(() => _cheDoKhoaHoc = v);
+                          },
+                        ),
+                      ],
                     ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    _bieuThuc.isEmpty ? '0' : _bieuThuc,
+                    style: TextStyle(color: Colors.grey.shade400, fontSize: _cheDoKhoaHoc ? 20 : 26, fontWeight: FontWeight.w400),
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 6),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    _xemTruoc,
+                    style: TextStyle(color: Colors.white, fontSize: _cheDoKhoaHoc ? 36 : 48, fontWeight: FontWeight.w300),
+                  ),
+                ),
+              ],
             ),
           ),
           if (_cheDoKhoaHoc) _hangKhoaHoc(),

@@ -13,7 +13,7 @@ import 'toa_do_khach_hang_screen.dart';
 import 'dong_ho_bam_gio_screen.dart';
 import 'den_pin_screen.dart';
 import 'la_ban_screen.dart';
-import 'thuoc_do_screen.dart';
+// Đã bỏ tính năng Thước đo (không có ích, đo bằng camera thường thiếu chính xác) - xem lịch sử thay đổi nếu cần khôi phục thuoc_do_screen.dart
 import 'khao_sat_danh_sach_screen.dart';
 
 /// Tab Cộng đồng - ĐẦY ĐỦ công cụ nội bộ như menu thật trên website (không chỉ
@@ -156,11 +156,6 @@ class _CongDongTabState extends State<CongDongTab> {
         icon: Icons.explore_outlined,
         label: 'La bàn',
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LaBanScreen())),
-      ),
-      GridModuleItem(
-        icon: Icons.straighten,
-        label: 'Thước đo',
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ThuocDoScreen())),
       ),
     ];
 
