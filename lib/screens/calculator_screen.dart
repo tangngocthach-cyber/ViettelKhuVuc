@@ -41,6 +41,15 @@ class _CalculatorScreenState extends State<CalculatorScreen> with SingleTickerPr
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: Colors.white,
+          // SỬA LỖI MẤT CHỮ (đã xác nhận qua ảnh chụp thực tế: tab "Máy
+          // tính" đang chọn hoàn toàn vô hình) - cùng nguyên nhân với Đồng
+          // hồ bấm giờ: labelColor mặc định trùng màu đỏ nền AppBar. Theme
+          // chung (lib/theme.dart) đã sửa tận gốc, khai báo thêm ở đây để
+          // chắc chắn tuyệt đối, không phụ thuộc hoàn toàn vào theme.
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal, fontSize: 15),
           tabs: const [
             Tab(text: 'Máy tính'),
             Tab(text: 'Chuyển đổi'),

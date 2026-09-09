@@ -50,6 +50,17 @@ class _DongHoBamGioScreenState extends State<DongHoBamGioScreen> with SingleTick
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: Colors.white,
+          // SỬA LỖI MẤT CHỮ: trước đây KHÔNG set labelColor rõ ràng, nên tab
+          // ĐANG CHỌN dùng màu chữ mặc định theo theme của app (Material 3
+          // tự suy ra labelColor = màu chủ đạo AppTheme.viettelRed) - trùng
+          // với màu nền ĐỎ của chính AppBar này, khiến chữ tab đang chọn
+          // (luôn là tab đầu tiên "Bấm giờ" khi mới mở màn hình) HOÀN TOÀN
+          // VÔ HÌNH (đỏ trên đỏ). Set rõ ràng trắng cho tab đang chọn, trắng
+          // mờ cho tab chưa chọn - không phụ thuộc theme mặc định nữa.
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal, fontSize: 15),
           tabs: const [
             Tab(text: 'Bấm giờ'),
             Tab(text: 'Hẹn giờ'),
