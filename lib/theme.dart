@@ -46,6 +46,21 @@ class AppTheme {
           centerTitle: true,
           titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white),
         ),
+        // SỬA LỖI HỆ THỐNG: Material 3 mặc định lấy labelColor của TabBar
+        // (tab đang chọn) THEO colorScheme.primary - mà primary ở đây LÀ
+        // viettelRed, TRÙNG với màu nền đỏ của AppBar phía trên (mọi TabBar
+        // trong app đều đặt ở AppBar.bottom, nền đỏ) - khiến chữ tab ĐANG
+        // CHỌN bị "đỏ trên đỏ", HOÀN TOÀN VÔ HÌNH ở MỌI màn hình có TabBar
+        // trong toàn app (không riêng gì Đồng hồ bấm giờ). Khai báo rõ ràng
+        // màu trắng cho tab đang chọn, trắng mờ cho tab chưa chọn - đúng
+        // ngữ cảnh TabBar luôn nằm trên nền đỏ của hệ thống này.
+        tabBarTheme: const TabBarTheme(
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+          indicatorColor: Colors.white,
+          labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          unselectedLabelStyle: TextStyle(fontWeight: FontWeight.normal, fontSize: 14),
+        ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             backgroundColor: viettelRed,
@@ -123,6 +138,15 @@ class AppTheme {
           scrolledUnderElevation: 3,
           centerTitle: true,
           titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white),
+        ),
+        // Đồng bộ với theme sáng - xem giải thích chi tiết ở ThemeData.light
+        // phía trên (lỗi hệ thống: labelColor mặc định trùng màu nền AppBar)
+        tabBarTheme: const TabBarTheme(
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+          indicatorColor: Colors.white,
+          labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          unselectedLabelStyle: TextStyle(fontWeight: FontWeight.normal, fontSize: 14),
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
