@@ -54,7 +54,15 @@ class AppTheme {
         // trong toàn app (không riêng gì Đồng hồ bấm giờ). Khai báo rõ ràng
         // màu trắng cho tab đang chọn, trắng mờ cho tab chưa chọn - đúng
         // ngữ cảnh TabBar luôn nằm trên nền đỏ của hệ thống này.
-        tabBarTheme: const TabBarTheme(
+        // LƯU Ý KỸ THUẬT: dùng đúng type "TabBarThemeData" (không phải
+        // "TabBarTheme") - đã xác nhận qua build CI thật (GitHub Actions):
+        // phiên bản Flutter SDK đang dùng cho dự án này đòi hỏi type MỚI,
+        // dùng "TabBarTheme" (tên cũ) gây lỗi build "argument type
+        // 'TabBarTheme' can't be assigned to the parameter type
+        // 'TabBarThemeData?'" - bài học: khi không có Flutter cài sẵn để tự
+        // biên dịch thử, PHẢI chờ kết quả CI thật thay vì đoán theo suy luận
+        // lý thuyết về khả năng tương thích ngược.
+        tabBarTheme: const TabBarThemeData(
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white70,
           indicatorColor: Colors.white,
@@ -141,7 +149,7 @@ class AppTheme {
         ),
         // Đồng bộ với theme sáng - xem giải thích chi tiết ở ThemeData.light
         // phía trên (lỗi hệ thống: labelColor mặc định trùng màu nền AppBar)
-        tabBarTheme: const TabBarTheme(
+        tabBarTheme: const TabBarThemeData(
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white70,
           indicatorColor: Colors.white,
