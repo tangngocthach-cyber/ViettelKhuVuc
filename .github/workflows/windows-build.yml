@@ -95,21 +95,26 @@ jobs:
 
       - name: Build ứng dụng Windows (bản release)
         shell: bash
-        # LỖI THẬT ĐÃ GẶP: Firebase C++ SDK cho Windows (tự động tải về khi
-        # build vì app dùng firebase_core/messaging/crashlytics) có file
-        # CMakeLists.txt khai báo "cmake_minimum_required" ở phiên bản CMake
-        # QUÁ CŨ (< 3.5) - máy ảo windows-latest của GitHub dùng CMake bản
-        # MỚI đã LOẠI BỎ hoàn toàn khả năng tương thích ngược với mức cũ đó,
-        # khiến "Unable to generate build files". Đây KHÔNG PHẢI lỗi trong
-        # code của app, mà là xung đột phiên bản giữa 2 công cụ bên ngoài.
-        # CMake tự đề xuất ngay trong thông báo lỗi: đặt biến môi trường
-        # CMAKE_POLICY_VERSION_MINIMUM=3.5 để CHẤP NHẬN cấu hình theo policy
-        # cũ thay vì từ chối thẳng - đây là cách CHÍNH THỨC do CMake khuyến
-        # nghị khi gặp thư viện bên thứ 3 (Firebase SDK) chưa cập nhật theo
-        # kịp, KHÔNG cần tự sửa tay file CMakeLists.txt của Firebase (file đó
-        # được tải lại từ đầu mỗi lần build nên sửa tay sẽ mất tác dụng).
+        # LỖI THẬT ĐÃ GẶP (lần 2): sau khi qua được lỗi Firebase CMake ở
+        # trên, gặp tiếp lỗi TRONG CHÍNH package webview_windows - file
+        # webview_windows_plugin.vcxproj dùng header C++ THỬ NGHIỆM cũ
+        # (<experimental/coroutine>) mà phiên bản Visual Studio 2026 (MSVC
+        # 14.51, cài sẵn trên máy ảo windows-latest của GitHub) đã CHẶN CỨNG
+        # (error C2338), không còn chỉ cảnh báo như bản Visual Studio cũ hơn
+        # nữa - vì Microsoft đang loại bỏ dần các header thử nghiệm cũ để
+        # thay bằng <coroutine>/<generator> chuẩn C++20/23. Đây là lỗi TRONG
+        # CODE GỐC của package bên thứ 3 (webview_windows), không phải lỗi
+        # trong code app - không thể tự sửa file .vcxproj đó (được tạo lại
+        # mỗi lần build). Microsoft tự gợi ý ngay trong thông báo lỗi: định
+        # nghĩa macro _SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS
+        # để tạm bỏ qua lỗi này. Cách truyền macro vào MỌI lệnh biên dịch
+        # C++ (cl.exe) là qua biến môi trường đặc biệt "CL" - đây là cơ chế
+        # CHÍNH THỨC của trình biên dịch MSVC (tự đọc biến CL và áp dụng như
+        # thêm tham số dòng lệnh cho mọi lần gọi), không cần sửa bất kỳ file
+        # cấu hình build nào.
         run: |
           export CMAKE_POLICY_VERSION_MINIMUM=3.5
+          export CL="/D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS"
           flutter build windows --release
 
       # ---- Đóng gói file cài đặt .exe bằng Inno Setup (đã cài sẵn trên máy
