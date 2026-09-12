@@ -20,6 +20,11 @@ dependencies:
   # Hiển thị nội dung web thật (Sản phẩm/Tin tức/Chính sách/Diễn đàn...)
   webview_flutter: ^4.7.0
   webview_flutter_android: ^4.0.0
+  # WebView RIÊNG cho Windows - webview_flutter (ở trên) KHÔNG hỗ trợ Windows,
+  # cần package khác dùng lõi trình duyệt Edge WebView2 có sẵn trên Windows
+  # 10/11. API HOÀN TOÀN KHÁC webview_flutter nên viết 2 lớp riêng theo nền
+  # tảng (xem lib/screens/webview_screen.dart, lib/screens/webview_screen_windows.dart)
+  webview_windows: ^0.4.0
 
   # Chat: chọn ảnh, chọn file, xem ảnh, mở file đã tải
   image_picker: ^1.1.2
