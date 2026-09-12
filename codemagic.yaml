@@ -168,3 +168,142 @@ workflows:
         script: flutter build apk --release
     artifacts:
       - build/app/outputs/flutter-apk/*.apk
+
+  vinhhung-ios:
+    name: Vinh Hung App - iOS Build (TestFlight)
+    max_build_duration: 60
+    instance_type: mac_mini_m2 # BẮT BUỘC dùng máy Mac - build iOS CHỈ chạy được trên macOS (khác Android build ở trên chạy trên Linux là đủ)
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      # Cấu hình KÝ TỰ ĐỘNG (automatic code signing) - Codemagic tự lấy
+      # Certificate + Provisioning Profile từ App Store Connect, KHÔNG cần tự
+      # tay xuất/upload file .p12 như Android keystore. BẮT BUỘC phải cấu
+      # hình "App Store Connect integration" trong Codemagic UI TRƯỚC (Teams
+      # settings > Integrations > App Store Connect > thêm API Key) - xem chi
+      # tiết từng bước tại HUONG-DAN-IOS.md.
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.vinhhung.vinhhungApp
+      vars:
+        BUNDLE_ID: "com.vinhhung.vinhhungApp"
+        XCODE_WORKSPACE: "Runner.xcworkspace"
+        XCODE_SCHEME: "Runner"
+      groups:
+        - appstore_credentials # Nhóm biến chứa APP_STORE_CONNECT_ISSUER_ID/KEY_IDENTIFIER/PRIVATE_KEY - tạo tại Codemagic UI > Teams > Group variables, xem HUONG-DAN-IOS.md
+    scripts:
+      # ---- Bước 1: Tự sinh khung iOS (giống hệt cách Android build ở trên
+      # đang làm) - dùng thư mục TẠM riêng, chỉ copy các file CHƯA CÓ, không
+      # đè lên bất kỳ tùy chỉnh nào nếu đã từng build qua 1 lần. ----
+      - name: Tự sinh khung iOS (ở thư mục TẠM riêng, không đụng vào lib/pubspec.yaml thật)
+        script: |
+          set -e
+          flutter create --platforms=ios --project-name vinhhung_app --org com.vinhhung /tmp/ios_scaffold
+          rsync -a --ignore-existing /tmp/ios_scaffold/ios/ ./ios/
+
+      # ---- Bước 2: Đặt đúng Bundle ID (com.vinhhung.vinhhungApp) - mặc định
+      # flutter create sinh ra theo --org đã truyền, NHƯNG cần đảm bảo khớp
+      # CHÍNH XÁC với Bundle ID đã đăng ký trên Apple Developer/App Store
+      # Connect, nếu không ký tự động sẽ thất bại (Codemagic tìm profile
+      # theo đúng bundle id, không tự đoán). ----
+      - name: Đặt đúng Bundle ID
+        script: |
+          if [ -f ios/Runner.xcodeproj/project.pbxproj ]; then
+            sed -i '' 's/PRODUCT_BUNDLE_IDENTIFIER = .*/PRODUCT_BUNDLE_IDENTIFIER = com.vinhhung.vinhhungApp;/' ios/Runner.xcodeproj/project.pbxproj
+          fi
+
+      # ---- Bước 3: Khai báo quyền truy cập (Info.plist) TƯƠNG ỨNG với từng
+      # thư viện native đang dùng trong pubspec.yaml - THIẾU BẤT KỲ dòng nào
+      # ở đây, Apple SẼ TỪ CHỐI app ngay khi build/nộp (khác Android chỉ cần
+      # khai trong AndroidManifest.xml, iOS bắt buộc phải có dòng MÔ TẢ MỤC
+      # ĐÍCH XIN QUYỀN bằng tiếng Anh/Việt rõ ràng cho người dùng đọc). Chèn
+      # trước thẻ đóng "</dict>" cuối cùng của Info.plist gốc. ----
+      - name: Khai báo quyền truy cập trong Info.plist
+        script: |
+          PLIST=ios/Runner/Info.plist
+          if [ -f "$PLIST" ]; then
+            # Xóa thẻ đóng cuối cùng (</dict>\n</plist>), chèn các quyền, rồi đóng lại
+            python3 - << 'PYEOF'
+          import re
+          path = "ios/Runner/Info.plist"
+          with open(path, encoding="utf-8") as f:
+              content = f.read()
+          them = """
+            <key>NSLocationWhenInUseUsageDescription</key>
+            <string>Ứng dụng cần quyền Vị trí để chấm tọa độ khách hàng/hộp cáp và chia sẻ vị trí trong Chat.</string>
+            <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+            <string>Ứng dụng cần quyền Vị trí để chấm tọa độ khách hàng/hộp cáp ngoài thực địa.</string>
+            <key>NSCameraUsageDescription</key>
+            <string>Ứng dụng cần quyền Camera để chụp ảnh chứng từ, hộp cáp và gửi ảnh trong Chat.</string>
+            <key>NSPhotoLibraryUsageDescription</key>
+            <string>Ứng dụng cần quyền Thư viện ảnh để đính kèm ảnh có sẵn khi gửi Chat/ chấm tủ.</string>
+            <key>NSPhotoLibraryAddUsageDescription</key>
+            <string>Ứng dụng cần quyền lưu ảnh vào Thư viện ảnh sau khi chụp.</string>
+            <key>NSMicrophoneUsageDescription</key>
+            <string>Ứng dụng cần quyền Micro để ghi âm tin nhắn thoại trong Chat nội bộ.</string>
+            <key>NSFaceIDUsageDescription</key>
+            <string>Ứng dụng dùng Face ID/Touch ID để đăng nhập nhanh, thay vì gõ lại mật khẩu mỗi lần.</string>
+            <key>NSBluetoothAlwaysUsageDescription</key>
+            <string>Ứng dụng cần quyền Bluetooth để kết nối máy in hóa đơn nhiệt khi thu cước.</string>
+            <key>NSBluetoothPeripheralUsageDescription</key>
+            <string>Ứng dụng cần quyền Bluetooth để kết nối máy in hóa đơn nhiệt khi thu cước.</string>
+          """
+          if "NSLocationWhenInUseUsageDescription" not in content:
+              content = content.replace("</dict>\n</plist>", them + "</dict>\n</plist>")
+          with open(path, "w", encoding="utf-8") as f:
+              f.write(content)
+          print("Đã chèn quyền vào Info.plist")
+          PYEOF
+          fi
+
+      - name: Lấy các thư viện Flutter
+        script: flutter pub get
+
+      - name: Kiểm tra lỗi code Dart TRƯỚC khi build iOS (giống hệt bước đã
+          làm cho Android - CHỈ chặn build khi có LỖI THẬT (error), không
+          chặn vì info/warning)
+        script: |
+          flutter analyze --no-fatal-infos --no-fatal-warnings > /tmp/analyze_log.txt 2>&1
+          cat /tmp/analyze_log.txt
+          if grep -qE "^ *error " /tmp/analyze_log.txt; then
+            echo "⚠️ Có LỖI THẬT trong code Dart (xem dòng 'error' ở log phía trên).";
+            echo "Dừng build sớm để đỡ tốn thời gian chờ Xcode.";
+            exit 1;
+          fi
+          echo "Không có lỗi nghiêm trọng, tiếp tục build."
+
+      - name: Cài đặt CocoaPods (thư viện native iOS)
+        script: |
+          cd ios && pod install && cd ..
+
+      # ---- Bước ký tự động: Codemagic tự lấy chứng chỉ/profile từ App Store
+      # Connect (đã cấu hình qua "ios_signing" ở trên) rồi ghi ra file cấu
+      # hình export - bước CHUẨN, bắt buộc phải có trước khi build/export IPA. ----
+      - name: Thiết lập ký tự động (certificate + provisioning profile)
+        script: |
+          keychain initialize
+          app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
+          keychain add-certificates
+          xcode-project use-profiles
+
+      - name: Build ứng dụng iOS (bản release, chưa đóng gói IPA)
+        script: |
+          flutter build ios --release --no-codesign
+
+      - name: Đóng gói file IPA (dùng đúng chữ ký vừa thiết lập ở bước trên)
+        script: |
+          xcode-project build-ipa --workspace "ios/$XCODE_WORKSPACE" --scheme "$XCODE_SCHEME"
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+
+    publishing:
+      # Tự động đẩy bản build lên TestFlight sau khi build xong - CẦN cấu
+      # hình App Store Connect integration trong Codemagic UI (xem
+      # HUONG-DAN-IOS.md) để publishing hoạt động, nếu chưa cấu hình bước
+      # này SẼ TỰ BỎ QUA (không làm hỏng phần build IPA phía trên).
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
