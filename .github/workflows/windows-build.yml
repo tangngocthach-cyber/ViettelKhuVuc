@@ -1,0 +1,159 @@
+name: Build Windows EXE (bản cài trên PC)
+
+# ============================================================================
+# Build bản Windows Desktop của app - CHẠY TRÊN "windows-latest" (máy ảo
+# Windows thật của GitHub, có sẵn Visual Studio Build Tools + Inno Setup cần
+# cho Flutter Windows). KHÔNG đụng tới android-build.yml/codemagic.yaml -
+# hoàn toàn độc lập, build Android vẫn chạy y như cũ không ảnh hưởng gì.
+#
+# LƯU Ý QUAN TRỌNG (đọc trước khi dùng):
+#  - App gốc là app ĐIỆN THOẠI, một số tính năng dùng phần cứng CHỈ CÓ trên
+#    điện thoại (đèn pin, la bàn từ tính, cảm biến gia tốc) đã được ẨN trên
+#    Windows vì không có phần cứng tương ứng.
+#  - WebView (chiếm phần lớn màn hình app: Sản phẩm/Tin tức/Diễn đàn/Bản
+#    đồ...) dùng RIÊNG package "webview_windows" (lõi Edge WebView2) khác
+#    hẳn Android - ĐÃ viết lại tương đương nhưng CHƯA có cách tự kiểm thử
+#    trực tiếp (không có máy Windows/Flutter cài sẵn) - cần TỰ TEST THỰC TẾ
+#    sau khi cài, đặc biệt các trang có "chấm tọa độ trên bản đồ".
+#  - Máy chạy app CẦN CÀI SẴN "Microsoft Edge WebView2 Runtime" - hầu hết
+#    Windows 10/11 bản cập nhật đầy đủ đã có sẵn (Microsoft tích hợp từ
+#    2021), máy cũ/bản rút gọn có thể cần cài thêm (link trong README).
+#  - Thông báo đẩy (Firebase) và in hóa đơn qua Bluetooth CHƯA ĐƯỢC XÁC NHẬN
+#    hoạt động trên Windows (các thư viện gốc không chính thức hỗ trợ) -
+#    ĐÃ được bọc để KHÔNG LÀM CRASH app nếu không hoạt động, nhưng bản thân
+#    tính năng có thể không chạy được, cần theo dõi qua thực tế sử dụng.
+# ============================================================================
+
+on:
+  workflow_dispatch: # bấm nút "Run workflow" trên tab Actions để chạy tay
+  push:
+    branches: [main]
+    paths:
+      - 'lib/**'
+      - 'pubspec.yaml'
+      - '.github/workflows/windows-build.yml'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    env:
+      CO_GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES_JSON != '' }}
+    steps:
+      - name: Tải mã nguồn
+        uses: actions/checkout@v4
+
+      - name: Cài Flutter (bản stable)
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Bật hỗ trợ Windows Desktop cho Flutter
+        run: flutter config --enable-windows-desktop
+
+      # ---- Tự sinh khung Windows (CMake/Visual Studio project) - GIỐNG HỆT
+      # cách android-build.yml tự sinh khung Android: dùng đúng Flutter CLI
+      # thật trên máy ảo để tạo, tránh tự viết tay CMakeLists.txt/C++ dễ sai
+      # sót (không có Flutter cài sẵn ở môi trường soạn code để tự kiểm thử). ----
+      - name: Tự sinh khung Windows (ở thư mục TẠM riêng, không đụng lib/pubspec.yaml thật)
+        shell: bash
+        run: |
+          set -e
+          flutter create --platforms=windows --project-name vinhhung_app /tmp/windows_scaffold
+          mkdir -p windows
+          rsync -a --ignore-existing /tmp/windows_scaffold/windows/ ./windows/
+
+      - name: Khôi phục google-services.json từ Secret (nếu có - dùng cho Firebase, có thể không cần trên Windows)
+        if: ${{ env.CO_GOOGLE_SERVICES == 'true' }}
+        shell: bash
+        run: echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > android/app/google-services.json || true
+
+      - name: Lấy các thư viện Flutter
+        run: flutter pub get
+
+      - name: Kiểm tra lỗi code Dart trước khi build Windows
+        shell: bash
+        run: |
+          flutter analyze --no-fatal-infos --no-fatal-warnings > analyze_log.txt 2>&1 || true
+          cat analyze_log.txt
+          if grep -qE "^ *error " analyze_log.txt; then
+            echo "⚠️ Có LỖI THẬT trong code Dart (xem dòng 'error' ở log phía trên)."
+            echo "Dừng build sớm để đỡ tốn thời gian chờ Visual Studio biên dịch."
+            exit 1
+          fi
+          echo "Không có lỗi nghiêm trọng, tiếp tục build."
+
+      - name: Build ứng dụng Windows (bản release)
+        run: flutter build windows --release
+
+      # ---- Đóng gói file cài đặt .exe bằng Inno Setup (đã cài sẵn trên máy
+      # ảo windows-latest của GitHub) - người dùng cuối chỉ cần tải 1 file
+      # duy nhất, chạy lên như cài phần mềm bình thường, không cần tự copy
+      # thư mục/DLL thủ công. ----
+      - name: Viết kịch bản Inno Setup
+        shell: bash
+        run: |
+          mkdir -p installer
+          cat > installer/vinhhung.iss << 'ISS_EOF'
+          #define MyAppName "Viettel Khu Vuc Vinh Hung"
+          #define MyAppVersion "1.0.0"
+          #define MyAppPublisher "Viettel Khu Vuc Vinh Hung"
+          #define MyAppExeName "vinhhung_app.exe"
+
+          [Setup]
+          AppId={{A1B2C3D4-E5F6-4A5B-8C9D-VINHHUNGAPP01}}
+          AppName={#MyAppName}
+          AppVersion={#MyAppVersion}
+          AppPublisher={#MyAppPublisher}
+          DefaultDirName={autopf}\{#MyAppName}
+          DefaultGroupName={#MyAppName}
+          DisableProgramGroupPage=yes
+          OutputDir=..\installer_output
+          OutputBaseFilename=ViettelKhuVucVinhHung-Setup
+          Compression=lzma
+          SolidCompression=yes
+          WizardStyle=modern
+          ArchitecturesAllowed=x64compatible
+          ArchitecturesInstallIn64BitMode=x64compatible
+          UninstallDisplayIcon={app}\{#MyAppExeName}
+
+          [Languages]
+          Name: "english"; MessagesFile: "compiler:Default.isl"
+
+          [Tasks]
+          Name: "desktopicon"; Description: "Tạo biểu tượng ngoài Màn hình chính (Desktop)"; GroupDescription: "Biểu tượng bổ sung:"
+
+          [Files]
+          Source: "..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+          [Icons]
+          Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+          Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+
+          [Run]
+          Filename: "{app}\{#MyAppExeName}"; Description: "Chạy {#MyAppName} ngay bây giờ"; Flags: nowait postinstall skipifsilent
+          ISS_EOF
+
+      - name: Đóng gói file cài đặt (Inno Setup)
+        shell: cmd
+        run: |
+          "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\vinhhung.iss
+
+      - name: Đăng file cài đặt .exe để tải về
+        uses: actions/upload-artifact@v4
+        with:
+          name: ViettelKhuVucVinhHung-Setup-Windows
+          path: installer_output/*.exe
+          retention-days: 30
+
+      # ---- Phòng hờ: nếu bước đóng gói Inno Setup thất bại (VD thiếu cài
+      # đặt trên máy ảo), vẫn đăng THƯ MỤC BUILD THÔ để tải về dùng thử tạm
+      # (giải nén, chạy trực tiếp file vinhhung_app.exe bên trong) - không
+      # đẹp bằng installer nhưng đảm bảo LUÔN có gì đó tải về được. ----
+      - name: Đăng thư mục build thô (dự phòng, luôn chạy dù bước trên thành công hay không)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vinhhung-app-windows-raw-build
+          path: build/windows/x64/runner/Release/
+          retention-days: 30
