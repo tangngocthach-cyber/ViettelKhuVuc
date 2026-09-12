@@ -13,6 +13,7 @@ import 'package:open_filex/open_filex.dart';
 import '../config.dart';
 import '../services/auth_service.dart';
 import '../theme.dart';
+import 'webview_screen_windows.dart';
 
 /// Màn hình dùng CHUNG cho MỌI module lấy dữ liệu từ website thật (Sản phẩm,
 /// Tin tức, Chính sách, Diễn đàn, Tìm kiếm, Quay số, Bốc thăm...) - đúng yêu
@@ -22,16 +23,38 @@ import '../theme.dart';
 /// app-session-login.php TRƯỚC khi vào URL đích - để có phiên đăng nhập web
 /// thật giống hệt như đăng nhập tay (Diễn đàn, các trang cần đăng nhập mới
 /// dùng được, không cần đăng nhập lại lần 2 trong app).
-class WebViewScreen extends StatefulWidget {
+///
+/// HỖ TRỢ ĐA NỀN TẢNG: đây CHỈ LÀ LỚP "ĐIỀU HƯỚNG" chọn đúng implementation
+/// theo hệ điều hành - `webview_flutter` (dùng cho Android) KHÔNG hỗ trợ
+/// Windows, nên trên Windows phải dùng hẳn 1 lớp RIÊNG
+/// (WebViewScreenWindows, xem file webview_screen_windows.dart) với API
+/// hoàn toàn khác (webview_windows, dùng lõi Edge WebView2). Toàn bộ code
+/// TRONG file này (_WebViewScreenMobileState) GIỮ NGUYÊN 100% như trước,
+/// KHÔNG đụng vào, để không ảnh hưởng tới bản Android đã chạy ổn định.
+class WebViewScreen extends StatelessWidget {
   final String url;
   final String title;
   const WebViewScreen({super.key, required this.url, required this.title});
 
   @override
-  State<WebViewScreen> createState() => _WebViewScreenState();
+  Widget build(BuildContext context) {
+    if (!kIsWeb && Platform.isWindows) {
+      return WebViewScreenWindows(url: url, title: title);
+    }
+    return _WebViewScreenMobile(url: url, title: title);
+  }
 }
 
-class _WebViewScreenState extends State<WebViewScreen> {
+class _WebViewScreenMobile extends StatefulWidget {
+  final String url;
+  final String title;
+  const _WebViewScreenMobile({required this.url, required this.title});
+
+  @override
+  State<_WebViewScreenMobile> createState() => _WebViewScreenMobileState();
+}
+
+class _WebViewScreenMobileState extends State<_WebViewScreenMobile> {
   late final WebViewController _controller;
   bool _dangTai = true;
   bool _loiMang = false;
