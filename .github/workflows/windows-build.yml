@@ -61,7 +61,17 @@ jobs:
           set -e
           flutter create --platforms=windows --project-name vinhhung_app /tmp/windows_scaffold
           mkdir -p windows
-          rsync -a --ignore-existing /tmp/windows_scaffold/windows/ ./windows/
+          # SỬA LỖI THẬT: bản trước dùng "rsync" (công cụ Linux) để copy khung
+          # Windows vừa sinh ra - nhưng máy ảo windows-latest của GitHub KHÔNG
+          # cài sẵn rsync (khác máy ubuntu-latest dùng cho Android build, nơi
+          # rsync luôn có sẵn) - khiến bước này lỗi ngay khi vừa sinh xong
+          # khung (thấy rõ qua log CI thật: "flutter create" chạy xong hoàn
+          # toàn bình thường, lỗi xảy ra ở lệnh copy sau đó). Đổi sang "cp -rn"
+          # (copy đệ quy, "-n" = không ghi đè file đã tồn tại, tương đương ý
+          # nghĩa "--ignore-existing" của rsync) - lệnh POSIX chuẩn, luôn có
+          # sẵn trong Git Bash (shell mặc định khi khai "shell: bash" trên
+          # máy ảo Windows của GitHub Actions).
+          cp -rn /tmp/windows_scaffold/windows/. ./windows/
 
       - name: Khôi phục google-services.json từ Secret (nếu có - dùng cho Firebase, có thể không cần trên Windows)
         if: ${{ env.CO_GOOGLE_SERVICES == 'true' }}
