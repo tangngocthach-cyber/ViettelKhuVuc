@@ -94,27 +94,25 @@ jobs:
           echo "Không có lỗi nghiêm trọng, tiếp tục build."
 
       - name: Build ứng dụng Windows (bản release)
-        shell: bash
-        # LỖI THẬT ĐÃ GẶP (lần 2): sau khi qua được lỗi Firebase CMake ở
-        # trên, gặp tiếp lỗi TRONG CHÍNH package webview_windows - file
-        # webview_windows_plugin.vcxproj dùng header C++ THỬ NGHIỆM cũ
-        # (<experimental/coroutine>) mà phiên bản Visual Studio 2026 (MSVC
-        # 14.51, cài sẵn trên máy ảo windows-latest của GitHub) đã CHẶN CỨNG
-        # (error C2338), không còn chỉ cảnh báo như bản Visual Studio cũ hơn
-        # nữa - vì Microsoft đang loại bỏ dần các header thử nghiệm cũ để
-        # thay bằng <coroutine>/<generator> chuẩn C++20/23. Đây là lỗi TRONG
-        # CODE GỐC của package bên thứ 3 (webview_windows), không phải lỗi
-        # trong code app - không thể tự sửa file .vcxproj đó (được tạo lại
-        # mỗi lần build). Microsoft tự gợi ý ngay trong thông báo lỗi: định
-        # nghĩa macro _SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS
-        # để tạm bỏ qua lỗi này. Cách truyền macro vào MỌI lệnh biên dịch
-        # C++ (cl.exe) là qua biến môi trường đặc biệt "CL" - đây là cơ chế
-        # CHÍNH THỨC của trình biên dịch MSVC (tự đọc biến CL và áp dụng như
-        # thêm tham số dòng lệnh cho mọi lần gọi), không cần sửa bất kỳ file
-        # cấu hình build nào.
+        shell: cmd
+        # LỖI THẬT ĐÃ GẶP (lần 3): sau khi thêm biến môi trường CL="/D..." ở
+        # LẦN SỬA TRƯỚC (chạy qua "shell: bash" = Git Bash), build LẠI LỖI
+        # NGAY TỪ ĐẦU với "No CMAKE_CXX_COMPILER could be found" - nghiêm
+        # trọng hơn nhiều so với lỗi trước (không tìm thấy compiler, thay vì
+        # tìm được nhưng biên dịch lỗi). NGUYÊN NHÂN: Git Bash (MSYS2) có thói
+        # quen TỰ ĐỘNG "DỊCH" mọi chuỗi bắt đầu bằng dấu "/" thành đường dẫn
+        # file kiểu Windows khi truyền cho chương trình native (đây là hành
+        # vi mặc định nổi tiếng gây lỗi của MSYS2/Git Bash) - giá trị
+        # "/D_SILENCE_..." (cú pháp cờ Windows chuẩn, dùng cho MSVC) bị hiểu
+        # NHẦM thành 1 đường dẫn, làm hỏng biến CL, khiến CMake gọi cl.exe
+        # thất bại ngay từ bước dò tìm trình biên dịch.
+        # CÁCH SỬA: đổi HẲN sang "shell: cmd" (Command Prompt gốc của Windows,
+        # KHÔNG có kiểu "dịch đường dẫn" như Git Bash) cho RIÊNG bước build
+        # này - các bước khác trong file vẫn giữ nguyên "shell: bash" như cũ
+        # (không gặp vấn đề gì, không cần đổi).
         run: |
-          export CMAKE_POLICY_VERSION_MINIMUM=3.5
-          export CL="/D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS"
+          set CMAKE_POLICY_VERSION_MINIMUM=3.5
+          set CL=/D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS
           flutter build windows --release
 
       # ---- Đóng gói file cài đặt .exe bằng Inno Setup (đã cài sẵn trên máy
