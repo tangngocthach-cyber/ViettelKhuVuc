@@ -78,6 +78,8 @@ class AppConfig {
   static const String urlBaoCaoThuCuoc = '$baseUrl/bao-cao-thu-cuoc.php';
   static const String urlChecklistHangNgay = '$baseUrl/checklist-hang-ngay.php';
   static const String urlTienIchNoiBo = '$baseUrl/tien-ich-noi-bo.php';
+  /// Bộ công cụ xử lý File: xóa logo ảnh/video, chuyển đổi định dạng, nén PDF, chỉnh ảnh hàng loạt
+  static const String urlCongCuFile = '$baseUrl/cong-cu-file.php';
   static const String urlKhoaHoc = '$baseUrl/khoa-hoc.php';
   static const String urlLichSuHocTap = '$baseUrl/lich-su-hoc-tap.php';
   static const String urlChungChiCuaToi = '$baseUrl/chung-chi-cua-toi.php';
