@@ -87,6 +87,7 @@ class _CongDongTabState extends State<CongDongTab> {
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const KhaoSatDanhSachScreen())),
       ),
       const GridModuleItem(icon: Icons.link, label: 'Tiện ích nội bộ', url: AppConfig.urlTienIchNoiBo),
+      const GridModuleItem(icon: Icons.auto_fix_high_outlined, label: 'Công cụ xử lý File', url: AppConfig.urlCongCuFile),
       const GridModuleItem(icon: Icons.table_chart_outlined, label: 'Kho Dữ liệu bán hàng', url: AppConfig.urlKhoDuLieuExcel),
       const GridModuleItem(icon: Icons.smart_toy_outlined, label: 'Trợ lý KPI (AI)', url: AppConfig.urlTroLyKPI),
       // Trước đây gọi là "Sổ ghi chú" (nằm ở mục Tiện ích) - đổi tên và

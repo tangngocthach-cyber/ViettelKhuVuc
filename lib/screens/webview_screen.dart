@@ -11,6 +11,8 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
 import '../config.dart';
 import '../services/auth_service.dart';
 import '../theme.dart';
@@ -63,6 +65,15 @@ class _WebViewScreenMobileState extends State<_WebViewScreenMobile> {
   bool _trangDaTaiXongLanNao = false; // reset mỗi khi bắt đầu tải trang mới
   Timer? _watchdogTimer; // "bắt mạch" trang định kỳ - phát hiện trang bị treo trắng để tự tải lại
   int _watchdogLoiLienTiep = 0;
+
+  // Bộ công cụ xử lý File (trang web chạy xử lý nặng ngay trong WebView):
+  // - _webDangXuLy: trang báo đang xử lý ảnh/video/PDF -> TẠM DỪNG "bắt mạch",
+  //   tránh hiểu nhầm là trang treo rồi tự tải lại làm mất kết quả.
+  // - _fileDangNhan: file kết quả trang gửi sang từng phần (base64) qua kênh
+  //   FlutterLuuFile - WebView không tự tải được file tạo trong trình duyệt (blob).
+  bool _webDangXuLy = false;
+  final Map<String, _FileNhanTuWeb> _fileDangNhan = {};
+  Future<void> _hangDoiNhanFile = Future.value();
 
   @override
   void initState() {
@@ -161,13 +172,19 @@ class _WebViewScreenMobileState extends State<_WebViewScreenMobile> {
       // dùng chạm bản đồ chọn xong vị trí và bấm Xác nhận, trang web gọi qua
       // kênh này gửi tọa độ về, Flutter nhận và ĐÓNG màn WebView luôn, trả
       // kết quả về cho màn Chấm tủ phía trên (không cần thêm màn hình riêng).
-      ..addJavaScriptChannel('FlutterChonViTriCamTu', onMessageReceived: (msg) => _xacNhanViTriChamTu(msg.message));
+      ..addJavaScriptChannel('FlutterChonViTriCamTu', onMessageReceived: (msg) => _xacNhanViTriChamTu(msg.message))
+      // Bộ công cụ xử lý File: nhận file kết quả (gửi từng phần) và tín hiệu "đang xử lý"
+      ..addJavaScriptChannel('FlutterLuuFile', onMessageReceived: (msg) => _nhanManhFile(msg.message))
+      ..addJavaScriptChannel('FlutterDangXuLy', onMessageReceived: (msg) => _webDangXuLy = msg.message == '1');
 
     // Bật navigator.geolocation cho WebView - dùng làm PHƯƠNG ÁN DỰ PHÒNG nếu
     // trang được mở ngoài app (trình duyệt thường), không phải đường chính.
     final platform = _controller.platform;
     if (platform is AndroidWebViewController) {
       platform.setGeolocationEnabled(true);
+      // Cho phép ô <input type="file"> trên web hoạt động trong app (mặc định
+      // WebView Android KHÔNG mở được hộp chọn file nếu app không xử lý).
+      platform.setOnShowFileSelector(_chonFileChoWeb);
     }
 
     _taiTrangCoDangNhap();
@@ -317,6 +334,119 @@ class _WebViewScreenMobileState extends State<_WebViewScreenMobile> {
   }
 
   // ==========================================================================
+  // BỘ CÔNG CỤ XỬ LÝ FILE - chọn file cho web, nhận file kết quả từ web
+  // ==========================================================================
+
+  /// Mở hộp chọn file của máy khi trang web bấm vào ô chọn file.
+  Future<List<String>> _chonFileChoWeb(FileSelectorParams params) async {
+    try {
+      final loai = params.acceptTypes.join(',').toLowerCase();
+      FileType kieu = FileType.any;
+      if (loai.isNotEmpty && loai.split(',').every((t) => t.trim().startsWith('image/') || t.trim().startsWith('.hei') || t.trim().startsWith('.tif'))) {
+        kieu = FileType.image;
+      } else if (loai.isNotEmpty && loai.split(',').every((t) => t.trim().startsWith('video/') || t.trim().startsWith('.mkv') || t.trim().startsWith('.mov') || t.trim().startsWith('.avi'))) {
+        kieu = FileType.video;
+      }
+      final ketQua = await FilePicker.platform.pickFiles(
+        allowMultiple: params.mode == FileSelectorMode.openMultiple,
+        type: kieu,
+      );
+      if (ketQua == null) return [];
+      return ketQua.files.where((f) => f.path != null).map((f) => Uri.file(f.path!).toString()).toList();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Không mở được trình chọn file.')));
+      }
+      return [];
+    }
+  }
+
+  /// Nhận 1 phần file (JSON {id, ten, mime, i, n, data(base64)}) - xếp hàng tuần tự
+  /// để các phần luôn được ghi đúng thứ tự.
+  void _nhanManhFile(String chuoi) {
+    _hangDoiNhanFile = _hangDoiNhanFile.then((_) => _ghiManhFile(chuoi)).catchError((Object e) {
+      for (final f in _fileDangNhan.values) {
+        f.sink.close();
+      }
+      _fileDangNhan.clear();
+      if (mounted) {
+        setState(() => _dangTaiFile = false);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lưu file kết quả bị lỗi, vui lòng thử lại.')));
+      }
+    });
+  }
+
+  Future<void> _ghiManhFile(String chuoi) async {
+    final d = jsonDecode(chuoi) as Map<String, dynamic>;
+    final id = '${d['id']}';
+    final i = (d['i'] as num).toInt();
+    final n = (d['n'] as num).toInt();
+    var f = _fileDangNhan[id];
+    if (f == null) {
+      if (i != 0) return;
+      final thuMuc = Directory('${(await getTemporaryDirectory()).path}/cong-cu-file');
+      await thuMuc.create(recursive: true);
+      final ten = _tenFileAnToan('${d['ten']}');
+      final duongDan = '${thuMuc.path}/$ten';
+      f = _FileNhanTuWeb(ten: ten, mime: '${d['mime']}', tong: n, duongDan: duongDan, sink: File(duongDan).openWrite());
+      _fileDangNhan[id] = f;
+      if (mounted) setState(() => _dangTaiFile = true);
+    }
+    f.sink.add(base64Decode('${d['data']}'));
+    f.daNhan++;
+    if (f.daNhan >= f.tong) {
+      await f.sink.flush();
+      await f.sink.close();
+      _fileDangNhan.remove(id);
+      if (mounted) setState(() => _dangTaiFile = false);
+      await _hoiMoHoacChiaSe(f);
+    }
+  }
+
+  String _tenFileAnToan(String ten) {
+    final sach = ten.replaceAll(RegExp(r'[\\/:*?"<>|\x00-\x1f]'), '-').trim();
+    return sach.isEmpty ? 'ket-qua' : sach;
+  }
+
+  Future<void> _hoiMoHoacChiaSe(_FileNhanTuWeb f) async {
+    if (!mounted) return;
+    await showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.check_circle, color: Colors.green),
+              title: Text(f.ten, maxLines: 2, overflow: TextOverflow.ellipsis),
+              subtitle: const Text('Đã tạo xong file'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.open_in_new),
+              title: const Text('Mở file'),
+              onTap: () async {
+                Navigator.pop(ctx);
+                final kq = await OpenFilex.open(f.duongDan);
+                if (kq.type != ResultType.done && mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Không có ứng dụng mở được file này: ${kq.message}')));
+                }
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.share),
+              title: const Text('Lưu vào máy / Chia sẻ (Zalo, Drive, Files...)'),
+              onTap: () async {
+                Navigator.pop(ctx);
+                await Share.shareXFiles([XFile(f.duongDan, mimeType: f.mime, name: f.ten)]);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ==========================================================================
   // "BẮT MẠCH" TRANG - PHÁT HIỆN TRANG BỊ TREO TRẮNG ĐỂ TỰ TẢI LẠI
   // ==========================================================================
   // LỖI THẬT ĐÃ GẶP: bản đồ Vệ tinh (ảnh chụp Esri) tải RẤT NẶNG so với bản
@@ -343,7 +473,7 @@ class _WebViewScreenMobileState extends State<_WebViewScreenMobile> {
   }
 
   Future<void> _kiemTraTrangConSong() async {
-    if (!mounted || _dangTai || _loiMang || _dangTaiFile) return;
+    if (!mounted || _dangTai || _loiMang || _dangTaiFile || _webDangXuLy) return;
     try {
       await _controller.runJavaScriptReturningResult('1+1').timeout(const Duration(seconds: 5));
       _watchdogLoiLienTiep = 0;
@@ -486,4 +616,15 @@ class _WebViewScreenMobileState extends State<_WebViewScreenMobile> {
       ),
     );
   }
+}
+
+/// File đang nhận dần từ trang web (Bộ công cụ xử lý File)
+class _FileNhanTuWeb {
+  final String ten;
+  final String mime;
+  final int tong;
+  final String duongDan;
+  final IOSink sink;
+  int daNhan = 0;
+  _FileNhanTuWeb({required this.ten, required this.mime, required this.tong, required this.duongDan, required this.sink});
 }
