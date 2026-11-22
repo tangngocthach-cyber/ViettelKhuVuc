@@ -65,6 +65,8 @@ class AppConfig {
   static const String urlTimKiem = '$baseUrl/tim-kiem.php';
   static const String urlQuaySo = '$baseUrl/quay-so.php';
   static const String urlBocTham = '$baseUrl/boc-tham.php';
+  // Game lan tỏa Tammi (Đào Vàng, Bắn Súng trúng thưởng) - trang công khai, KH cũng chơi được qua link/QR
+  static const String urlGame = '$baseUrl/game.php';
   static const String urlLienHe = '$baseUrl/lien-he.php';
   static const String urlGioiThieu = '$baseUrl/index.php';
 
