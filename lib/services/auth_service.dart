@@ -145,7 +145,7 @@ class AuthService {
     if (token == null) return false;
     try {
       final res = await http.get(Uri.parse(AppConfig.apiMe), headers: {'Authorization': 'Bearer $token'}).timeout(const Duration(seconds: 10));
-      if (res.statusCode == 401) {
+      if (res.statusCode == 401 || res.statusCode == 403) {
         await logout();
         return false;
       }
@@ -158,7 +158,10 @@ class AuthService {
           await _storage.write(key: _keyChamTuAdmin, value: '${data['user']['cham_tu_admin'] ?? false}');
         }
       }
-      return res.statusCode == 200;
+      // SỬA LỖI: máy chủ đang bảo trì/lỗi tạm (5xx) trước đây bị coi là
+      // "hết phiên" -> đẩy về màn Đăng nhập dù token vẫn còn hiệu lực. Chỉ
+      // 401/403 (token sai/hết hạn/tài khoản bị khóa) mới bắt đăng nhập lại.
+      return true;
     } catch (e) {
       // Lỗi mạng: KHÔNG đăng xuất (tránh mất phiên chỉ vì mất mạng tạm thời) -
       // coi như vẫn còn đăng nhập, app dùng dữ liệu cache offline.

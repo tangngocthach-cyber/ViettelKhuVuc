@@ -22,6 +22,29 @@ Future<void> fcmXuLyNenNgam(RemoteMessage message) async {
 class FcmService {
   static final _localNotif = FlutterLocalNotificationsPlugin();
 
+  // SỬA LỖI: hàm khoiTaoSauDangNhap() được gọi MỖI LẦN mở app và MỖI LẦN
+  // đăng nhập - trước đây mỗi lần gọi lại ĐĂNG KÝ THÊM 1 bộ lắng nghe, nên
+  // sau khi đăng xuất/đăng nhập lại 1 tin nhắn hiện 2-3 thông báo trùng.
+  static bool _daLangNghe = false;
+
+  // SỬA LỖI BẢO MẬT: bấm thông báo khi app đang KHÓA vân tay (hoặc chưa vào
+  // tới Trang chủ) trước đây mở thẳng khung Chat CHỒNG LÊN màn khóa - xem
+  // được tin nhắn mà không cần xác thực. Nay giữ lại thông báo, chỉ mở khi
+  // Trang chủ đã sẵn sàng (đã qua màn khóa).
+  static bool _sanSangMoThongBao = false;
+  static RemoteMessage? _thongBaoDangCho;
+
+  /// HomeScreen gọi true khi hiển thị (đã qua khóa), false khi bị khóa lại
+  /// hoặc đóng (đăng xuất).
+  static void datSanSangMoThongBao(bool sanSang) {
+    _sanSangMoThongBao = sanSang;
+    final cho = _thongBaoDangCho;
+    if (sanSang && cho != null) {
+      _thongBaoDangCho = null;
+      _moDungCuocTroChuyen(cho);
+    }
+  }
+
   /// Gọi 1 lần sau khi đăng nhập thành công - xin quyền, lấy token, đăng ký
   /// với backend, và lắng nghe thông báo khi app đang MỞ (foreground).
   static Future<void> khoiTaoSauDangNhap() async {
@@ -31,6 +54,9 @@ class FcmService {
 
       final token = await messaging.getToken();
       if (token != null) await _dangKyToken(token);
+
+      if (_daLangNghe) return; // đã gắn bộ lắng nghe ở lần trước, không gắn trùng
+      _daLangNghe = true;
 
       // Token có thể tự đổi (VD app cài lại) - tự đăng ký lại token mới
       messaging.onTokenRefresh.listen(_dangKyToken);
@@ -105,6 +131,10 @@ class FcmService {
   }
 
   static Future<void> _moDungCuocTroChuyen(RemoteMessage message) async {
+    if (!_sanSangMoThongBao) {
+      _thongBaoDangCho = message; // chờ qua màn khóa / vào Trang chủ rồi mới mở
+      return;
+    }
     final conversationIdStr = message.data['conversation_id'];
     if (conversationIdStr == null) return;
     final conversationId = int.tryParse('$conversationIdStr');
