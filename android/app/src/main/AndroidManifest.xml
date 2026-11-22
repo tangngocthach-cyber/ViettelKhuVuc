@@ -52,7 +52,16 @@
         android:label="Viettel Khu Vực Vĩnh Hưng"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:usesCleartextTraffic="false">
+        android:usesCleartextTraffic="false"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        tools:replace="android:allowBackup">
+        <!-- BẢO MẬT + ỔN ĐỊNH: KHÔNG cho Android tự sao lưu dữ liệu app lên
+             Google Drive / chuyển sang máy mới. Trước đây mặc định BẬT: token
+             đăng nhập, dữ liệu Chat cache... bị sao lưu ra ngoài máy; và khi
+             khôi phục sang máy khác, kho mã hóa (flutter_secure_storage) không
+             giải mã được -> app có thể lỗi/văng ngay khi mở. -->
 
         <activity
             android:name=".MainActivity"
