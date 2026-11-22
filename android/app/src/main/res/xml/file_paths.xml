@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- BẢO MẬT: chỉ chia sẻ được file trong thư mục TẠM (cache) và thư mục ngoài
+     riêng của app - nơi lưu file tải về / file kết quả để mở hoặc gửi đi.
+     Đã BỎ "files-path" (thư mục dữ liệu trong của app, chứa dữ liệu riêng)
+     khỏi danh sách được phép cấp quyền đọc cho ứng dụng khác. -->
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <external-files-path name="external_files" path="." />
     <cache-path name="cache" path="." />
-    <files-path name="files" path="." />
 </paths>

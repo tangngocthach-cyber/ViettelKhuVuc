@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+: chặn sao lưu đám mây VÀ chuyển dữ liệu sang máy mới cho TOÀN
+     BỘ dữ liệu app (token đăng nhập, cache Chat, ghi chú...). Người dùng chỉ
+     cần đăng nhập lại trên máy mới - dữ liệu thật vẫn nằm trên máy chủ. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </device-transfer>
+</data-extraction-rules>
