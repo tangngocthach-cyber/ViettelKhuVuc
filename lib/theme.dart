@@ -9,6 +9,11 @@ class AppTheme {
   static const Color bgLight = Color(0xFFF7F7FA); // xám rất nhạt, trung tính hơn be cũ - đỡ ám vàng khi đặt cạnh card trắng
   static const Color bgDark = Color(0xFF121212);
   static const Color surfaceDark = Color(0xFF1E1E1E);
+  // Nền các ô nhập/ô chọn/khung phụ - tách riêng sáng/tối (trước đây cứng
+  // Colors.grey.shade100 ở nhiều màn -> chế độ tối thành ô xám sáng, chữ
+  // trắng bên trong KHÔNG đọc được).
+  static const Color nenONhapSang = Color(0xFFF1F2F5);
+  static const Color nenONhapToi = Color(0xFF2A2A2D);
 
   /// Chuyển trang MƯỢT ĐỒNG NHẤT trên MỌI nền tảng (trượt ngang kiểu iOS) -
   /// TRƯỚC ĐÂY dùng hiệu ứng mặc định của từng hệ điều hành (Android dùng
@@ -114,7 +119,7 @@ class AppTheme {
           margin: EdgeInsets.zero,
         ),
         chipTheme: ChipThemeData(
-          backgroundColor: Colors.grey.shade100,
+          backgroundColor: nenONhapSang,
           selectedColor: viettelRed,
           labelStyle: const TextStyle(fontSize: 12.5),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -178,6 +183,7 @@ class AppTheme {
           filled: true,
           fillColor: surfaceDark,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
           focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: viettelRedLight, width: 1.5)),
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         ),
@@ -195,6 +201,16 @@ class AppTheme {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           margin: EdgeInsets.zero,
         ),
+        // Chip ở chế độ tối: nền xám đậm (trước đây không khai báo -> lấy mặc
+        // định, chữ đen trên nền tối ở các bộ lọc Ghi chú/Chấm tủ/Ticket).
+        chipTheme: ChipThemeData(
+          backgroundColor: nenONhapToi,
+          selectedColor: viettelRed,
+          labelStyle: const TextStyle(fontSize: 12.5, color: Colors.white),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          side: BorderSide.none,
+        ),
         dividerTheme: DividerThemeData(color: Colors.grey.shade800, thickness: 1, space: 1),
         snackBarTheme: SnackBarThemeData(
           behavior: SnackBarBehavior.floating,
@@ -202,6 +218,28 @@ class AppTheme {
         ),
         fontFamily: 'Roboto',
       );
+}
+
+/// Màu THEO CHẾ ĐỘ SÁNG/TỐI - dùng thay cho các màu cứng (Colors.black87,
+/// Colors.grey.shade100...) để chữ và nền luôn đủ tương phản ở cả 2 chế độ.
+/// Cách dùng: `color: context.mauChuChinh`.
+extension MauTheoCheDo on BuildContext {
+  bool get laCheDoToi => Theme.of(this).brightness == Brightness.dark;
+
+  /// Chữ chính (đen ở chế độ sáng, trắng ở chế độ tối)
+  Color get mauChuChinh => laCheDoToi ? Colors.white : Colors.black87;
+
+  /// Chữ phụ, mô tả (xám vừa, đọc được ở cả 2 chế độ)
+  Color get mauChuPhu => laCheDoToi ? Colors.white70 : Colors.black54;
+
+  /// Nền ô nhập, ô chọn, khung phụ
+  Color get mauNenO => laCheDoToi ? AppTheme.nenONhapToi : AppTheme.nenONhapSang;
+
+  /// Nền thẻ/khối nổi (trắng ở chế độ sáng)
+  Color get mauNenThe => laCheDoToi ? AppTheme.surfaceDark : Colors.white;
+
+  /// Viền nhạt
+  Color get mauVien => laCheDoToi ? Colors.white12 : const Color(0xFFE6E7EB);
 }
 
 /// Quản lý chế độ giao diện (Sáng / Tối / Theo hệ thống) - dùng ChangeNotifier
