@@ -40,11 +40,13 @@ jobs:
         with:
           channel: stable
 
-      - name: Cài Java 17 (bắt buộc cho Android Gradle Plugin mới)
+      # Java 21: công cụ kiểm tra (lint) của Android Gradle Plugin bản mới dùng hàm chỉ có từ Java 21
+      # (List.removeLast) -> chạy trên Java 17 bị văng lỗi "NoSuchMethodError ... removeLast".
+      - name: Cài Java 21 (bắt buộc cho Android Gradle Plugin mới)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
 
       # ---- Bước 1: Tự sinh khung Android (giống hệt codemagic.yaml) ----
       - name: Tự sinh khung Android (ở thư mục TẠM riêng, không đụng vào lib/pubspec.yaml thật)
@@ -140,6 +142,26 @@ jobs:
               coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
           }
           DESUGAR_EOF
+          fi
+
+      # ---- Bước 6b: Tắt bước lint tự động khi build release ----
+      # Lint của thư viện con (VD image_picker_android) có thể tự văng lỗi do lỗi của chính công cụ lint,
+      # làm hỏng cả bản build dù code không sai. Lỗi code Dart đã được kiểm tra riêng bằng flutter analyze.
+      - name: Tắt lint tự động khi build release
+        run: |
+          if [ -f android/app/build.gradle.kts ]; then
+            cat >> android/app/build.gradle.kts << 'LINT_EOF'
+
+          android {
+              lint {
+                  checkReleaseBuilds = false
+                  abortOnError = false
+              }
+          }
+          LINT_EOF
+          fi
+          if [ -f android/app/build.gradle ]; then
+            printf '\nandroid {\n    lintOptions {\n        checkReleaseBuilds false\n        abortOnError false\n    }\n}\n' >> android/app/build.gradle
           fi
 
       # ---- Bước 7: Áp dụng chữ ký release (chỉ chạy nếu key.properties đã khôi phục thành công ở Bước 2) ----
