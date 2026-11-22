@@ -10,6 +10,7 @@ import 'dart:io';
 import '../models/chat_models.dart';
 import '../models/sticker.dart';
 import '../theme.dart';
+import '../utils/an_toan.dart';
 
 class MessageBubble extends StatelessWidget {
   final ChatMessage message;
@@ -276,7 +277,7 @@ class MessageBubble extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(message.replyTo!.senderName, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: AppTheme.viettelRed)),
-          Text(message.replyTo!.noiDung, style: const TextStyle(fontSize: 12, color: Colors.black54), maxLines: 1, overflow: TextOverflow.ellipsis),
+          Text(message.replyTo!.noiDung, style: TextStyle(fontSize: 12, color: Colors.grey.shade600), maxLines: 1, overflow: TextOverflow.ellipsis),
         ],
       ),
     );
@@ -320,8 +321,11 @@ class MessageBubble extends StatelessWidget {
       );
     }
 
-    final mauNen = laCuaMinh ? AppTheme.viettelRed : Colors.white;
-    final mauChu = laCuaMinh ? Colors.white : Colors.black87;
+    // Bong bóng người khác gửi: nền xám đậm ở chế độ Tối (trước đây luôn
+    // trắng chói giữa nền đen).
+    final toi = Theme.of(context).brightness == Brightness.dark;
+    final mauNen = laCuaMinh ? AppTheme.viettelRed : (toi ? const Color(0xFF2C2C2E) : Colors.white);
+    final mauChu = laCuaMinh ? Colors.white : (toi ? Colors.white : Colors.black87);
 
     if (message.loai == 'image' && message.fileUrl != null) {
       return ClipRRect(
@@ -524,8 +528,14 @@ class MessageBubble extends StatelessWidget {
   Future<void> _moFile(BuildContext context) async {
     try {
       final dir = await getTemporaryDirectory();
-      final path = '${dir.path}/${message.fileTenGoc}';
+      // BẢO MẬT: tên file do NGƯỜI GỬI đặt - phải làm sạch (bỏ "../", ký tự
+      // cấm) trước khi ghép đường dẫn, tránh tin nhắn có tên file độc hại
+      // ghi đè dữ liệu riêng của app (phiên đăng nhập, cài đặt...).
+      final path = '${dir.path}/${AnToan.tenFile(message.fileTenGoc)}';
       final res = await http.get(Uri.parse(message.fileUrl!)).timeout(const Duration(seconds: 30));
+      if (res.statusCode != 200 || res.bodyBytes.isEmpty) {
+        throw Exception('Tải file lỗi ${res.statusCode}');
+      }
       final file = File(path);
       await file.writeAsBytes(res.bodyBytes);
       await OpenFilex.open(path);

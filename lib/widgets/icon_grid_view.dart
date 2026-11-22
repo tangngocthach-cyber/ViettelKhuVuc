@@ -23,16 +23,23 @@ class IconGridView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // SỬA LỖI HIỂN THỊ: trước đây dùng tỉ lệ cố định (childAspectRatio .78)
+    // - trên máy chiều ngang hẹp hoặc khi người dùng phóng to cỡ chữ hệ
+    // thống, nhãn 2 dòng bị TRÀN (vạch vàng-đen "overflowed"). Nay tính
+    // chiều cao ô theo đúng cỡ chữ thực tế: ô icon 66 + khoảng cách 8 +
+    // 2 dòng chữ (13 x 1.25) + dư 6.
+    final coChu = MediaQuery.textScalerOf(context).scale(13);
+    final chieuCaoO = 66 + 8 + coChu * 1.25 * 2 + 6;
     return GridView.builder(
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
       shrinkWrap: !cuonRieng,
       physics: cuonRieng ? null : const NeverScrollableScrollPhysics(),
-      // responsive: điện thoại 4 cột, máy tính bảng (>600dp) 6 cột - không vỡ layout
+      // responsive: điện thoại 3-4 cột, máy tính bảng (>600dp) 6 cột - không vỡ layout
       gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: 118, // tăng nhẹ để chứa ô icon lớn hơn
         mainAxisSpacing: 14,
         crossAxisSpacing: 10,
-        childAspectRatio: .78,
+        mainAxisExtent: chieuCaoO,
       ),
       itemCount: items.length,
       itemBuilder: (context, i) => _TheModule(item: items[i]),
@@ -55,8 +62,14 @@ class _TheModule extends StatefulWidget {
 
 class _TheModuleState extends State<_TheModule> {
   bool _dangNhan = false;
+  DateTime? _lanBamTruoc;
 
   void _moTrang(BuildContext context) {
+    // Chống bấm đúp: chạm nhanh 2 lần trước đây mở CHỒNG 2 màn hình giống
+    // nhau (phải bấm Quay lại 2 lần). Bỏ qua lần chạm cách lần trước < 0,8s.
+    final bayGio = DateTime.now();
+    if (_lanBamTruoc != null && bayGio.difference(_lanBamTruoc!) < const Duration(milliseconds: 800)) return;
+    _lanBamTruoc = bayGio;
     widget.item.onTap?.call();
     if (widget.item.onTap == null) {
       Navigator.push(context, MaterialPageRoute(builder: (_) => WebViewScreen(url: widget.item.url!, title: widget.item.label)));
@@ -66,7 +79,11 @@ class _TheModuleState extends State<_TheModule> {
   @override
   Widget build(BuildContext context) {
     final toiDangSang = Theme.of(context).brightness == Brightness.light;
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      label: widget.item.label,
+      excludeSemantics: true,
+      child: GestureDetector(
       onTapDown: (_) => setState(() => _dangNhan = true),
       onTapCancel: () => setState(() => _dangNhan = false),
       onTapUp: (_) => setState(() => _dangNhan = false),
@@ -111,6 +128,36 @@ class _TheModuleState extends State<_TheModule> {
           ],
         ),
       ),
+      ),
+    );
+  }
+}
+
+/// Tiêu đề nhóm module (vạch đỏ + tên nhóm) dùng CHUNG cho Trang chủ và
+/// Cộng đồng. SỬA LỖI HIỂN THỊ: bản cũ để chữ màu đen cứng (Colors.black87)
+/// - ở chế độ Tối chữ đen trên nền đen, KHÔNG nhìn thấy tên nhóm.
+class TieuDeNhom extends StatelessWidget {
+  final String ten;
+  final String? moTa;
+  const TieuDeNhom(this.ten, {super.key, this.moTa});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
+      child: Row(children: [
+        Container(width: 4, height: 18, decoration: BoxDecoration(color: AppTheme.viettelRed, borderRadius: BorderRadius.circular(3))),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Text(
+            ten,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15.5, color: context.mauChuChinh, letterSpacing: -.2),
+          ),
+        ),
+        if (moTa != null) Text(moTa!, style: TextStyle(fontSize: 12, color: context.mauChuPhu)),
+      ]),
     );
   }
 }
