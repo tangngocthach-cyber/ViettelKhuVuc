@@ -125,7 +125,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                               : 'Chưa có tin nhắn',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: coTinChuaDoc ? Colors.black87 : Colors.grey, fontWeight: coTinChuaDoc ? FontWeight.w600 : FontWeight.normal),
+                          style: TextStyle(color: coTinChuaDoc ? context.mauChuChinh : Colors.grey, fontWeight: coTinChuaDoc ? FontWeight.w600 : FontWeight.normal),
                         ),
                         trailing: Column(
                           crossAxisAlignment: CrossAxisAlignment.end,

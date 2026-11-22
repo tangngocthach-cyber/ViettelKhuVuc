@@ -1001,7 +1001,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         const SizedBox(width: 4),
         const Icon(Icons.fiber_manual_record, color: Colors.red, size: 14),
         const SizedBox(width: 8),
-        Text('Đang ghi âm... $phut:${giay.toString().padLeft(2, '0')}', style: const TextStyle(color: Colors.black54)),
+        Text('Đang ghi âm... $phut:${giay.toString().padLeft(2, '0')}', style: TextStyle(color: context.mauChuPhu)),
         const Spacer(),
         _dangGui
             ? const Padding(padding: EdgeInsets.all(10), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.2)))
@@ -1017,7 +1017,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   Widget _khungDangTraLoi() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(color: Colors.grey.shade100, border: const Border(top: BorderSide(color: Color(0xFFE0E0E0)))),
+      decoration: BoxDecoration(color: context.mauNenO, border: Border(top: BorderSide(color: context.mauVien))),
       child: Row(
         children: [
           Container(width: 3, height: 32, color: AppTheme.viettelRed),
@@ -1030,7 +1030,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                 Text('Trả lời ${_dangTraLoi!.senderName}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: AppTheme.viettelRed)),
                 Text(
                   _dangTraLoi!.loai == 'image' ? '[Hình ảnh]' : (_dangTraLoi!.loai == 'file' ? '[Tệp đính kèm]' : (_dangTraLoi!.noiDung ?? '')),
-                  maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5, color: Colors.black54),
+                  maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: context.mauChuPhu),
                 ),
               ],
             ),

@@ -42,7 +42,7 @@ class _ChonStickerSheetState extends State<ChonStickerSheet> {
                       label: Text(c.ten, style: const TextStyle(fontSize: 12.5)),
                       selected: dangChon,
                       selectedColor: c.mau,
-                      labelStyle: TextStyle(color: dangChon ? Colors.white : Colors.black87),
+                      labelStyle: TextStyle(color: dangChon ? Colors.white : context.mauChuChinh),
                       onSelected: (_) => setState(() => _chuDeChon = c.ma),
                     ),
                   );
