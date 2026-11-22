@@ -8,3 +8,11 @@ build/
 android/.gradle/
 android/local.properties
 android/key.properties
+
+# BẢO MẬT: khóa ký app + mật khẩu KHÔNG BAO GIỜ được đưa lên Git.
+# CI khôi phục từ Secret: ANDROID_KEY_PROPERTIES, ANDROID_KEYSTORE_BASE64
+# (xem .github/workflows/android-build.yml). Lưu ý: dòng này chỉ CHẶN THÊM MỚI -
+# file đã lỡ đưa lên phải tự gỡ: git rm --cached android/key.properties android/*.keystore
+*.keystore
+*.jks
+android/key.properties
