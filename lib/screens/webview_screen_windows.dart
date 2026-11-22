@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:geolocator/geolocator.dart';
 import '../config.dart';
+import '../utils/an_toan.dart';
 import '../services/auth_service.dart';
 import '../theme.dart';
 
@@ -191,7 +192,7 @@ class _WebViewScreenWindowsState extends State<WebViewScreenWindows> {
     // Cùng danh sách/logic domain đã dùng ở bản Android - PHẢI khớp domain
     // CHÍNH XÁC (hoặc đúng subdomain), không dùng endsWith thô để tránh lỗ
     // hổng domain giả (xem ghi chú bảo mật ở webview_screen.dart bản Android).
-    final laDomainCuaSite = host.isEmpty || host == 'viettelkhuvuc.com' || host.endsWith('.viettelkhuvuc.com');
+    final laDomainCuaSite = host.isEmpty || AnToan.laHostCuaSite(host);
 
     const duoiFileTai = ['.pdf', '.xlsx', '.xls', '.doc', '.docx', '.ppt', '.pptx', '.zip', '.csv', '.apk', '.rar', '.txt'];
     final laLinkTaiFile = path.contains('tai-xuong.php') || path.contains('download.php') || duoiFileTai.any((duoi) => path.endsWith(duoi));
@@ -233,7 +234,8 @@ class _WebViewScreenWindowsState extends State<WebViewScreenWindows> {
       final duLieuFile = bytesBuilder.toBytes();
       if (duLieuFile.isEmpty) throw Exception('File tải về rỗng.');
 
-      String tenFile = _layTenFileTuHeader(response.headers.value('content-disposition')) ?? _layTenFileTuUrl(uriGoc);
+      // BẢO MẬT: làm sạch tên file (bỏ "..\\", ký tự cấm) trước khi ghép đường dẫn
+      final String tenFile = AnToan.tenFile(_layTenFileTuHeader(response.headers.value('content-disposition')) ?? _layTenFileTuUrl(uriGoc), macDinh: 'tai-lieu.pdf');
       final thuMucTam = await getTemporaryDirectory();
       final duongDanLuu = '${thuMucTam.path}\\$tenFile';
       await File(duongDanLuu).writeAsBytes(duLieuFile);

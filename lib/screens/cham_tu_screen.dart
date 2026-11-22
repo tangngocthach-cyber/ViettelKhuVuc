@@ -107,7 +107,7 @@ class _ChamTuScreenState extends State<ChamTuScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            const Text('1. Chọn loại tủ', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54)),
+            Text('1. Chọn loại tủ', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: context.mauChuPhu)),
             const SizedBox(height: 10),
             Row(
               children: [
@@ -129,11 +129,11 @@ class _ChamTuScreenState extends State<ChamTuScreen> {
               ),
             ],
             const SizedBox(height: 22),
-            const Text('2. Vị trí trên bản đồ', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54)),
+            Text('2. Vị trí trên bản đồ', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: context.mauChuPhu)),
             const SizedBox(height: 10),
             _theViTri(),
             const SizedBox(height: 22),
-            const Text('3. Ghi chú (không bắt buộc)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54)),
+            Text('3. Ghi chú (không bắt buộc)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: context.mauChuPhu)),
             const SizedBox(height: 10),
             TextField(
               controller: _ghiChuCtrl,
@@ -166,15 +166,15 @@ class _ChamTuScreenState extends State<ChamTuScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 18),
         decoration: BoxDecoration(
-          color: dangChon ? AppTheme.viettelRed : Colors.grey.shade100,
+          color: dangChon ? AppTheme.viettelRed : context.mauNenO,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: dangChon ? AppTheme.viettelRed : Colors.grey.shade300, width: 1.5),
+          border: Border.all(color: dangChon ? AppTheme.viettelRed : context.mauVien, width: 1.5),
         ),
         child: Column(
           children: [
-            Icon(icon, size: 30, color: dangChon ? Colors.white : Colors.grey.shade700),
+            Icon(icon, size: 30, color: dangChon ? Colors.white : context.mauChuPhu),
             const SizedBox(height: 6),
-            Text(LoaiTu.ten(ma), style: TextStyle(color: dangChon ? Colors.white : Colors.black87, fontWeight: FontWeight.w600)),
+            Text(LoaiTu.ten(ma), style: TextStyle(color: dangChon ? Colors.white : context.mauChuChinh, fontWeight: FontWeight.w600)),
           ],
         ),
       ),
@@ -184,7 +184,7 @@ class _ChamTuScreenState extends State<ChamTuScreen> {
   Widget _theViTri() {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: context.mauNenO, borderRadius: BorderRadius.circular(12)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../config.dart';
 import '../services/auth_service.dart';
 import '../services/biometric_service.dart';
@@ -140,6 +141,14 @@ class _TaiKhoanTabState extends State<TaiKhoanTab> {
     Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const LoginScreen()), (route) => false);
   }
 
+  /// Chữ cái đầu của tên (VD "Tăng Ngọc Thạch" -> "TT") cho ảnh đại diện
+  String _chuCaiDau() {
+    final cacTu = (_user['name'] ?? '').trim().split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+    if (cacTu.isEmpty) return '';
+    if (cacTu.length == 1) return cacTu.first.substring(0, 1).toUpperCase();
+    return (cacTu.first.substring(0, 1) + cacTu.last.substring(0, 1)).toUpperCase();
+  }
+
   Future<void> _kiemTraCapNhat() async {
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đang kiểm tra phiên bản mới...')));
     final info = await VersionService.checkForUpdate();
@@ -163,15 +172,21 @@ class _TaiKhoanTabState extends State<TaiKhoanTab> {
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  const CircleAvatar(radius: 32, backgroundColor: AppTheme.viettelRed, child: Icon(Icons.person, color: Colors.white, size: 32)),
+                  CircleAvatar(
+                    radius: 32,
+                    backgroundColor: AppTheme.viettelRed,
+                    child: _chuCaiDau().isEmpty
+                        ? const Icon(Icons.person, color: Colors.white, size: 32)
+                        : Text(_chuCaiDau(), style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
+                  ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(_user['name'] ?? '', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                        Text(_user['name'] ?? '', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 4),
-                        Text(_user['email'] ?? '', style: const TextStyle(color: Colors.grey)),
+                        Text(_user['email'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.grey)),
                         if ((_user['phone'] ?? '').isNotEmpty) Text(_user['phone']!, style: const TextStyle(color: Colors.grey)),
                       ],
                     ),
@@ -244,7 +259,15 @@ class _TaiKhoanTabState extends State<TaiKhoanTab> {
                 ListTile(
                   leading: const Icon(Icons.call, color: AppTheme.viettelRed),
                   title: const Text('Hỗ trợ: 0968888005'),
-                  subtitle: const Text('Admin: Tăng Ngọc Thạch'),
+                  subtitle: const Text('Admin: Tăng Ngọc Thạch · chạm để gọi'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () async {
+                    try {
+                      await launchUrl(Uri(scheme: 'tel', path: '0968888005'));
+                    } catch (e) {
+                      // Máy không có ứng dụng gọi điện (VD máy tính bảng) - bỏ qua
+                    }
+                  },
                 ),
               ],
             ),

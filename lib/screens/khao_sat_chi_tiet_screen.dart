@@ -4,6 +4,7 @@ import '../config.dart';
 import '../services/auth_service.dart';
 import '../models/khao_sat.dart';
 import '../services/khao_sat_service.dart';
+import '../theme.dart';
 
 /// Màn hình 2 - danh sách khách hàng trong 1 đợt khảo sát cụ thể. Bấm vào 1
 /// khách để mở form khảo sát (lý do + mô tả + các trường tùy chỉnh do Admin
@@ -144,7 +145,7 @@ class _KhaoSatChiTietScreenState extends State<KhaoSatChiTietScreen> {
                         return Align(
                           alignment: Alignment.centerLeft,
                           child: Text.rich(TextSpan(
-                            style: const TextStyle(fontSize: 12.5, color: Colors.black54),
+                            style: TextStyle(fontSize: 12.5, color: context.mauChuPhu),
                             children: [
                               TextSpan(text: (_tvvDangChon != null ? 'CNKD $_tvvDangChon: ' : 'Toàn đợt: ')),
                               TextSpan(text: 'đã khảo sát ${td.daXong}/${td.tong} ', style: const TextStyle(fontWeight: FontWeight.w600)),

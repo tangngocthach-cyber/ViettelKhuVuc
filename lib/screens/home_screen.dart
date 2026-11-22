@@ -4,9 +4,12 @@ import 'trangchu_tab.dart';
 import 'congdong_tab.dart';
 import 'chat/chat_list_screen.dart';
 import 'account_tab.dart';
+import 'biometric_lock_screen.dart';
 import 'webview_screen.dart';
 import '../config.dart';
+import '../services/auth_service.dart';
 import '../services/chat_service.dart';
+import '../services/fcm_service.dart';
 import '../services/connectivity_service.dart';
 import '../theme.dart';
 
@@ -17,10 +20,17 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _tabHienTai = 0;
   int _tongTinChuaDoc = 0;
   Timer? _timerChuaDoc;
+
+  // TỰ KHÓA LẠI khi để app ở nền quá lâu (chỉ áp dụng nếu đã bật vân tay):
+  // trước đây chỉ khóa lúc MỞ APP LẦN ĐẦU - để máy ở bàn, người khác mở lại
+  // app từ đa nhiệm là vào thẳng dữ liệu nội bộ, Chat.
+  static const _thoiGianTuKhoa = Duration(minutes: 3);
+  DateTime? _vaoNenLuc;
+  bool _dangKhoa = false;
 
   // Dùng IndexedStack để giữ trạng thái từng tab khi chuyển qua lại (VD Chat
   // không bị load lại danh sách hội thoại mỗi lần chuyển tab)
@@ -34,14 +44,55 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    FcmService.datSanSangMoThongBao(true); // đã qua màn khóa - được mở Chat từ thông báo
     _capNhatSoTinChuaDoc();
-    // Kiểm tra số tin chưa đọc định kỳ - để hiện chấm đỏ trên icon "Chat nội
-    // bộ" kể cả khi đang KHÔNG ở tab Chat (VD đang xem Trang chủ/Cộng đồng)
+    _batDemChuaDoc();
+  }
+
+  /// Kiểm tra số tin chưa đọc định kỳ - để hiện chấm đỏ trên icon "Chat nội
+  /// bộ" kể cả khi đang KHÔNG ở tab Chat (VD đang xem Trang chủ/Cộng đồng).
+  void _batDemChuaDoc() {
+    _timerChuaDoc?.cancel();
     _timerChuaDoc = Timer.periodic(const Duration(seconds: 10), (_) => _capNhatSoTinChuaDoc());
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      // TIẾT KIỆM PIN & DỮ LIỆU: trước đây vẫn gọi máy chủ mỗi 10 giây kể cả
+      // khi app đang ở nền/tắt màn hình. Nay dừng hẳn, mở lại mới chạy tiếp.
+      _vaoNenLuc ??= DateTime.now();
+      _timerChuaDoc?.cancel();
+      _timerChuaDoc = null;
+    } else if (state == AppLifecycleState.resumed) {
+      final luc = _vaoNenLuc;
+      _vaoNenLuc = null;
+      _capNhatSoTinChuaDoc();
+      _batDemChuaDoc();
+      if (luc != null && DateTime.now().difference(luc) >= _thoiGianTuKhoa) {
+        _khoaLaiNeuCan();
+      }
+    }
+  }
+
+  Future<void> _khoaLaiNeuCan() async {
+    if (_dangKhoa || !mounted) return;
+    if (!await AuthService.isBiometricEnabled()) return;
+    if (!mounted || _dangKhoa) return;
+    _dangKhoa = true;
+    FcmService.datSanSangMoThongBao(false);
+    await Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute(fullscreenDialog: true, builder: (_) => const BiometricLockScreen(moKhoaTaiCho: true)),
+    );
+    _dangKhoa = false;
+    if (mounted) FcmService.datSanSangMoThongBao(true);
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    FcmService.datSanSangMoThongBao(false);
     _timerChuaDoc?.cancel();
     super.dispose();
   }
@@ -59,27 +110,50 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Column(
-        children: [
-          // Banner "Đang ngoại tuyến" - hiện NGAY LẬP TỨC khi mất mạng, tự ẩn
-          // khi có mạng trở lại, không cần vào lại app.
-          AnimatedBuilder(
-            animation: connectivityService,
-            builder: (context, _) => connectivityService.dangOnline
-                ? const SizedBox.shrink()
-                : Container(
-                    width: double.infinity,
-                    color: Colors.orange.shade700,
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: const Text(
-                      '📡 Đang ngoại tuyến - hiển thị dữ liệu đã lưu trước đó',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w600),
-                    ),
+      // Banner "Đang ngoại tuyến" - hiện NGAY LẬP TỨC khi mất mạng, tự ẩn khi
+      // có mạng trở lại. SỬA LỖI HIỂN THỊ: banner cũ nằm ĐÈ dưới thanh trạng
+      // thái (giờ, pin) nên bị che chữ; nay chừa đúng khoảng thanh trạng thái
+      // và trừ phần đó ở nội dung bên dưới để không bị hở 2 lần.
+      // LƯU Ý: luôn bọc IndexedStack trong CÙNG 1 kiểu widget (MediaQuery)
+      // dù có/không có banner - đổi kiểu widget cha sẽ làm các tab mất trạng
+      // thái (tải lại từ đầu) mỗi lần mạng chập chờn.
+      body: AnimatedBuilder(
+        animation: connectivityService,
+        builder: (context, _) {
+          final ngoaiTuyen = !connectivityService.dangOnline;
+          return Column(
+            children: [
+              if (ngoaiTuyen)
+                Container(
+                  width: double.infinity,
+                  color: Colors.orange.shade800,
+                  padding: EdgeInsets.fromLTRB(12, MediaQuery.paddingOf(context).top + 6, 12, 7),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.cloud_off_rounded, color: Colors.white, size: 16),
+                      SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          'Đang ngoại tuyến - hiển thị dữ liệu đã lưu trước đó',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
                   ),
-          ),
-          Expanded(child: IndexedStack(index: _tabHienTai, children: _tabs)),
-        ],
+                ),
+              Expanded(
+                key: const ValueKey('noi-dung-cac-tab'),
+                child: MediaQuery.removePadding(
+                  context: context,
+                  removeTop: ngoaiTuyen,
+                  child: IndexedStack(index: _tabHienTai, children: _tabs),
+                ),
+              ),
+            ],
+          );
+        },
       ),
       // Nút nổi Trợ lý AI - bấm vào đâu, lúc nào cũng gọi được, không cần
       // chui vào tận tab Cộng đồng mới thấy. Ẩn ở tab Chat nội bộ (index 2)

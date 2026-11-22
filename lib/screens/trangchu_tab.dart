@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../config.dart';
+import '../services/auth_service.dart';
 import '../theme.dart';
+import 'webview_screen.dart';
 import '../widgets/icon_grid_view.dart';
 
 /// QUAN TRỌNG: category id dưới đây lấy ĐÚNG từ bảng `categories` thật trên
@@ -36,31 +39,130 @@ class TrangChuTab extends StatelessWidget {
     ];
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Viettel Khu Vực Vĩnh Hưng')),
-      body: ListView(
-        children: [
-          _tieuDeNhom('Dịch vụ viễn thông'),
-          IconGridView(items: dichVuVienThong, cuonRieng: false),
-          _tieuDeNhom('Thiết bị & Giải pháp'),
-          IconGridView(items: thietBiGiaiPhap, cuonRieng: false),
-          _tieuDeNhom('Cộng đồng & Ưu đãi'),
-          IconGridView(items: congDong, cuonRieng: false),
-          _tieuDeNhom('Thông tin chung'),
-          IconGridView(items: thongTinChung, cuonRieng: false),
-          const SizedBox(height: 24),
-        ],
+      body: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.light,
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            const _DauTrangChu(),
+            const TieuDeNhom('Dịch vụ viễn thông'),
+            IconGridView(items: dichVuVienThong, cuonRieng: false),
+            const TieuDeNhom('Thiết bị & Giải pháp'),
+            IconGridView(items: thietBiGiaiPhap, cuonRieng: false),
+            const TieuDeNhom('Cộng đồng & Ưu đãi'),
+            IconGridView(items: congDong, cuonRieng: false),
+            const TieuDeNhom('Thông tin chung'),
+            IconGridView(items: thongTinChung, cuonRieng: false),
+            const SizedBox(height: 88), // chừa chỗ cho nút nổi "Hỏi đáp", không che ô cuối
+          ],
+        ),
       ),
     );
   }
+}
 
-  Widget _tieuDeNhom(String ten) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 6),
-      child: Row(children: [
-        Container(width: 4, height: 16, decoration: BoxDecoration(color: AppTheme.viettelRed, borderRadius: BorderRadius.circular(3))),
-        const SizedBox(width: 8),
-        Text(ten, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15.5, color: Colors.black87, letterSpacing: -.2)),
-      ]),
+/// Đầu trang chủ: nền đỏ thương hiệu, logo, lời chào theo buổi + tên người
+/// dùng, ô tìm kiếm nhanh - thay cho thanh tiêu đề trơn trước đây.
+class _DauTrangChu extends StatefulWidget {
+  const _DauTrangChu();
+
+  @override
+  State<_DauTrangChu> createState() => _DauTrangChuState();
+}
+
+class _DauTrangChuState extends State<_DauTrangChu> {
+  String _ten = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _taiTen();
+  }
+
+  Future<void> _taiTen() async {
+    try {
+      final user = await AuthService.getCurrentUser();
+      if (mounted) setState(() => _ten = (user['name'] ?? '').trim());
+    } catch (e) {
+      // Không đọc được tên - chỉ hiện lời chào chung
+    }
+  }
+
+  String _loiChao() {
+    final gio = DateTime.now().hour;
+    if (gio < 11) return 'Chào buổi sáng';
+    if (gio < 14) return 'Chào buổi trưa';
+    if (gio < 18) return 'Chào buổi chiều';
+    return 'Chào buổi tối';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dinh = MediaQuery.paddingOf(context).top;
+    return Container(
+      padding: EdgeInsets.fromLTRB(18, dinh + 14, 18, 18),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppTheme.viettelRed, AppTheme.viettelRedDark],
+        ),
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Container(
+              width: 42,
+              height: 42,
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+              child: const Image(image: AssetImage('assets/images/logo-vinhhung.png')),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _ten.isEmpty ? _loiChao() : '${_loiChao()},',
+                    style: const TextStyle(color: Colors.white70, fontSize: 13),
+                  ),
+                  Text(
+                    _ten.isEmpty ? 'Viettel Khu Vực Vĩnh Hưng' : _ten,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -.2),
+                  ),
+                ],
+              ),
+            ),
+          ]),
+          const SizedBox(height: 16),
+          Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const WebViewScreen(url: AppConfig.urlTimKiem, title: 'Tìm kiếm')),
+              ),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                child: Row(children: [
+                  Icon(Icons.search, color: AppTheme.viettelRed, size: 22),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text('Tìm gói cước, sản phẩm, tin tức...', style: TextStyle(color: Colors.black54, fontSize: 14)),
+                  ),
+                ]),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

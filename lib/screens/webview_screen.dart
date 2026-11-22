@@ -16,6 +16,7 @@ import 'package:share_plus/share_plus.dart';
 import '../config.dart';
 import '../services/auth_service.dart';
 import '../theme.dart';
+import '../utils/an_toan.dart';
 import 'webview_screen_windows.dart';
 
 /// Màn hình dùng CHUNG cho MỌI module lấy dữ liệu từ website thật (Sản phẩm,
@@ -75,21 +76,46 @@ class _WebViewScreenMobileState extends State<_WebViewScreenMobile> {
   final Map<String, _FileNhanTuWeb> _fileDangNhan = {};
   Future<void> _hangDoiNhanFile = Future.value();
 
+  // BẢO MẬT: các kênh JS -> app (lấy GPS, lưu file, đóng màn trả tọa độ)
+  // trước đây nhận lệnh từ BẤT KỲ trang nào đang mở trong WebView. Nay chỉ
+  // nhận khi trang chính đang ở đúng domain hệ thống qua https.
+  bool _trangCuaSite = false;
+  int _tienDoTai = 0; // 0-100, hiển thị thanh tiến trình mảnh trên cùng
+  // Lịch sử trang THẬT đã đi qua (bỏ trang đăng nhập bằng vé) - để nút Quay
+  // lại của Android lùi về trang web trước, thay vì thoát hẳn màn hình.
+  final List<String> _lichSuTrang = [];
+
+  void _capNhatTrangCuaSite(String? url) {
+    _trangCuaSite = AnToan.laUrlHttpsCuaSite(Uri.tryParse(url ?? ''));
+  }
+
   @override
   void initState() {
     super.initState();
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(NavigationDelegate(
-        onPageStarted: (_) {
+        onPageStarted: (url) {
+          _capNhatTrangCuaSite(url);
           _dungWatchdog(); // tạm ngưng "bắt mạch" trong lúc đang chuyển trang, tránh báo nhầm
+          if (!mounted) return;
           setState(() {
             _dangTai = true;
             _loiMang = false;
             _trangDaTaiXongLanNao = false;
+            _tienDoTai = 0;
           });
         },
-        onPageFinished: (_) {
+        onProgress: (p) {
+          if (mounted && p != _tienDoTai) setState(() => _tienDoTai = p);
+        },
+        onUrlChange: (change) => _capNhatTrangCuaSite(change.url),
+        onPageFinished: (url) {
+          _capNhatTrangCuaSite(url);
+          if (!url.contains('app-session-login') && (_lichSuTrang.isEmpty || _lichSuTrang.last != url)) {
+            _lichSuTrang.add(url);
+          }
+          if (!mounted) return;
           setState(() {
             _dangTai = false;
             _trangDaTaiXongLanNao = true;
@@ -108,7 +134,7 @@ class _WebViewScreenMobileState extends State<_WebViewScreenMobile> {
           // trang khi lỗi xảy ra đúng cho bản thân trang chính, không phải
           // 1 tài nguyên phụ bên trong.
           final loiToanTrang = error.isForMainFrame ?? true;
-          if (loiToanTrang && !_trangDaTaiXongLanNao) {
+          if (loiToanTrang && !_trangDaTaiXongLanNao && mounted) {
             setState(() {
               _dangTai = false;
               _loiMang = true;
@@ -119,6 +145,31 @@ class _WebViewScreenMobileState extends State<_WebViewScreenMobile> {
           final uri = Uri.tryParse(request.url);
           final host = uri?.host ?? '';
           final path = (uri?.path ?? '').toLowerCase();
+          final scheme = (uri?.scheme ?? '').toLowerCase();
+
+          // SỬA LỖI: link gọi điện / nhắn tin / email / Zalo / Google Maps
+          // (tel:, sms:, mailto:, zalo:, intent:...) trước đây bị WebView cố
+          // mở như trang web -> báo lỗi "ERR_UNKNOWN_URL_SCHEME", bấm không
+          // gọi được. Nay chuyển cho ứng dụng tương ứng trên máy xử lý.
+          if (uri != null && scheme.isNotEmpty && scheme != 'http' && scheme != 'https') {
+            const choPhepTrongWebView = ['about', 'data', 'blob', 'javascript'];
+            if (choPhepTrongWebView.contains(scheme)) return NavigationDecision.navigate;
+            var daMo = false;
+            try {
+              daMo = await launchUrl(uri, mode: LaunchMode.externalApplication);
+            } catch (e) {
+              daMo = false;
+            }
+            if (!daMo && mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Máy chưa có ứng dụng mở được liên kết này.')));
+            }
+            return NavigationDecision.prevent;
+          }
+
+          // SỬA LỖI: khung nhúng bên trong trang (video YouTube, bản đồ
+          // Google...) trước đây cũng bị coi là "link ra ngoài" -> tự bật
+          // trình duyệt ngoài ngay khi vừa mở trang. Chỉ xử lý trang chính.
+          if (!request.isMainFrame) return NavigationDecision.navigate;
 
           // Link ra domain KHÁC (VD notebooklm.google.com) -> Google chặn nhúng,
           // mở bằng trình duyệt ngoài máy thay vì cố tải trong WebView.
@@ -127,7 +178,7 @@ class _WebViewScreenMobileState extends State<_WebViewScreenMobile> {
           // SAI vì domain giả như "xviettelkhuvuc.com" (không có dấu chấm) cũng
           // khớp điều kiện đó, cho phép trang lạ chạy JavaScript không giới hạn
           // trong WebView và lợi dụng luồng "vé" đăng nhập tạm.
-          final laDomainCuaSite = host.isEmpty || host == 'viettelkhuvuc.com' || host.endsWith('.viettelkhuvuc.com');
+          final laDomainCuaSite = host.isEmpty || AnToan.laHostCuaSite(host);
 
           // Link TẢI FILE (dù cùng domain) -> WebView của Flutter KHÔNG tự tải
           // file được (không có "Download Manager" như trình duyệt thường), nên
@@ -154,7 +205,13 @@ class _WebViewScreenMobileState extends State<_WebViewScreenMobile> {
           }
 
           if (!laDomainCuaSite) {
-            if (uri != null) { await launchUrl(uri, mode: LaunchMode.externalApplication); }
+            if (uri != null) {
+              try {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              } catch (e) {
+                // Không mở được trình duyệt ngoài - bỏ qua
+              }
+            }
             return NavigationDecision.prevent;
           }
           return NavigationDecision.navigate;
@@ -167,15 +224,21 @@ class _WebViewScreenMobileState extends State<_WebViewScreenMobile> {
       // Cài đặt máy, WebView vẫn báo "chưa cho phép" trong khi mở CÙNG trang
       // bằng trình duyệt thường lại chạy đúng - đây là hạn chế riêng của
       // WebView, không phải thiếu quyền hay sai code trang web).
-      ..addJavaScriptChannel('FlutterViTri', onMessageReceived: (_) => _layViTriChoWeb())
+      ..addJavaScriptChannel('FlutterViTri', onMessageReceived: (_) {
+        if (_trangCuaSite) _layViTriChoWeb();
+      })
       // Kênh riêng cho trang "Chọn vị trí Chấm tủ trên bản đồ" - khi người
       // dùng chạm bản đồ chọn xong vị trí và bấm Xác nhận, trang web gọi qua
       // kênh này gửi tọa độ về, Flutter nhận và ĐÓNG màn WebView luôn, trả
       // kết quả về cho màn Chấm tủ phía trên (không cần thêm màn hình riêng).
-      ..addJavaScriptChannel('FlutterChonViTriCamTu', onMessageReceived: (msg) => _xacNhanViTriChamTu(msg.message))
+      ..addJavaScriptChannel('FlutterChonViTriCamTu', onMessageReceived: (msg) {
+        if (_trangCuaSite) _xacNhanViTriChamTu(msg.message);
+      })
       // Bộ công cụ xử lý File: nhận file kết quả (gửi từng phần) và tín hiệu "đang xử lý"
-      ..addJavaScriptChannel('FlutterLuuFile', onMessageReceived: (msg) => _nhanManhFile(msg.message))
-      ..addJavaScriptChannel('FlutterDangXuLy', onMessageReceived: (msg) => _webDangXuLy = msg.message == '1');
+      ..addJavaScriptChannel('FlutterLuuFile', onMessageReceived: (msg) {
+        if (_trangCuaSite) _nhanManhFile(msg.message);
+      })
+      ..addJavaScriptChannel('FlutterDangXuLy', onMessageReceived: (msg) => _webDangXuLy = _trangCuaSite && msg.message == '1');
 
     // Bật navigator.geolocation cho WebView - dùng làm PHƯƠNG ÁN DỰ PHÒNG nếu
     // trang được mở ngoài app (trình duyệt thường), không phải đường chính.
@@ -286,7 +349,9 @@ class _WebViewScreenMobileState extends State<_WebViewScreenMobile> {
       // Lấy TÊN FILE thật từ header Content-Disposition server trả về (nếu
       // có) - QUAN TRỌNG để giữ đúng phần đuôi file (.xlsx/.pdf/...), nhờ đó
       // OpenFilex mới biết mở bằng đúng ứng dụng tương ứng.
-      String tenFile = _layTenFileTuHeader(response.headers.value('content-disposition')) ?? _layTenFileTuUrl(uriGoc);
+      // BẢO MẬT: làm sạch tên file (bỏ "../", ký tự cấm) trước khi ghép
+      // đường dẫn - tránh ghi đè ra ngoài thư mục tạm.
+      final String tenFile = AnToan.tenFile(_layTenFileTuHeader(response.headers.value('content-disposition')) ?? _layTenFileTuUrl(uriGoc), macDinh: 'tai-lieu.pdf');
 
       final thuMucTam = await getTemporaryDirectory();
       final duongDanLuu = '${thuMucTam.path}/$tenFile';
@@ -403,10 +468,7 @@ class _WebViewScreenMobileState extends State<_WebViewScreenMobile> {
     }
   }
 
-  String _tenFileAnToan(String ten) {
-    final sach = ten.replaceAll(RegExp(r'[\\/:*?"<>|\x00-\x1f]'), '-').trim();
-    return sach.isEmpty ? 'ket-qua' : sach;
-  }
+  String _tenFileAnToan(String ten) => AnToan.tenFile(ten, macDinh: 'ket-qua');
 
   Future<void> _hoiMoHoacChiaSe(_FileNhanTuWeb f) async {
     if (!mounted) return;
@@ -554,6 +616,7 @@ class _WebViewScreenMobileState extends State<_WebViewScreenMobile> {
     // động" dù không có lỗi hiển thị rõ ràng. Xóa cache TRƯỚC khi tải đảm bảo
     // luôn lấy HTML mới nhất, khớp đúng phiên mới nhất.
     await _controller.clearCache();
+    _lichSuTrang.clear();
 
     final ticket = await AuthService.getWebTicket();
     if (ticket != null) {
@@ -565,53 +628,118 @@ class _WebViewScreenMobileState extends State<_WebViewScreenMobile> {
     }
   }
 
+  /// Nút Quay lại (phím cứng Android / mũi tên trên thanh tiêu đề): lùi về
+  /// trang web trước nếu đã đi sâu vào trong, hết lịch sử mới thoát màn.
+  /// TRƯỚC ĐÂY: bấm Quay lại 1 lần là thoát hẳn khỏi module, mất trang đang
+  /// xem dở (VD đang đọc chi tiết 1 tin tức -> văng ra Trang chủ app).
+  Future<void> _xuLyQuayLai() async {
+    if (_lichSuTrang.length > 1) {
+      try {
+        if (await _controller.canGoBack()) {
+          _lichSuTrang.removeLast();
+          await _controller.goBack();
+          return;
+        }
+      } catch (e) {
+        // Lỗi WebView - thoát màn như bình thường
+      }
+    }
+    if (mounted) Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title),
-        actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: () => _controller.reload()),
-        ],
-      ),
-      body: SafeArea(
-        child: Stack(
-          children: [
-            if (!_loiMang) WebViewWidget(controller: _controller),
-            if (_dangTai && !_loiMang) const Center(child: CircularProgressIndicator(color: AppTheme.viettelRed)),
-            if (_dangTaiFile)
-              Container(
-                color: Colors.black45,
-                child: const Center(
-                  child: Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CircularProgressIndicator(color: AppTheme.viettelRed),
-                          SizedBox(height: 14),
-                          Text('Đang tải file...'),
-                        ],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _xuLyQuayLai();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(widget.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+          actions: [
+            IconButton(tooltip: 'Tải lại', icon: const Icon(Icons.refresh), onPressed: () => _controller.reload()),
+            if (_lichSuTrang.length > 1)
+              IconButton(tooltip: 'Đóng', icon: const Icon(Icons.close), onPressed: () => Navigator.of(context).pop()),
+          ],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(2.5),
+            child: SizedBox(
+              height: 2.5,
+              child: (_dangTai && !_loiMang)
+                  ? LinearProgressIndicator(
+                      value: _tienDoTai > 5 ? _tienDoTai / 100 : null,
+                      backgroundColor: Colors.white24,
+                      color: Colors.white,
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ),
+        ),
+        body: SafeArea(
+          child: Stack(
+            children: [
+              if (!_loiMang) WebViewWidget(controller: _controller),
+              // Vòng xoay giữa màn CHỈ hiện lúc tải lần đầu (trang còn trắng);
+              // các lần chuyển trang sau chỉ dùng thanh mảnh trên cùng, không
+              // che nội dung đang đọc.
+              if (_dangTai && !_loiMang && _lichSuTrang.isEmpty) const Center(child: CircularProgressIndicator(color: AppTheme.viettelRed)),
+              if (_dangTaiFile)
+                Container(
+                  color: Colors.black45,
+                  child: const Center(
+                    child: Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(color: AppTheme.viettelRed),
+                            SizedBox(height: 14),
+                            Text('Đang tải file...'),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            if (_loiMang)
-              Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.wifi_off, size: 56, color: Colors.grey),
-                    const SizedBox(height: 12),
-                    const Text('Không tải được trang, kiểm tra lại mạng Internet.'),
-                    const SizedBox(height: 16),
-                    ElevatedButton(onPressed: _taiTrangCoDangNhap, child: const Text('Thử lại')),
-                  ],
+              if (_loiMang)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(28),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 84,
+                          height: 84,
+                          decoration: BoxDecoration(color: AppTheme.viettelRed.withValues(alpha: .1), shape: BoxShape.circle),
+                          child: const Icon(Icons.wifi_off_rounded, size: 42, color: AppTheme.viettelRed),
+                        ),
+                        const SizedBox(height: 16),
+                        Text('Không tải được trang', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: context.mauChuChinh)),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Kiểm tra lại kết nối Internet (Wi-Fi hoặc 4G/5G) rồi thử lại.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: context.mauChuPhu, fontSize: 13.5),
+                        ),
+                        const SizedBox(height: 18),
+                        SizedBox(
+                          width: 200,
+                          child: ElevatedButton.icon(
+                            onPressed: _taiTrangCoDangNhap,
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Thử lại'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );

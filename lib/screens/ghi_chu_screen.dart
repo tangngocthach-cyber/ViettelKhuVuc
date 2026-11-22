@@ -493,7 +493,7 @@ class _GhiChuScreenState extends State<GhiChuScreen> {
           contentPadding: const EdgeInsets.symmetric(vertical: 10),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
           filled: true,
-          fillColor: Colors.grey.shade100,
+          fillColor: context.mauNenO,
         ),
       ),
     );
@@ -519,7 +519,7 @@ class _GhiChuScreenState extends State<GhiChuScreen> {
                     selected: _boLoc == m.$1,
                     onSelected: (_) => setState(() => _boLoc = m.$1),
                     selectedColor: AppTheme.viettelRed,
-                    labelStyle: TextStyle(color: _boLoc == m.$1 ? Colors.white : Colors.black87),
+                    labelStyle: TextStyle(color: _boLoc == m.$1 ? Colors.white : context.mauChuChinh),
                   ),
                 ))
             .toList(),
@@ -572,7 +572,7 @@ class _GhiChuScreenState extends State<GhiChuScreen> {
         children: [
           Text(
             ten,
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: laQuaHan ? Colors.red : Colors.black87),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: laQuaHan ? Colors.red : context.mauChuChinh),
           ),
           const SizedBox(width: 6),
           Text('($soLuong)', style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600)),
@@ -634,7 +634,7 @@ class _GhiChuScreenState extends State<GhiChuScreen> {
                                 fontSize: 15.5,
                                 fontWeight: FontWeight.w600,
                                 decoration: gc.daXong ? TextDecoration.lineThrough : null,
-                                color: gc.daXong ? Colors.grey : Colors.black87,
+                                color: gc.daXong ? Colors.grey : context.mauChuChinh,
                               ),
                             ),
                           ),
@@ -892,7 +892,7 @@ class _FormGhiChuState extends State<_FormGhiChu> {
               ),
             ),
             const SizedBox(height: 16),
-            const Text('Mức độ ưu tiên', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
+            Text('Mức độ ưu tiên', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.mauChuPhu)),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -902,13 +902,13 @@ class _FormGhiChuState extends State<_FormGhiChu> {
                         label: Text(m.ten),
                         selected: _uuTienChon == m.ma,
                         selectedColor: Color(m.mauHex),
-                        labelStyle: TextStyle(color: _uuTienChon == m.ma ? Colors.white : Colors.black87),
+                        labelStyle: TextStyle(color: _uuTienChon == m.ma ? Colors.white : context.mauChuChinh),
                         onSelected: (_) => setState(() => _uuTienChon = m.ma),
                       ))
                   .toList(),
             ),
             const SizedBox(height: 16),
-            const Text('Loại ghi chú', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
+            Text('Loại ghi chú', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.mauChuPhu)),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -918,7 +918,7 @@ class _FormGhiChuState extends State<_FormGhiChu> {
                       label: Text(l.ten),
                       selected: _loaiChon == l.ma,
                       selectedColor: Color(l.mauHex),
-                      labelStyle: TextStyle(color: _loaiChon == l.ma ? Colors.white : Colors.black87),
+                      labelStyle: TextStyle(color: _loaiChon == l.ma ? Colors.white : context.mauChuChinh),
                       onSelected: (_) => setState(() => _loaiChon = l.ma),
                     )),
                 if (LoaiGhiChu.laLoaiTuyChon(_loaiChon))
@@ -937,7 +937,7 @@ class _FormGhiChuState extends State<_FormGhiChu> {
               ],
             ),
             const SizedBox(height: 16),
-            const Text('Nhắc hẹn', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
+            Text('Nhắc hẹn', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.mauChuPhu)),
             const SizedBox(height: 8),
             // Đặt nhanh theo mốc quen thuộc - đỡ phải tự mở lịch/giờ cho các
             // việc thường ngày, vẫn có nút "Chọn ngày giờ khác" cho trường
@@ -972,7 +972,7 @@ class _FormGhiChuState extends State<_FormGhiChu> {
                     Expanded(
                       child: Text(
                         _thoiGianNhac != null ? DateFormat('HH:mm - dd/MM/yyyy').format(_thoiGianNhac!) : 'Chọn ngày giờ khác...',
-                        style: TextStyle(color: _thoiGianNhac != null ? Colors.black87 : Colors.grey.shade600),
+                        style: TextStyle(color: _thoiGianNhac != null ? context.mauChuChinh : Colors.grey.shade600),
                       ),
                     ),
                     if (_thoiGianNhac != null)
@@ -997,7 +997,7 @@ class _FormGhiChuState extends State<_FormGhiChu> {
                 children: [
                   const Icon(Icons.repeat, size: 16, color: Colors.teal),
                   const SizedBox(width: 6),
-                  const Text('Lặp lại theo chu kỳ', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
+                  Text('Lặp lại theo chu kỳ', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.mauChuPhu)),
                   const SizedBox(width: 4),
                   Tooltip(
                     message: 'Khi đánh dấu "Đã thu", hệ thống tự tính và hẹn lại đúng kỳ tiếp theo - phù hợp việc đóng cước trước theo gói 6 tháng/năm.',
@@ -1013,7 +1013,7 @@ class _FormGhiChuState extends State<_FormGhiChu> {
                           label: Text(c.ten),
                           selected: _chuKyLapLaiChon == c.soThang,
                           selectedColor: Colors.teal,
-                          labelStyle: TextStyle(color: _chuKyLapLaiChon == c.soThang ? Colors.white : Colors.black87),
+                          labelStyle: TextStyle(color: _chuKyLapLaiChon == c.soThang ? Colors.white : context.mauChuChinh),
                           onSelected: (_) => setState(() => _chuKyLapLaiChon = c.soThang),
                         ))
                     .toList(),

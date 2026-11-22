@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import '../models/ghi_chu_tu_do.dart';
 import '../services/ghi_chu_tu_do_service.dart';
 import 've_tay_screen.dart';
+import '../theme.dart';
 
 /// Sổ ghi chú kiểu "Ghi chú" của iOS - hỗ trợ chữ, nét vẽ tay, ghi âm. Lưu
 /// hoàn toàn offline trên máy (không đồng bộ server) - dùng cho ghi chú
@@ -460,7 +461,7 @@ class _GhiChuTuDoChiTietScreenState extends State<GhiChuTuDoChiTietScreen> {
                     const SizedBox(height: 12),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(10)),
+                      decoration: BoxDecoration(color: context.mauNenO, borderRadius: BorderRadius.circular(10)),
                       child: Row(children: [
                         IconButton(icon: Icon(_dangPhat ? Icons.pause_circle : Icons.play_circle, color: const Color(0xFFEE0033)), onPressed: _phatGhiAm),
                         Text('🎤 Ghi âm  ${_dinhDangGiay(_giayGhiAm ?? 0)}'),

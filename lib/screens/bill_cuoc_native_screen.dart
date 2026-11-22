@@ -11,6 +11,7 @@ import '../config.dart';
 import '../models/bill_cuoc_khach_hang.dart';
 import '../services/auth_service.dart';
 import '../services/bill_cuoc_service.dart';
+import '../theme.dart';
 
 class BillCuocNativeScreen extends StatefulWidget {
   const BillCuocNativeScreen({super.key});
@@ -584,7 +585,7 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
                           padding: const EdgeInsets.only(bottom: 8),
                           child: RichText(
                             text: TextSpan(
-                              style: const TextStyle(fontSize: 12, color: Colors.black87),
+                              style: TextStyle(fontSize: 12, color: context.mauChuChinh),
                               children: [
                                 TextSpan(text: '${ls['nguoi_cap_nhat']}', style: const TextStyle(fontWeight: FontWeight.bold)),
                                 TextSpan(text: ' đã đổi ${ls['truong']} — ${ls['thoi_gian']}\n'),
@@ -884,7 +885,7 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
                 const Icon(Icons.filter_list, size: 18, color: Colors.grey),
                 const SizedBox(width: 6),
                 Expanded(
-                  child: Text('$kyHienTai · $tvvHienTai · $trangThaiHienTai$tomTatLyDo', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5, color: Colors.black87)),
+                  child: Text('$kyHienTai · $tvvHienTai · $trangThaiHienTai$tomTatLyDo', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: context.mauChuChinh)),
                 ),
                 Icon(_boLocMoRong ? Icons.expand_less : Icons.expand_more, color: Colors.grey),
               ]),
@@ -1192,7 +1193,7 @@ class _BillCuocNativeScreenState extends State<BillCuocNativeScreen> {
   Widget _thanhPhanTrang() {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 6),
-      color: Colors.grey.shade100,
+      color: context.mauNenO,
       child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
         IconButton(
           icon: const Icon(Icons.chevron_left),

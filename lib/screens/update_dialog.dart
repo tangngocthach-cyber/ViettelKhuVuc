@@ -28,7 +28,14 @@ class _UpdateDialogState extends State<UpdateDialog> {
       });
       await VersionService.installApk(filePath);
     } catch (e) {
-      setState(() => _loi = 'Tải bản cập nhật thất bại, kiểm tra lại mạng Internet.');
+      // Hiện đúng lý do (link sai, máy chủ lỗi, file hỏng...) thay vì luôn
+      // báo chung chung "kiểm tra mạng" như trước.
+      final chiTiet = '$e'.replaceFirst('Exception: ', '');
+      if (mounted) {
+        setState(() => _loi = chiTiet.isEmpty || chiTiet.contains('SocketException') || chiTiet.contains('TimeoutException')
+            ? 'Tải bản cập nhật thất bại, kiểm tra lại mạng Internet rồi thử lại.'
+            : 'Tải bản cập nhật thất bại: $chiTiet');
+      }
     } finally {
       if (mounted) setState(() => _dangTai = false);
     }
@@ -43,7 +50,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
           children: [
             const Icon(Icons.system_update, color: AppTheme.viettelRed),
             const SizedBox(width: 8),
-            Text('Phiên bản mới ${widget.info.versionName}'),
+            Expanded(child: Text('Phiên bản mới ${widget.info.versionName}')),
           ],
         ),
         content: Column(
@@ -55,7 +62,11 @@ class _UpdateDialogState extends State<UpdateDialog> {
                 padding: EdgeInsets.only(bottom: 8),
                 child: Text('Bạn cần cập nhật để tiếp tục sử dụng app.', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
               ),
-            if (widget.info.releaseNotes.isNotEmpty) Text(widget.info.releaseNotes),
+            if (widget.info.releaseNotes.isNotEmpty)
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 220),
+                child: SingleChildScrollView(child: Text(widget.info.releaseNotes)),
+              ),
             if (_dangTai) ...[
               const SizedBox(height: 16),
               LinearProgressIndicator(value: _tienDo, color: AppTheme.viettelRed),

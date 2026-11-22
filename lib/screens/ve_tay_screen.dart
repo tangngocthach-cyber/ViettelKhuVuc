@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import '../theme.dart';
 
 /// Màn vẽ tay TOÀN MÀN HÌNH - không cần thư viện ngoài, dùng thẳng
 /// CustomPainter + GestureDetector có sẵn trong Flutter (đủ mượt cho ghi
@@ -103,7 +104,7 @@ class _VeTayScreenState extends State<VeTayScreen> {
       body: Column(
         children: [
           Container(
-            color: Colors.grey.shade100,
+            color: context.mauNenO,
             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
             child: Row(
               children: [

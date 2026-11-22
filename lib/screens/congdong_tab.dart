@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:io' show Platform;
 import '../config.dart';
-import '../theme.dart';
 import '../services/auth_service.dart';
 import '../widgets/icon_grid_view.dart';
 import 'calculator_screen.dart';
@@ -176,13 +175,13 @@ class _CongDongTabState extends State<CongDongTab> {
       appBar: AppBar(title: const Text('Cộng đồng')),
       body: ListView(
         children: [
-          _tieuDeNhom('Công việc & KPI'),
+          const TieuDeNhom('Công việc & KPI'),
           IconGridView(items: congViec, cuonRieng: false),
           // "Hạ tầng mạng" giờ LUÔN hiện (không còn bọc if ẩn cả danh mục nữa)
           // vì "Bản đồ số khách hàng" và "Thu thập tọa độ" không cần quyền
           // riêng phía app - chỉ 2 icon Hộp cáp GPON/Chấm tủ mới ẩn/hiện theo
           // đúng quyền được cấp.
-          _tieuDeNhom('Hạ tầng mạng'),
+          const TieuDeNhom('Hạ tầng mạng'),
           IconGridView(
             items: [
               if (_coQuyenHopCap) banDoHopCap,
@@ -192,24 +191,14 @@ class _CongDongTabState extends State<CongDongTab> {
             ],
             cuonRieng: false,
           ),
-          _tieuDeNhom('Học tập & Tài liệu'),
+          const TieuDeNhom('Học tập & Tài liệu'),
           IconGridView(items: hocTap, cuonRieng: false),
-          _tieuDeNhom('Tiện ích'),
+          const TieuDeNhom('Tiện ích'),
           IconGridView(items: tienIch, cuonRieng: false),
-          const SizedBox(height: 24),
+          const SizedBox(height: 88), // chừa chỗ cho nút nổi "Hỏi đáp", không che ô cuối
         ],
       ),
     );
   }
 
-  Widget _tieuDeNhom(String ten) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 6),
-      child: Row(children: [
-        Container(width: 4, height: 16, decoration: BoxDecoration(color: AppTheme.viettelRed, borderRadius: BorderRadius.circular(3))),
-        const SizedBox(width: 8),
-        Text(ten, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15.5, color: Colors.black87, letterSpacing: -.2)),
-      ]),
-    );
-  }
 }
