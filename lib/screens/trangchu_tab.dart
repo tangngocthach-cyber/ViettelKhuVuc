@@ -36,6 +36,7 @@ class TrangChuTab extends StatelessWidget {
       const GridModuleItem(icon: Icons.search, label: 'Tìm kiếm', url: AppConfig.urlTimKiem),
       const GridModuleItem(icon: Icons.casino_outlined, label: 'Quay số trúng thưởng', url: AppConfig.urlQuaySo),
       const GridModuleItem(icon: Icons.card_giftcard_outlined, label: 'Bốc thăm trúng thưởng', url: AppConfig.urlBocTham),
+      const GridModuleItem(icon: Icons.sports_esports_outlined, label: 'Game nhận quà', url: AppConfig.urlGame),
     ];
 
     return Scaffold(
